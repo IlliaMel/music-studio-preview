@@ -13,7 +13,6 @@ import com.illiamelnyk.studio.feature.create.presentation.tool.ToolRoute
 import com.illiamelnyk.studio.feature.library.presentation.LibraryRoute
 import com.illiamelnyk.studio.feature.listen.presentation.ListenRoute
 import com.illiamelnyk.studio.feature.listen.presentation.collection.CollectionRoute
-import com.illiamelnyk.studio.feature.player.presentation.PlayerRoute
 import com.illiamelnyk.studio.feature.profile.presentation.ProfileRoute
 
 /**
@@ -68,14 +67,6 @@ fun signedInEntries(
         val contentPadding = padding.value.screen
         ToolRoute(
             tool = Tool.valueOf(key.id),
-            onClose = navigator::goBack,
-            modifier = Modifier.destination(StudioTheme.colors.background, contentPadding),
-            contentPadding = contentPadding,
-        )
-    }
-    entry<Destination.Player> {
-        val contentPadding = padding.value.fullScreen
-        PlayerRoute(
             onClose = navigator::goBack,
             modifier = Modifier.destination(StudioTheme.colors.background, contentPadding),
             contentPadding = contentPadding,

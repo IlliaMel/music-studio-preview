@@ -33,10 +33,9 @@ import com.illiamelnyk.studio.core.ui.theme.StudioTheme
  *
  * @param tabRoot a tab's first screen, under the shell's top bar.
  * @param screen a screen opened on top, which draws its own top bar.
- * @param fullScreen the player, with none of the shell's bars over it.
  */
 @Immutable
-data class ShellPadding(val tabRoot: PaddingValues, val screen: PaddingValues, val fullScreen: PaddingValues)
+data class ShellPadding(val tabRoot: PaddingValues, val screen: PaddingValues)
 
 /**
  * The height of the shell's bars along the bottom edge, as the shell last measured it. Kept in
@@ -56,7 +55,6 @@ fun rememberShellPadding(bottomChrome: BottomChrome): ShellPadding {
         ShellPadding(
             tabRoot = ChromePadding(systemBars, top = topBar, bottomChrome = bottomChrome),
             screen = ChromePadding(systemBars, top = none, bottomChrome = bottomChrome),
-            fullScreen = systemBars,
         )
     }
 }

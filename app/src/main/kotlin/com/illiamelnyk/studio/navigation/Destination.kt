@@ -33,10 +33,6 @@ sealed interface Destination : NavKey {
     @Serializable
     data class Tool(val id: String) : Destination
 
-    /** The full-screen player. */
-    @Serializable
-    data object Player : Destination
-
     @Serializable
     data object Profile : Destination
 }

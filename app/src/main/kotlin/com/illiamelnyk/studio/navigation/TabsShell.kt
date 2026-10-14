@@ -24,7 +24,12 @@ import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDe
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.illiamelnyk.studio.core.ui.foundation.ProvideGlassBackdrop
+import com.illiamelnyk.studio.core.ui.foundation.glassBackdrop
+import com.illiamelnyk.studio.core.ui.foundation.rememberGlassBackdrop
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
+import com.illiamelnyk.studio.feature.player.presentation.host.PlayerHost
+import com.illiamelnyk.studio.feature.player.presentation.host.PlayerHostScope
 import com.illiamelnyk.studio.feature.player.presentation.mini.MiniPlayerHost
 import kotlinx.collections.immutable.toImmutableList
 
@@ -35,7 +40,9 @@ import kotlinx.collections.immutable.toImmutableList
  *
  * Like a scaffold, the shell measures its bars along the bottom first and gives the screens that
  * height as their bottom padding, so lists scroll behind the bars and the mini player sits right
- * above the bottom bar.
+ * above the bottom bar. The screens are the backdrop the glass mini player blurs.
+ *
+ * The full player opens over all of it, from the mini player: see [PlayerHost].
  */
 @Composable
 fun TabsShell(
@@ -66,59 +73,66 @@ fun TabsShell(
         }
     }
     val motion = StudioTheme.motion
-    Layout(
-        contents = listOf(
-            {
-                NavDisplay(
-                    entries = navigator.tabsInUse.flatMap { entriesByTab.getValue(it) },
-                    modifier = Modifier.fillMaxSize(),
-                    transitionSpec = transitions.push,
-                    popTransitionSpec = transitions.pop,
-                    onBack = { navigator.goBack() },
-                )
-            },
-            {
-                AnimatedVisibility(
-                    visible = atTabRoot,
-                    enter = fadeIn(tween(motion.duration.medium)),
-                    exit = fadeOut(tween(motion.duration.short)),
-                ) {
-                    ShellTopBar(
-                        variant = variant,
-                        selectedTab = navigator.selectedTab,
-                        avatarSeed = avatarSeed,
-                        creditsLeft = creditsLeft,
-                        onTabSelect = navigator::select,
-                        onProfileClick = { navigator.navigate(Destination.Profile) },
-                        onLibraryClick = { navigator.navigate(Destination.Library) },
+    val backdrop = rememberGlassBackdrop()
+    PlayerHost(modifier.fillMaxSize()) { player ->
+        Layout(
+            contents = listOf(
+                {
+                    NavDisplay(
+                        entries = navigator.tabsInUse.flatMap { entriesByTab.getValue(it) },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .glassBackdrop(backdrop),
+                        transitionSpec = transitions.push,
+                        popTransitionSpec = transitions.pop,
+                        onBack = { navigator.goBack() },
                     )
-                }
-            },
-            {
-                // The bottom bar stays on every screen but the player, so a tab can be left mid-way
-                // and found as it was; the top bar belongs to a tab's first screen only.
-                val fullScreen = navigator.current == Destination.Player
-                ShellBottomChrome(
-                    navigator = navigator,
-                    showsBottomBar = variant == ShellVariant.BottomBar && !fullScreen,
-                    showsMiniPlayer = hasPlayback && !fullScreen,
-                )
-            },
-        ),
-        modifier = modifier.fillMaxSize(),
-    ) { (screens, topBar, bottomBars), constraints ->
-        val loose = constraints.copy(minWidth = 0, minHeight = 0)
-        // The bars along the bottom first: their height is the screens' bottom padding, read by the
-        // screens when they are measured below, in this same pass.
-        val bottom = bottomBars.map { it.measure(loose) }
-        val bottomHeight = bottom.maxOfOrNull { it.height } ?: 0
-        bottomChrome.height = bottomHeight.toDp()
-        val top = topBar.map { it.measure(loose) }
-        val content = screens.map { it.measure(constraints) }
-        layout(constraints.maxWidth, constraints.maxHeight) {
-            content.forEach { it.place(0, 0) }
-            top.forEach { it.place(0, 0) }
-            bottom.forEach { it.place(0, constraints.maxHeight - bottomHeight) }
+                },
+                {
+                    AnimatedVisibility(
+                        visible = atTabRoot,
+                        enter = fadeIn(tween(motion.duration.medium)),
+                        exit = fadeOut(tween(motion.duration.short)),
+                    ) {
+                        ShellTopBar(
+                            variant = variant,
+                            selectedTab = navigator.selectedTab,
+                            avatarSeed = avatarSeed,
+                            creditsLeft = creditsLeft,
+                            onTabSelect = navigator::select,
+                            onProfileClick = { navigator.navigate(Destination.Profile) },
+                            onLibraryClick = { navigator.navigate(Destination.Library) },
+                        )
+                    }
+                },
+                {
+                    // The bottom bar stays on every screen, so a tab can be left mid-way and found as
+                    // it was; the top bar belongs to a tab's first screen only.
+                    ProvideGlassBackdrop(backdrop) {
+                        ShellBottomChrome(
+                            navigator = navigator,
+                            player = player,
+                            showsBottomBar = variant == ShellVariant.BottomBar,
+                            showsMiniPlayer = hasPlayback,
+                        )
+                    }
+                },
+            ),
+            modifier = Modifier.fillMaxSize(),
+        ) { (screens, topBar, bottomBars), constraints ->
+            val loose = constraints.copy(minWidth = 0, minHeight = 0)
+            // The bars along the bottom first: their height is the screens' bottom padding, read by
+            // the screens when they are measured below, in this same pass.
+            val bottom = bottomBars.map { it.measure(loose) }
+            val bottomHeight = bottom.maxOfOrNull { it.height } ?: 0
+            bottomChrome.height = bottomHeight.toDp()
+            val top = topBar.map { it.measure(loose) }
+            val content = screens.map { it.measure(constraints) }
+            layout(constraints.maxWidth, constraints.maxHeight) {
+                content.forEach { it.place(0, 0) }
+                top.forEach { it.place(0, 0) }
+                bottom.forEach { it.place(0, constraints.maxHeight - bottomHeight) }
+            }
         }
     }
 }
@@ -132,6 +146,7 @@ fun TabsShell(
 @Composable
 private fun ShellBottomChrome(
     navigator: TabNavigator,
+    player: PlayerHostScope,
     showsBottomBar: Boolean,
     showsMiniPlayer: Boolean,
     modifier: Modifier = Modifier,
@@ -142,8 +157,8 @@ private fun ShellBottomChrome(
     val shrink = shrinkVertically(tween(motion.duration.medium, easing = motion.easing.standard))
     Column(modifier.fillMaxWidth()) {
         MiniPlayerHost(
+            host = player,
             visible = showsMiniPlayer,
-            onOpenPlayer = { navigator.navigate(Destination.Player) },
             modifier = Modifier.padding(horizontal = dimens.layout.screenPadding, vertical = dimens.spacing.xs),
         )
         AnimatedVisibility(visible = showsBottomBar, enter = expand, exit = shrink) {
