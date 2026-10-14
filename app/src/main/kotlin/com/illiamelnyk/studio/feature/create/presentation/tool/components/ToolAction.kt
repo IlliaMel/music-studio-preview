@@ -19,20 +19,16 @@ import com.illiamelnyk.studio.core.ui.components.StudioButtonSize
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
-/**
- * "Use tool" at the bottom of the screen. A tool that needs the user's recording can't be used
- * yet, and says so above the button; [notice] says why the last attempt failed.
- */
+/** "Use tool" at the bottom of the screen; while it can't be used, [hint] above it says why. */
 @Composable
 fun ToolAction(
-    needsRecording: Boolean,
+    canUse: Boolean,
+    hint: UiText?,
     isSubmitting: Boolean,
-    notice: UiText?,
     onUseClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val dimens = StudioTheme.dimens
-    val colors = StudioTheme.colors
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -40,16 +36,11 @@ fun ToolAction(
         verticalArrangement = Arrangement.spacedBy(dimens.spacing.s),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        val message = when {
-            notice != null -> notice.asString()
-            needsRecording -> stringResource(R.string.tool_needs_recording)
-            else -> null
-        }
-        if (message != null) {
+        if (hint != null) {
             StudioText(
-                text = message,
+                text = hint.asString(),
                 style = StudioTheme.typography.bodySmall,
-                color = if (notice != null) colors.error.content else colors.content.secondary,
+                color = StudioTheme.colors.content.secondary,
                 textAlign = TextAlign.Center,
             )
         }
@@ -58,7 +49,7 @@ fun ToolAction(
             onClick = onUseClick,
             modifier = Modifier.fillMaxWidth(),
             size = StudioButtonSize.Large,
-            enabled = !needsRecording,
+            enabled = canUse || isSubmitting,
             loading = isSubmitting,
         )
     }
@@ -69,12 +60,12 @@ fun ToolAction(
 private fun ToolActionPreview() {
     PreviewScreen {
         Column {
-            ToolAction(needsRecording = false, isSubmitting = false, notice = null, onUseClick = {})
-            ToolAction(needsRecording = true, isSubmitting = false, notice = null, onUseClick = {})
+            ToolAction(canUse = true, hint = null, isSubmitting = false, onUseClick = {})
+            ToolAction(canUse = false, hint = null, isSubmitting = true, onUseClick = {})
             ToolAction(
-                needsRecording = false,
+                canUse = false,
+                hint = UiText.Resource(R.string.tool_fill_slots),
                 isSubmitting = false,
-                notice = UiText.Resource(R.string.error_quota_exceeded),
                 onUseClick = {},
             )
         }
