@@ -109,4 +109,15 @@
     <string name="player_time">%1$s / %2$s</string>
     <string name="player_nothing_playing">Nothing is playing</string>
     <string name="player_nothing_playing_message">Pick a track in Create or Listen.</string>
+
+    <!-- Profile -->
+    <plurals name="profile_credits_left">
+        <item quantity="one">%1$d of %2$d song left today</item>
+        <item quantity="other">%1$d of %2$d songs left today</item>
+    </plurals>
+    <string name="profile_theme">Theme</string>
+    <string name="profile_theme_system">System</string>
+    <string name="profile_theme_light">Light</string>
+    <string name="profile_theme_dark">Dark</string>
+    <string name="profile_sign_out">Sign out</string>
 </resources>
