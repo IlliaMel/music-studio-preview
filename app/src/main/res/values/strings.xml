@@ -50,27 +50,6 @@
     <string name="error_server">Something went wrong on our side. Try again.</string>
     <string name="error_unknown">Something went wrong. Try again.</string>
 
-    <!-- Create -->
-    <string name="create_tools">Start from a Tool</string>
-    <string name="create_generate_demo">Generate a demo track</string>
-    <string name="create_generate_rejected">Try a prompt that names an artist</string>
-    <string name="create_your_tracks">Your tracks</string>
-    <string name="create_empty_title">Create with Studio</string>
-    <string name="create_empty_message">Transform your ideas into full tracks.</string>
-
-    <!-- Tools of Create -->
-    <string name="tool_voice_to_song">Voice to Song</string>
-    <string name="tool_voice_to_song_description">Record a rough vocal idea and turn it into a polished song.</string>
-    <string name="tool_genreshift">Genreshift</string>
-    <string name="tool_genreshift_description">Take a song into a new genre and keep what makes it yours.</string>
-    <string name="tool_sample_to_song">Sample to Song</string>
-    <string name="tool_sample_to_song_description">Build a complete track around a short sample of your own.</string>
-    <string name="tool_unplugged">Unplugged</string>
-    <string name="tool_unplugged_description">Strip a song down to an intimate acoustic version.</string>
-    <string name="tool_badge">Studio</string>
-    <string name="tool_use">Use tool</string>
-    <string name="tool_needs_recording">This tool works on your own recording, which is coming soon.</string>
-
     <!-- Welcome and onboarding -->
     <string name="welcome_title">The studio for people who make music</string>
     <string name="welcome_continue_with_google">Continue with Google (demo)</string>
