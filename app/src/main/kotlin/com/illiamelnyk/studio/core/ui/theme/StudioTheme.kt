@@ -14,8 +14,8 @@ import com.illiamelnyk.studio.core.ui.foundation.PressScaleIndication
 
 /**
  * The design system's theme. Everything below it reads colors, type, dimensions, shapes, motion and
- * effects through [StudioTheme]; `clickable` gets the press-scale feedback instead of a ripple, and text
- * defaults to the primary content color.
+ * effects through [StudioTheme]; `clickable` gets the press-scale feedback and a focus ring instead of
+ * a ripple, and text defaults to the primary content color.
  *
  * @param darkTheme the dark scheme is the main one; by default the scheme follows the system setting.
  */
@@ -25,6 +25,9 @@ fun StudioTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable
     val selectionColors = remember(colors) {
         TextSelectionColors(handleColor = colors.content.primary, backgroundColor = colors.outline.strong)
     }
+    val indication = remember(colors) {
+        PressScaleIndication(Motion, colors.outline.strong, Dimens.stroke.thick, Shapes.full)
+    }
     CompositionLocalProvider(
         LocalStudioColors provides colors,
         LocalStudioTypography provides Typography,
@@ -32,7 +35,7 @@ fun StudioTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable
         LocalStudioShapes provides Shapes,
         LocalStudioMotion provides Motion,
         LocalStudioEffects provides Effects,
-        LocalIndication provides PressIndication,
+        LocalIndication provides indication,
         LocalStudioContentColor provides colors.content.primary,
         LocalTextSelectionColors provides selectionColors,
         content = content,
@@ -87,4 +90,3 @@ private val Dimens = StudioDimens()
 private val Shapes = StudioShapes()
 private val Motion = StudioMotion()
 private val Effects = StudioEffects()
-private val PressIndication = PressScaleIndication(Motion)
