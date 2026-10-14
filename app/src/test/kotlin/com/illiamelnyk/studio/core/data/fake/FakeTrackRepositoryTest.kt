@@ -46,6 +46,19 @@ class FakeTrackRepositoryTest {
     }
 
     @Test
+    fun `a new track is titled with the first whole words of its prompt`() = runTest {
+        val repository = repository()
+
+        val long = repository.create(
+            GenerationRequest("dreamy synth-pop about a night train, warm pads and a catchy chorus", 2.minutes),
+        ).value()
+        val short = repository.create(GenerationRequest("  lo-fi beat  ", 2.minutes)).value()
+
+        assertEquals("Dreamy synth-pop about a night train", long.title)
+        assertEquals("Lo-fi beat", short.title)
+    }
+
+    @Test
     fun `a prompt that names an artist fails with a suggestion`() = runTest {
         val repository = repository()
 

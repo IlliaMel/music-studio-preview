@@ -141,10 +141,19 @@ class FakeTrackRepository(
         private const val GENERATION_STEPS = 8
         private const val ARTIST_REFERENCE = "in the style of"
         private const val TITLE_LENGTH = 40
+        private val WHITESPACE = Regex("""\s+""")
 
-        /** The title the service would give: the start of the prompt. */
-        private fun titleOf(prompt: String): String =
-            prompt.trim().take(TITLE_LENGTH).trimEnd().replaceFirstChar { it.uppercaseChar() }
+        /** The title the service would give: the first whole words of the prompt, up to [TITLE_LENGTH]. */
+        private fun titleOf(prompt: String): String {
+            val title = StringBuilder()
+            for (word in prompt.trim().split(WHITESPACE)) {
+                if (title.isNotEmpty() && title.length + 1 + word.length > TITLE_LENGTH) break
+                if (title.isNotEmpty()) title.append(' ')
+                title.append(word)
+            }
+            // A first word longer than a title is cut; any other word that doesn't fit is left out.
+            return title.take(TITLE_LENGTH).toString().trimEnd(',', '.', ';', ':').replaceFirstChar(Char::uppercaseChar)
+        }
 
         /** The prompt with the artist replaced by a description of a sound, like the service suggests. */
         private fun suggestionFor(prompt: String): String {
