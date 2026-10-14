@@ -1,10 +1,34 @@
 ### Requests for the HTTP client built into Android Studio and IntelliJ IDEA.
 ### Start the server with `npm run dev`, then press the run icon next to a request.
+### Locally the server accepts development tokens: "dev:alice" signs in as Alice.
 
 @host = http://127.0.0.1:8787
+@token = dev:alice
 
 ### The server and its database are up
 GET {{host}}/health
 
-### Every unknown route answers in the same error format
-GET {{host}}/v1/does-not-exist
+### No token: 401 with WWW-Authenticate
+GET {{host}}/v1/me
+
+### My profile; the first request creates the account
+GET {{host}}/v1/me
+Authorization: Bearer {{token}}
+
+### Onboarding, step by step
+PATCH {{host}}/v1/me
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "displayName": "Alice" }
+
+###
+PATCH {{host}}/v1/me
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "ageConfirmed": true, "acceptedTermsVersion": "2026-10-14", "marketingOptIn": false }
+
+### Delete the account
+DELETE {{host}}/v1/me
+Authorization: Bearer {{token}}
