@@ -28,8 +28,6 @@ fun signedInEntries(
     padding: State<ShellPadding>,
     transitions: ShellTransitions,
 ): (NavKey) -> NavEntry<NavKey> = entryProvider {
-    val libraryIsTab = TopLevelTab.Library in navigator.tabs
-
     entry<Destination.Create>(metadata = transitions.tabRoot) {
         val contentPadding = padding.value.tabRoot
         CreateRoute(
@@ -46,7 +44,10 @@ fun signedInEntries(
             contentPadding = contentPadding,
         )
     }
-    entry<Destination.Library>(metadata = if (libraryIsTab) transitions.tabRoot else emptyMap()) {
+    // Library is a tab in one shell variant and opens on top of Listen in the other; it reads which
+    // one each time, so it follows a switch of the variant.
+    entry<Destination.Library>(metadata = transitions.tabRootWhile { TopLevelTab.Library in navigator.tabs }) {
+        val libraryIsTab = TopLevelTab.Library in navigator.tabs
         val contentPadding = if (libraryIsTab) padding.value.tabRoot else padding.value.screen
         LibraryRoute(
             onBack = if (libraryIsTab) null else ({ navigator.goBack() }),

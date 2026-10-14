@@ -21,9 +21,11 @@ import com.illiamelnyk.studio.core.ui.theme.StudioMotion
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
 /**
- * How screens replace each other, from the motion tokens: a screen opened on top slides in from
- * the end and back out to it; switching tabs cross-fades, since tabs sit side by side, not on top
- * of each other.
+ * How screens replace each other, from the motion tokens. A screen opened on top slides in from the
+ * end and fades in over the screen below, which stays opaque and drifts back; going back reverses
+ * it. Tabs sit side by side rather than on top of each other, so switching them fades through: the
+ * old tab fades out before the new one fades in. Only one screen is ever translucent, so no frame
+ * shows two screens washed out over each other.
  */
 @Stable
 class ShellTransitions(motion: StudioMotion, layoutDirection: LayoutDirection) {
@@ -31,22 +33,38 @@ class ShellTransitions(motion: StudioMotion, layoutDirection: LayoutDirection) {
     private val fromEnd = if (layoutDirection == LayoutDirection.Ltr) 1 else -1
     private val slide = tween<IntOffset>(motion.duration.long, easing = motion.easing.emphasized)
     private val fade = tween<Float>(motion.duration.medium, easing = motion.easing.standard)
+    private val fadeOutFirst = tween<Float>(motion.duration.short, easing = motion.easing.standard)
+    private val fadeInAfter =
+        tween<Float>(motion.duration.medium, delayMillis = motion.duration.short, easing = motion.easing.standard)
 
     /** Opening a screen on top. */
     val push: AnimatedContentTransitionScope<Scene<NavKey>>.() -> ContentTransform = {
         (slideInHorizontally(slide) { fromEnd * it / ENTER_FRACTION } + fadeIn(fade)) togetherWith
-            (slideOutHorizontally(slide) { -fromEnd * it / BEHIND_FRACTION } + fadeOut(fade))
+            slideOutHorizontally(slide) { -fromEnd * it / BEHIND_FRACTION }
     }
 
     /** Going back from a screen on top. */
     val pop: AnimatedContentTransitionScope<Scene<NavKey>>.() -> ContentTransform = {
-        (slideInHorizontally(slide) { -fromEnd * it / BEHIND_FRACTION } + fadeIn(fade)) togetherWith
+        slideInHorizontally(slide) { -fromEnd * it / BEHIND_FRACTION } togetherWith
             (slideOutHorizontally(slide) { fromEnd * it / ENTER_FRACTION } + fadeOut(fade))
     }
 
-    /** Metadata of a tab's first screen: arriving at it or leaving it is a cross-fade. */
-    val tabRoot: Map<String, Any> = NavDisplay.transitionSpec { fadeIn(fade) togetherWith fadeOut(fade) } +
-        NavDisplay.popTransitionSpec { fadeIn(fade) togetherWith fadeOut(fade) }
+    /** Switching between tabs, or between the flows of the app. */
+    val fadeThrough: AnimatedContentTransitionScope<*>.() -> ContentTransform = {
+        fadeIn(fadeInAfter) togetherWith fadeOut(fadeOutFirst)
+    }
+
+    /** Metadata of a tab's first screen: arriving at it or leaving it fades through. */
+    val tabRoot: Map<String, Any> = tabRootWhile { true }
+
+    /**
+     * Metadata of a screen that is a tab's first screen only while [isTabRoot] says so, such as
+     * Library: a tab in one shell variant, opened on top of Listen in the other. It is asked each
+     * time the screen comes or goes, so it follows a change of variant.
+     */
+    fun tabRootWhile(isTabRoot: () -> Boolean): Map<String, Any> =
+        NavDisplay.transitionSpec { if (isTabRoot()) fadeThrough() else null } +
+            NavDisplay.popTransitionSpec { if (isTabRoot()) fadeThrough() else null }
 
     private companion object {
         /** The new screen starts a third of the width away. */

@@ -1,10 +1,6 @@
 package com.illiamelnyk.studio.navigation
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,8 +10,7 @@ import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
 /**
  * The whole app: the flow the session allows, cross-fading when it changes. Signing in leads to
- * onboarding or straight to the tabs, signing out back to the welcome screen; switching the shell
- * variant rebuilds the tabs.
+ * onboarding or straight to the tabs, signing out back to the welcome screen.
  */
 @Composable
 fun AppRoot(state: AppState, modifier: Modifier = Modifier) {
@@ -23,15 +18,15 @@ fun AppRoot(state: AppState, modifier: Modifier = Modifier) {
         SessionGate.Loading -> RootContent.Loading
         SessionGate.SignedOut -> RootContent.SignedOut
         SessionGate.Onboarding -> RootContent.Onboarding
-        SessionGate.SignedIn -> RootContent.Tabs(state.shellVariant)
+        SessionGate.SignedIn -> RootContent.Tabs
     }
-    val duration = StudioTheme.motion.duration.long
+    val transitions = rememberShellTransitions()
     AnimatedContent(
         targetState = content,
         modifier = modifier
             .fillMaxSize()
             .background(StudioTheme.colors.background),
-        transitionSpec = { fadeIn(tween(duration)) togetherWith fadeOut(tween(duration)) },
+        transitionSpec = transitions.fadeThrough,
         label = "appRoot",
     ) { target ->
         when (target) {
@@ -42,8 +37,8 @@ fun AppRoot(state: AppState, modifier: Modifier = Modifier) {
 
             RootContent.Onboarding -> OnboardingFlow()
 
-            is RootContent.Tabs -> TabsShell(
-                variant = target.variant,
+            RootContent.Tabs -> TabsShell(
+                variant = state.shellVariant,
                 avatarSeed = state.avatarSeed,
                 creditsLeft = state.creditsLeft,
                 hasPlayback = state.hasPlayback,
@@ -59,5 +54,5 @@ private sealed interface RootContent {
 
     data object Onboarding : RootContent
 
-    data class Tabs(val variant: ShellVariant) : RootContent
+    data object Tabs : RootContent
 }

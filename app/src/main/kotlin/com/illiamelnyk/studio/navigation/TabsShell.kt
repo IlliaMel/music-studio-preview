@@ -6,8 +6,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -20,8 +18,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.Layout
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
@@ -33,7 +31,11 @@ import kotlinx.collections.immutable.toImmutableList
 /**
  * The signed-in app: the screens of the selected tab with the shell's bars around them, laid out
  * as [variant] says. Each tab keeps its own back stack, saved state and ViewModels while another
- * tab is shown. Leaving the shell (signing out, switching the variant) drops all of them.
+ * tab is shown. Switching the variant keeps the screens; signing out drops all of them.
+ *
+ * Like a scaffold, the shell measures its bars along the bottom first and gives the screens that
+ * height as their bottom padding, so lists scroll behind the bars and the mini player sits right
+ * above the bottom bar.
  */
 @Composable
 fun TabsShell(
@@ -45,12 +47,13 @@ fun TabsShell(
 ) {
     val navigator = rememberTabNavigator(variant.tabs)
     val atTabRoot = navigator.isAtTabRoot
-    val showsMiniPlayer = hasPlayback && navigator.current != Destination.Player
-    val padding = rememberUpdatedState(shellPadding(variant, showsMiniPlayer))
+    val bottomChrome = remember { BottomChrome() }
+    val padding = rememberShellPadding(bottomChrome)
+    val paddingState = rememberUpdatedState(padding)
     val transitions = rememberShellTransitions()
-    val entryProvider = remember(navigator, transitions) { signedInEntries(navigator, padding, transitions) }
+    val entryProvider = remember(navigator, transitions) { signedInEntries(navigator, paddingState, transitions) }
     // Every tab's entries stay decorated, shown or not, so a hidden tab keeps its state.
-    val entriesByTab = navigator.tabs.associateWith { tab ->
+    val entriesByTab = TopLevelTab.entries.associateWith { tab ->
         key(tab) {
             rememberDecoratedNavEntries(
                 backStack = navigator.backStack(tab),
@@ -63,58 +66,95 @@ fun TabsShell(
         }
     }
     val motion = StudioTheme.motion
-    Box(modifier.fillMaxSize()) {
-        NavDisplay(
-            entries = navigator.tabsInUse.flatMap { entriesByTab.getValue(it) },
-            modifier = Modifier.fillMaxSize(),
-            transitionSpec = transitions.push,
-            popTransitionSpec = transitions.pop,
-            onBack = { navigator.goBack() },
+    Layout(
+        contents = listOf(
+            {
+                NavDisplay(
+                    entries = navigator.tabsInUse.flatMap { entriesByTab.getValue(it) },
+                    modifier = Modifier.fillMaxSize(),
+                    transitionSpec = transitions.push,
+                    popTransitionSpec = transitions.pop,
+                    onBack = { navigator.goBack() },
+                )
+            },
+            {
+                AnimatedVisibility(
+                    visible = atTabRoot,
+                    enter = fadeIn(tween(motion.duration.medium)),
+                    exit = fadeOut(tween(motion.duration.short)),
+                ) {
+                    ShellTopBar(
+                        variant = variant,
+                        selectedTab = navigator.selectedTab,
+                        avatarSeed = avatarSeed,
+                        creditsLeft = creditsLeft,
+                        onTabSelect = navigator::select,
+                        onProfileClick = { navigator.navigate(Destination.Profile) },
+                        onLibraryClick = { navigator.navigate(Destination.Library) },
+                    )
+                }
+            },
+            {
+                // The bottom bar stays on every screen but the player, so a tab can be left mid-way
+                // and found as it was; the top bar belongs to a tab's first screen only.
+                val fullScreen = navigator.current == Destination.Player
+                ShellBottomChrome(
+                    navigator = navigator,
+                    showsBottomBar = variant == ShellVariant.BottomBar && !fullScreen,
+                    showsMiniPlayer = hasPlayback && !fullScreen,
+                )
+            },
+        ),
+        modifier = modifier.fillMaxSize(),
+    ) { (screens, topBar, bottomBars), constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        // The bars along the bottom first: their height is the screens' bottom padding, read by the
+        // screens when they are measured below, in this same pass.
+        val bottom = bottomBars.map { it.measure(loose) }
+        val bottomHeight = bottom.maxOfOrNull { it.height } ?: 0
+        bottomChrome.height = bottomHeight.toDp()
+        val top = topBar.map { it.measure(loose) }
+        val content = screens.map { it.measure(constraints) }
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            content.forEach { it.place(0, 0) }
+            top.forEach { it.place(0, 0) }
+            bottom.forEach { it.place(0, constraints.maxHeight - bottomHeight) }
+        }
+    }
+}
+
+/**
+ * Along the bottom edge: the mini player, then the bottom bar of [ShellVariant.BottomBar], which
+ * draws behind the system navigation bar. Without the bar, the space of the system navigation bar.
+ * The bar and that space swap with the same animation, so the mini player glides instead of
+ * jumping.
+ */
+@Composable
+private fun ShellBottomChrome(
+    navigator: TabNavigator,
+    showsBottomBar: Boolean,
+    showsMiniPlayer: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val motion = StudioTheme.motion
+    val dimens = StudioTheme.dimens
+    val expand = expandVertically(tween(motion.duration.medium, easing = motion.easing.standard))
+    val shrink = shrinkVertically(tween(motion.duration.medium, easing = motion.easing.standard))
+    Column(modifier.fillMaxWidth()) {
+        MiniPlayerHost(
+            visible = showsMiniPlayer,
+            onOpenPlayer = { navigator.navigate(Destination.Player) },
+            modifier = Modifier.padding(horizontal = dimens.layout.screenPadding, vertical = dimens.spacing.xs),
         )
-        AnimatedVisibility(
-            visible = atTabRoot,
-            modifier = Modifier.align(Alignment.TopCenter),
-            enter = fadeIn(tween(motion.duration.medium)),
-            exit = fadeOut(tween(motion.duration.short)),
-        ) {
-            ShellTopBar(
-                variant = variant,
+        AnimatedVisibility(visible = showsBottomBar, enter = expand, exit = shrink) {
+            ShellNavigationBar(
+                tabs = remember(navigator.tabs) { navigator.tabs.toImmutableList() },
                 selectedTab = navigator.selectedTab,
-                avatarSeed = avatarSeed,
-                creditsLeft = creditsLeft,
                 onTabSelect = navigator::select,
-                onProfileClick = { navigator.navigate(Destination.Profile) },
-                onLibraryClick = { navigator.navigate(Destination.Library) },
             )
         }
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
-            MiniPlayerHost(
-                visible = showsMiniPlayer,
-                onOpenPlayer = { navigator.navigate(Destination.Player) },
-                modifier = Modifier.padding(
-                    horizontal = StudioTheme.dimens.layout.screenPadding,
-                    vertical = StudioTheme.dimens.spacing.xs,
-                ),
-            )
-            val showsBottomBar = variant == ShellVariant.BottomBar && atTabRoot
-            AnimatedVisibility(
-                visible = showsBottomBar,
-                enter = expandVertically(tween(motion.duration.medium, easing = motion.easing.standard)),
-                exit = shrinkVertically(tween(motion.duration.medium, easing = motion.easing.standard)),
-            ) {
-                ShellNavigationBar(
-                    tabs = remember(variant) { variant.tabs.toImmutableList() },
-                    selectedTab = navigator.selectedTab,
-                    onTabSelect = navigator::select,
-                )
-            }
-            // Behind the system navigation bar: the bar's background while it shows, the screen otherwise.
-            Spacer(
-                Modifier
-                    .fillMaxWidth()
-                    .then(if (showsBottomBar) Modifier.background(StudioTheme.colors.background) else Modifier)
-                    .windowInsetsBottomHeight(WindowInsets.navigationBars),
-            )
+        AnimatedVisibility(visible = !showsBottomBar, enter = expand, exit = shrink) {
+            Spacer(Modifier.fillMaxWidth().windowInsetsBottomHeight(WindowInsets.navigationBars))
         }
     }
 }

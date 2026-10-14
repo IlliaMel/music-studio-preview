@@ -4,11 +4,19 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.displayCutout
-import androidx.compose.foundation.layout.plus
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.max
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
 /**
@@ -16,33 +24,58 @@ import com.illiamelnyk.studio.core.ui.theme.StudioTheme
  * the bars, edge to edge, and pass this to their lists as content padding, so the first and last
  * items can scroll out from under them.
  *
- * The keyboard is left out on purpose: the shell consumes these paddings, so a screen's
- * `imePadding()` adds only the part of the keyboard that rises above them.
+ * The bottom is what the shell measured along the bottom edge: the mini player, the bottom bar and
+ * the system navigation bar, whichever show. It is read only when a screen lays out, so bars coming
+ * and going re-measure the screens without recomposing them.
  *
- * @param tabRoot a tab's first screen, under the shell's top bar and, in [ShellVariant.BottomBar],
- *   above its bottom bar.
+ * The keyboard is left out on purpose: each screen consumes these paddings, so its `imePadding()`
+ * adds only the part of the keyboard that rises above them.
+ *
+ * @param tabRoot a tab's first screen, under the shell's top bar.
  * @param screen a screen opened on top, which draws its own top bar.
- * @param fullScreen the player, which hides the mini player too.
+ * @param fullScreen the player, with none of the shell's bars over it.
  */
 @Immutable
 data class ShellPadding(val tabRoot: PaddingValues, val screen: PaddingValues, val fullScreen: PaddingValues)
 
+/**
+ * The height of the shell's bars along the bottom edge, as the shell last measured it. Kept in
+ * snapshot state, so the screens that read it lay out again when it changes.
+ */
+@Stable
+class BottomChrome {
+    var height: Dp by mutableStateOf(0.dp)
+}
+
 @Composable
-fun shellPadding(variant: ShellVariant, showsMiniPlayer: Boolean): ShellPadding {
-    val dimens = StudioTheme.dimens
+fun rememberShellPadding(bottomChrome: BottomChrome): ShellPadding {
     val systemBars = WindowInsets.systemBars.union(WindowInsets.displayCutout).asPaddingValues()
-    val none = dimens.spacing.none
-    val miniPlayer = if (showsMiniPlayer) dimens.size.component.miniPlayer + dimens.spacing.xs * 2 else none
-    val bottomBar = if (variant ==
-        ShellVariant.BottomBar
-    ) {
-        dimens.size.component.navigationBar + dimens.spacing.xs
-    } else {
-        none
+    val topBar = StudioTheme.dimens.size.component.topBar
+    val none = StudioTheme.dimens.spacing.none
+    return remember(systemBars, topBar, bottomChrome) {
+        ShellPadding(
+            tabRoot = ChromePadding(systemBars, top = topBar, bottomChrome = bottomChrome),
+            screen = ChromePadding(systemBars, top = none, bottomChrome = bottomChrome),
+            fullScreen = systemBars,
+        )
     }
-    return ShellPadding(
-        tabRoot = systemBars + PaddingValues(top = dimens.size.component.topBar, bottom = bottomBar + miniPlayer),
-        screen = systemBars + PaddingValues(bottom = miniPlayer),
-        fullScreen = systemBars,
-    )
+}
+
+/** The system bars, plus [top] at the top and at least [bottomChrome] at the bottom. */
+@Stable
+private class ChromePadding(
+    private val systemBars: PaddingValues,
+    private val top: Dp,
+    private val bottomChrome: BottomChrome,
+) : PaddingValues {
+    override fun calculateLeftPadding(layoutDirection: LayoutDirection): Dp =
+        systemBars.calculateLeftPadding(layoutDirection)
+
+    override fun calculateTopPadding(): Dp = systemBars.calculateTopPadding() + top
+
+    override fun calculateRightPadding(layoutDirection: LayoutDirection): Dp =
+        systemBars.calculateRightPadding(layoutDirection)
+
+    // Before the first measurement the bars' height is unknown; the system bar is a safe minimum.
+    override fun calculateBottomPadding(): Dp = max(bottomChrome.height, systemBars.calculateBottomPadding())
 }

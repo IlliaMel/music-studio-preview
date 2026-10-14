@@ -7,8 +7,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -88,8 +88,8 @@ fun ShellTopBar(
 }
 
 /**
- * The bottom bar of [ShellVariant.BottomBar] on the screen background. The space for the system
- * navigation bar below it is the shell's.
+ * The bottom bar of [ShellVariant.BottomBar], full width along the bottom edge. It draws behind the
+ * system navigation bar and keeps its items clear of it itself, so nothing pads around it.
  */
 @Composable
 fun ShellNavigationBar(
@@ -98,18 +98,11 @@ fun ShellNavigationBar(
     onTabSelect: (TopLevelTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val dimens = StudioTheme.dimens
     StudioNavigationBar(
         items = tabs.map { tab -> StudioNavigationItem(stringResource(tab.label), tab.icon, tab.selectedIcon) },
         selectedIndex = tabs.indexOf(selectedTab),
         onSelect = { index -> onTabSelect(tabs[index]) },
-        modifier = modifier
-            .background(StudioTheme.colors.background)
-            .padding(
-                start = dimens.layout.screenPadding,
-                end = dimens.layout.screenPadding,
-                bottom = dimens.spacing.xs,
-            ),
+        modifier = modifier.fillMaxWidth(),
     )
 }
 
