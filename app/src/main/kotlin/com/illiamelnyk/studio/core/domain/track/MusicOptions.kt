@@ -20,10 +20,10 @@ enum class Quality {
 /** A named style the prompt can be combined with, such as "Lo-fi" or "Synthwave". */
 data class Style(val id: String, val name: String, val tags: List<String>, val coverSeed: CoverSeed)
 
-/** What the user asks to generate. */
+/** What the user asks to generate. A null duration lets the service choose (Auto). */
 data class GenerationRequest(
     val prompt: String,
-    val duration: Duration,
+    val duration: Duration? = null,
     val model: MusicModel = MusicModel.V2_5,
     val quality: Quality = Quality.Auto,
     val instrumental: Boolean = false,

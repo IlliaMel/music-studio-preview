@@ -12,12 +12,16 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FakeTrackRepositoryTest {
@@ -126,6 +130,78 @@ class FakeTrackRepositoryTest {
         advanceTimeBy(1.minutes)
 
         assertEquals(null, repository.observeById(track.id).first())
+    }
+
+    @Test
+    fun `two variants share the last credit and both finish generating`() = runTest {
+        val repository = repository()
+        repeat(7) { credits.trySpend() }
+
+        val batch = (repository.create(GenerationRequest("Ambient dawn"), variants = 2) as Outcome.Success).value
+
+        assertEquals(2, batch.size)
+        assertNotEquals(batch[0].id, batch[1].id)
+        assertNotEquals(batch[0].coverSeed, batch[1].coverSeed)
+        assertEquals(listOf(now, now), batch.map { it.createdAt })
+        assertEquals(batch, repository.observeMine().first().take(2))
+        assertEquals(0, credits.credits.first().remaining)
+        advanceTimeBy(8.seconds)
+        runCurrent()
+        assertEquals(listOf(TrackStatus.Ready, TrackStatus.Ready), batch.map { repository.statusOf(it.id) })
+    }
+
+    @Test
+    fun `batch without credits adds no partial variants`() = runTest {
+        val repository = repository()
+        repeat(8) { credits.trySpend() }
+        val before = repository.observeMine().first()
+
+        val result = repository.create(GenerationRequest("Ambient dawn"), variants = 2)
+
+        assertEquals(Outcome.Failure(AppError.QuotaExceeded), result)
+        assertEquals(before, repository.observeMine().first())
+    }
+
+    @Test
+    fun `concurrent batches cannot both spend the final credit`() = runTest {
+        val repository = repository()
+        repeat(7) { credits.trySpend() }
+        val initialSize = repository.observeMine().first().size
+
+        val results = List(2) {
+            async { repository.create(GenerationRequest("Prompt $it"), variants = 2) }
+        }.awaitAll()
+
+        assertEquals(1, results.count { it is Outcome.Success })
+        assertEquals(1, results.count { it == Outcome.Failure(AppError.QuotaExceeded) })
+        assertEquals(initialSize + 2, repository.observeMine().first().size)
+        assertEquals(0, credits.credits.first().remaining)
+    }
+
+    @Test
+    fun `Auto chooses a playable duration while explicit length is preserved`() = runTest {
+        val repository = repository()
+
+        val auto = repository.create(GenerationRequest("Auto length")).value()
+        val explicit = repository.create(GenerationRequest("Short song", 30.seconds)).value()
+
+        assertEquals(2.minutes, auto.duration)
+        assertEquals(30.seconds, explicit.duration)
+        assertTrue(auto.genres.isEmpty())
+    }
+
+    @Test
+    fun `unsupported variant counts cannot spend credits or add tracks`() = runTest {
+        val repository = repository()
+        val before = repository.observeMine().first()
+
+        for (variants in listOf(0, 3)) {
+            val failure = runCatching { repository.create(GenerationRequest("Invalid batch"), variants) }.exceptionOrNull()
+            assertTrue(failure is IllegalArgumentException)
+        }
+
+        assertEquals(before, repository.observeMine().first())
+        assertEquals(8, credits.credits.first().remaining)
     }
 
     private fun TestScope.repository() = FakeTrackRepository(credits, FakeSessionRepository(), backgroundScope, clock)

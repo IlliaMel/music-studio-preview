@@ -27,4 +27,5 @@ data class Track(
     val status: TrackStatus,
     val createdAt: Instant,
     val isLiked: Boolean,
+    val genres: List<String> = emptyList(),
 )
