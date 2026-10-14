@@ -32,3 +32,27 @@ Content-Type: application/json
 ### Delete the account
 DELETE {{host}}/v1/me
 Authorization: Bearer {{token}}
+
+### Queue a generation (needs a finished onboarding). Reuse the key when retrying.
+POST {{host}}/v1/tracks
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: attempt-0001
+
+{ "prompt": "Dreamy synth-pop about a night drive through Kyiv, warm female vocals", "lengthMs": 30000 }
+
+### Try an error screen: the mock rejects the prompt and suggests another one
+POST {{host}}/v1/tracks
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: attempt-0002
+
+{ "prompt": "A song exactly like a famous band [mock:bad_prompt]" }
+
+### My tracks, newest first
+GET {{host}}/v1/tracks?limit=20
+Authorization: Bearer {{token}}
+
+### Generations left today
+GET {{host}}/v1/me/quota
+Authorization: Bearer {{token}}

@@ -1,6 +1,6 @@
 # Studio backend
 
-The server behind the Studio Android app. It signs users in with Firebase and keeps their profiles; next it will keep their tracks, hold the ElevenLabs API key away from the phone and run the long music generations, so the phone only has to poll for the result.
+The server behind the Studio Android app. It signs users in with Firebase, keeps their profiles and tracks, and runs the long music generations in the background, so the phone only creates a track and polls until it is ready. Generation runs on a mock provider for now; the ElevenLabs client, which will keep the API key away from the phone, comes next.
 
 **Stack:** Node.js 24, TypeScript, [Hono](https://hono.dev), [zod](https://zod.dev), [Drizzle ORM](https://orm.drizzle.team) on Postgres, [PGlite](https://pglite.dev) for local work and tests, [pino](https://getpino.io) logs, [Vitest](https://vitest.dev), [Biome](https://biomejs.dev).
 
@@ -48,7 +48,8 @@ src/
 │  ├─ logger.ts      pino with secrets redacted
 │  ├─ auth/          AuthProvider (Firebase or dev), the authenticate and requireOnboarding middleware
 │  ├─ db/            database client (Postgres or PGlite), migrations, schema index
-│  └─ http/          request context, error format, zod validation, request logging
+│  ├─ http/          request context, error format, zod validation, request logging, file responses
+│  └─ storage/       AudioStorage: MP3 files on disk (a mounted volume when deployed)
 └─ features/<name>/  one folder per feature
    ├─ <name>.table.ts       Drizzle table: the shape of the data
    ├─ <name>.repository.ts  SQL for that table, nothing else
@@ -80,6 +81,32 @@ A token that is missing, malformed or expired gets `401 UNAUTHORIZED` with `WWW-
 When the terms change, bump `TERMS_VERSION` in `users.service.ts`: every user gets `terms` back in the missing steps and `requireOnboarding` stops them until they accept.
 
 **Modes.** `AUTH_MODE=firebase` needs `FIREBASE_SERVICE_ACCOUNT`, the JSON key from Firebase console → Project settings → Service accounts, pasted as one line; the Admin SDK needs it to delete users. `AUTH_MODE=dev` accepts `dev:<name>` tokens, so tests, CI and anyone without our Firebase project can use the API. Because anyone could claim any name, the server refuses dev mode in production and on any address other than loopback.
+
+## Tracks and generation
+
+```
+POST /v1/tracks  ──►  queued  ──► worker claims it ──►  running  ──►  done    (audio ready)
+ Idempotency-Key                                            └──────►  failed  (code + suggestion)
+```
+
+The app creates a track and polls `GET /v1/tracks/:id` every few seconds until it is `done` or `failed`, then downloads `audioUrl` once. Generation takes from half a minute to a few minutes, so it never runs inside the request.
+
+- **The queue is the `tracks` table.** Each worker loop claims the oldest `queued` row with `FOR UPDATE SKIP LOCKED`: several loops, even on several servers, never take the same track, and a restart loses nothing queued. A track left `running` by a crashed server is failed as `INTERRUPTED` once it is clearly abandoned.
+- **Idempotency.** The app sends an `Idempotency-Key` per attempt and reuses it on network retries; the same key returns the same track instead of paying for a second generation. "Try again" after a failure is a new attempt with a new key.
+- **Daily limit** per user (`DAILY_GENERATIONS_PER_USER`, UTC days), checked under a per-user lock so parallel requests cannot slip past it. Failed generations do not count. `GET /v1/me/quota` shows what is left.
+- **Retries and timeout.** Rate limits and a briefly unavailable provider are retried after 2, 4 and 8 seconds; a rejected prompt is not. Each song gives up after `GENERATION_TIMEOUT_MS`.
+- **Audio** is served with `Range` support, so the player can seek without downloading the whole file again.
+
+| Endpoint | What it does |
+|---|---|
+| `POST /v1/tracks` | Queue a generation: `prompt`, `lengthMs` (omit for Auto), `instrumental`, `modelId`. Needs a finished onboarding |
+| `GET /v1/tracks?limit&cursor` | The user's tracks, newest first, a page at a time |
+| `GET /v1/tracks/:id` | One track, with the timing of every sung word |
+| `GET /v1/tracks/:id/audio` | The MP3; `409 NOT_READY` until it is done |
+| `DELETE /v1/tracks/:id` | Delete a track and its audio, in any state |
+| `GET /v1/me/quota` | Generations used and left today |
+
+**Mock provider.** Answers after `MOCK_DELAY_MS` with a silent MP3 of the requested length, a title from the prompt and evenly spaced lyrics. A marker in the prompt plays out a failure, to try every error screen of the app: `[mock:bad_prompt]`, `[mock:credits]`, `[mock:rate_limit]`, `[mock:server]`, `[mock:slow]`.
 
 ## Adding a feature
 
