@@ -1,0 +1,10 @@
+### Requests for the HTTP client built into Android Studio and IntelliJ IDEA.
+### Start the server with `npm run dev`, then press the run icon next to a request.
+
+@host = http://127.0.0.1:8787
+
+### The server and its database are up
+GET {{host}}/health
+
+### Every unknown route answers in the same error format
+GET {{host}}/v1/does-not-exist
