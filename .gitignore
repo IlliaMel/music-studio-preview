@@ -1,0 +1,27 @@
+# Gradle and Android build output
+.gradle/
+.kotlin/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+
+# Local machine configuration
+local.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Secrets: Firebase config and signing keys are never committed
+google-services.json
+*.keystore
+*.jks
+
+# Backend
+backend/node_modules/
+backend/data/
+backend/.env
