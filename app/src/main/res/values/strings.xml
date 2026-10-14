@@ -95,4 +95,18 @@
     <string name="library_liked">Liked</string>
     <string name="library_empty_title">No liked tracks yet</string>
     <string name="library_empty_message">Tracks you like show up here.</string>
+
+    <!-- Player -->
+    <string name="player_open">Open the player</string>
+    <string name="player_play">Play</string>
+    <string name="player_pause">Pause</string>
+    <string name="player_next">Next</string>
+    <string name="player_previous">Previous</string>
+    <string name="player_shuffle">Shuffle</string>
+    <string name="player_repeat">Repeat</string>
+    <string name="player_repeat_all">Repeat all</string>
+    <string name="player_repeat_one">Repeat one</string>
+    <string name="player_time">%1$s / %2$s</string>
+    <string name="player_nothing_playing">Nothing is playing</string>
+    <string name="player_nothing_playing_message">Pick a track in Create or Listen.</string>
 </resources>
