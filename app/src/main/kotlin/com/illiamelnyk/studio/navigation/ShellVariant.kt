@@ -3,8 +3,8 @@ package com.illiamelnyk.studio.navigation
 import kotlinx.coroutines.flow.Flow
 
 /**
- * How the top level of the signed-in app is laid out. Both are built so they can be compared on a
- * device; debug builds switch between them in the profile.
+ * How the top level of the signed-in app is laid out. [TopSwitch] is the app's layout; [BottomBar]
+ * stays available in debug builds for comparison.
  */
 enum class ShellVariant(val tabs: List<TopLevelTab>) {
     /**
@@ -18,8 +18,8 @@ enum class ShellVariant(val tabs: List<TopLevelTab>) {
     ;
 
     companion object {
-        /** What release builds show, and debug builds until switched: the familiar Android layout. */
-        val Default = BottomBar
+        /** What release builds show, and debug builds until switched: ElevenMusic's layout. */
+        val Default = TopSwitch
     }
 }
 

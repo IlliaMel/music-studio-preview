@@ -64,7 +64,7 @@ fun ShellTopBar(
                 TopLevelTab.Create -> CreditsCounter(left = creditsLeft)
 
                 TopLevelTab.Listen -> if (TopLevelTab.Library !in variant.tabs) {
-                    StudioIconButton(StudioIcons.LibraryMusic, stringResource(R.string.nav_library), onLibraryClick)
+                    StudioIconButton(StudioIcons.Bookmark, stringResource(R.string.nav_library), onLibraryClick)
                 }
 
                 TopLevelTab.Library -> Unit

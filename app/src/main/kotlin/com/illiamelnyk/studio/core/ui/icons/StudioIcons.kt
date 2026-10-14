@@ -53,6 +53,8 @@ object StudioIcons {
 
     @DrawableRes val Forum = R.drawable.ic_forum
 
+    @DrawableRes val Bookmark = R.drawable.ic_bookmark
+
     @DrawableRes val Headphones = R.drawable.ic_headphones
 
     @DrawableRes val HeadphonesFilled = R.drawable.ic_headphones_filled
