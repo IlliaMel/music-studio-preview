@@ -191,7 +191,7 @@ private fun ComposerCollapsedPreview() {
             onValueChange = {},
             onSend = {},
             expanded = false,
-            placeholder = "Describe your track?",
+            placeholder = "Describe your track...",
             showSend = false,
             leadingActions = {
                 StudioIconButton(StudioIcons.Add, "Attach", onClick = {}, size = StudioIconButtonSize.Small)
