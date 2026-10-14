@@ -90,4 +90,9 @@
     </plurals>
     <string name="collection_play">Play</string>
     <string name="collection_shuffle">Shuffle</string>
+
+    <!-- Library -->
+    <string name="library_liked">Liked</string>
+    <string name="library_empty_title">No liked tracks yet</string>
+    <string name="library_empty_message">Tracks you like show up here.</string>
 </resources>
