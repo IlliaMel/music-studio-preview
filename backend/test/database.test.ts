@@ -32,12 +32,15 @@ describe('openDatabase with PGlite on disk', () => {
 
     const first = await openDatabase(config)
     await first.migrate()
-    const created = await new UsersRepository(first.db).insertOrGet({
-      firebaseUid: 'firebase-alice',
-      email: null,
-      emailVerified: false,
-      signInProvider: 'google.com',
-    })
+    const created = await new UsersRepository(first.db).insertOrGet(
+      {
+        firebaseUid: 'firebase-alice',
+        email: null,
+        emailVerified: false,
+        signInProvider: 'google.com',
+      },
+      new Date(),
+    )
     await first.close()
 
     const second = await openDatabase(config)

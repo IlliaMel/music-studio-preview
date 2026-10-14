@@ -33,10 +33,10 @@ export class UsersRepository {
    * Creates the user on the first sign-in. When two requests of a new user arrive together,
    * both get the same row: the unique `firebase_uid` lets only one insert win.
    */
-  async insertOrGet(identity: SignInIdentity): Promise<User> {
+  async insertOrGet(identity: SignInIdentity, now: Date): Promise<User> {
     const [inserted] = await this.db
       .insert(users)
-      .values(identity)
+      .values({ ...identity, createdAt: now, updatedAt: now, lastSeenAt: now })
       .onConflictDoNothing({ target: users.firebaseUid })
       .returning()
     const user = inserted ?? (await this.findByFirebaseUid(identity.firebaseUid))

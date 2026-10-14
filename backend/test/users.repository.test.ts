@@ -15,6 +15,8 @@ beforeEach(() => truncateAll(database.db))
 
 afterAll(() => database.close())
 
+const now = new Date('2026-10-14T12:00:00Z')
+
 const alice: SignInIdentity = {
   firebaseUid: 'firebase-alice',
   email: 'alice@example.com',
@@ -24,7 +26,7 @@ const alice: SignInIdentity = {
 
 describe('UsersRepository', () => {
   it('creates a user with an empty profile on first sign-in', async () => {
-    const user = await repository.insertOrGet(alice)
+    const user = await repository.insertOrGet(alice, now)
 
     expect(user).toMatchObject({
       ...alice,
@@ -34,25 +36,26 @@ describe('UsersRepository', () => {
       termsVersion: null,
       marketingOptIn: false,
     })
-    expect(user.createdAt).toBeInstanceOf(Date)
+    expect(user.createdAt).toEqual(now)
+    expect(user.lastSeenAt).toEqual(now)
   })
 
   it('returns the existing user instead of creating a second one', async () => {
-    const first = await repository.insertOrGet(alice)
-    const second = await repository.insertOrGet({ ...alice, email: 'changed@example.com' })
+    const first = await repository.insertOrGet(alice, now)
+    const second = await repository.insertOrGet({ ...alice, email: 'changed@example.com' }, now)
 
     expect(second.id).toBe(first.id)
     expect(second.email).toBe('alice@example.com')
   })
 
   it('creates one user when the first requests arrive at the same time', async () => {
-    const results = await Promise.all([1, 2, 3].map(() => repository.insertOrGet(alice)))
+    const results = await Promise.all([1, 2, 3].map(() => repository.insertOrGet(alice, now)))
 
     expect(new Set(results.map((user) => user.id)).size).toBe(1)
   })
 
   it('finds a user by our id and by the Firebase uid', async () => {
-    const user = await repository.insertOrGet(alice)
+    const user = await repository.insertOrGet(alice, now)
 
     expect(await repository.findById(user.id)).toEqual(user)
     expect(await repository.findByFirebaseUid('firebase-alice')).toEqual(user)
@@ -60,13 +63,13 @@ describe('UsersRepository', () => {
   })
 
   it('updates only the profile fields it is given', async () => {
-    const user = await repository.insertOrGet(alice)
-    const now = new Date('2026-10-14T20:00:00Z')
+    const user = await repository.insertOrGet(alice, now)
+    const later = new Date('2026-10-14T20:00:00Z')
 
     const updated = await repository.updateProfile(
       user.id,
       { displayName: 'Alice', marketingOptIn: true },
-      now,
+      later,
     )
 
     expect(updated).toMatchObject({
@@ -74,24 +77,24 @@ describe('UsersRepository', () => {
       marketingOptIn: true,
       ageConfirmedAt: null,
       email: alice.email,
-      updatedAt: now,
+      updatedAt: later,
     })
   })
 
   it('refreshes what the sign-in token says and when the user was last seen', async () => {
-    const user = await repository.insertOrGet(alice)
-    const now = new Date('2026-10-14T21:00:00Z')
+    const user = await repository.insertOrGet(alice, now)
+    const later = new Date('2026-10-14T21:00:00Z')
 
     const updated = await repository.updateSignIn(
       user.id,
       { ...alice, email: 'alice@work.example', signInProvider: 'password' },
-      now,
+      later,
     )
 
     expect(updated).toMatchObject({
       email: 'alice@work.example',
       signInProvider: 'password',
-      lastSeenAt: now,
+      lastSeenAt: later,
     })
   })
 
@@ -104,7 +107,7 @@ describe('UsersRepository', () => {
   })
 
   it('deletes a user once and reports a repeated delete', async () => {
-    const user = await repository.insertOrGet(alice)
+    const user = await repository.insertOrGet(alice, now)
 
     expect(await repository.delete(user.id)).toBe(true)
     expect(await repository.delete(user.id)).toBe(false)
