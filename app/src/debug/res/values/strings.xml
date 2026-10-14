@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="catalog_label" translatable="false">Studio UI Kit</string>
+
+    <!-- Debug settings at the end of the profile -->
+    <string name="debug_settings" translatable="false">Debug</string>
+    <string name="debug_shell_variant" translatable="false">Navigation</string>
+    <string name="debug_shell_top_switch" translatable="false">Top switch</string>
+    <string name="debug_shell_bottom_bar" translatable="false">Bottom bar</string>
 </resources>
