@@ -46,3 +46,12 @@ jobs:
           name: app-debug
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 7
+
+      # When the check fails, Lint's HTML report shows each problem with its explanation.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: lint-reports
+          path: "**/build/reports/lint-results-*.html"
+          retention-days: 7
+          if-no-files-found: ignore
