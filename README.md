@@ -12,3 +12,7 @@ Work in progress.
 - `./gradlew check` runs the code checks: formatting (Spotless with ktlint), Android Lint and tests. CI runs it together with the debug and release builds.
 - `./gradlew spotlessApply` fixes formatting. The rules live in `.editorconfig`, which Android Studio follows too.
 - Optional: `./gradlew spotlessInstallGitPrePushHook` installs a hook that checks formatting before every push.
+
+## Third-party
+
+- [Inter](https://github.com/rsms/inter) by Rasmus Andersson, from [Google Fonts](https://github.com/google/fonts/tree/main/ofl/inter): SIL Open Font License 1.1, in `app/src/main/assets/licenses/inter-OFL.txt`.

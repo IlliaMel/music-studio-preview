@@ -29,6 +29,7 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
 
         dependencies {
             add("implementation", platform(libs.lib("androidx-compose-bom")))
+            add("implementation", libs.lib("androidx-compose-foundation"))
             add("implementation", libs.lib("androidx-compose-ui"))
             add("implementation", libs.lib("androidx-compose-material3"))
             add("implementation", libs.lib("androidx-compose-ui-tooling-preview"))
