@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Studio</string>
+
+    <!-- Design system: what TalkBack reads for elements without a visible text -->
+    <string name="ui_remove">Remove %1$s</string>
+    <string name="ui_verified">Verified</string>
+    <plurals name="ui_credits_left">
+        <item quantity="one">%d credit left</item>
+        <item quantity="other">%d credits left</item>
+    </plurals>
 </resources>
