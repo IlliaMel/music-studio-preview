@@ -26,4 +26,11 @@
         <item quantity="one">%d credit left</item>
         <item quantity="other">%d credits left</item>
     </plurals>
+
+    <!-- Navigation: tabs and the shell's buttons -->
+    <string name="nav_create">Create</string>
+    <string name="nav_listen">Listen</string>
+    <string name="nav_library">Library</string>
+    <string name="nav_profile">Profile</string>
+    <string name="nav_back">Back</string>
 </resources>
