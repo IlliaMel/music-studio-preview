@@ -9,7 +9,7 @@ import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.dependencies
 
-/** An Android application with Compose: SDK levels, Java 17 and the Compose BOM. */
+/** An Android application with Compose: SDK levels, Java 17 and the Compose BOM without Material. */
 class AndroidApplicationConventionPlugin : Plugin<Project> {
     override fun apply(target: Project) = with(target) {
         pluginManager.apply("com.android.application")
@@ -31,7 +31,6 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
             add("implementation", platform(libs.lib("androidx-compose-bom")))
             add("implementation", libs.lib("androidx-compose-foundation"))
             add("implementation", libs.lib("androidx-compose-ui"))
-            add("implementation", libs.lib("androidx-compose-material3"))
             add("implementation", libs.lib("androidx-compose-ui-tooling-preview"))
             add("debugImplementation", libs.lib("androidx-compose-ui-tooling"))
         }

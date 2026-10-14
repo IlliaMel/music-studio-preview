@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="window_background">#FFFAFAFB</color>
+    <!-- colorLight.background in tokens.json -->
+    <color name="window_background">#FFFAFAFA</color>
 </resources>

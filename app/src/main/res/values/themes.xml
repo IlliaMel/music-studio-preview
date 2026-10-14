@@ -1,7 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Window theme only: everything inside the window is drawn by Compose. -->
-    <style name="Theme.Studio" parent="android:Theme.Material.Light.NoActionBar">
+    <!-- Window theme only: everything inside the window is drawn by Compose. Until the first frame
+         the window and the system bars show the background token of the scheme, with matching bar
+         icons, so the start doesn't flash. enableEdgeToEdge() then takes over the bars. -->
+    <style name="Base.Theme.Studio" parent="Platform.Theme.Studio">
         <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@color/window_background</item>
+        <item name="android:navigationBarColor">@color/window_background</item>
+        <item name="android:windowLightStatusBar">@bool/light_system_bars</item>
     </style>
+
+    <style name="Theme.Studio" parent="Base.Theme.Studio" />
+
+    <style name="Platform.Theme.Studio" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>
