@@ -46,6 +46,16 @@ describe('loadConfig', () => {
   it('refuses to run in production on the embedded database', () => {
     expect(() => loadConfig({ NODE_ENV: 'production' })).toThrow(/DATABASE_URL: required/)
   })
+
+  it('refuses pretty logs in production, where pino-pretty is not installed', () => {
+    expect(() =>
+      loadConfig({
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgres://db.internal/studio',
+        LOG_PRETTY: 'true',
+      }),
+    ).toThrow(/LOG_PRETTY/)
+  })
 })
 
 function captureError(block: () => unknown): unknown {

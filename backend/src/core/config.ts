@@ -49,9 +49,16 @@ export function loadConfig(environment: Record<string, string | undefined>): Con
   const env = parsed.data
   const nodeEnv = env.NODE_ENV ?? 'development'
 
+  const problems: string[] = []
   if (nodeEnv === 'production' && !env.DATABASE_URL) {
-    throw new ConfigError(['DATABASE_URL: required in production; PGlite is for local work only'])
+    problems.push('DATABASE_URL: required in production; PGlite is for local work only')
   }
+  if (nodeEnv === 'production' && env.LOG_PRETTY) {
+    problems.push(
+      'LOG_PRETTY: pretty logs need pino-pretty, a dev dependency; production logs JSON',
+    )
+  }
+  if (problems.length > 0) throw new ConfigError(problems)
 
   return {
     env: nodeEnv,
