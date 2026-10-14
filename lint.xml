@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android Lint settings for every module. Warnings fail the build (warningsAsErrors in
+  build-logic), so every check that is switched off here says why.
+-->
+<lint>
+    <!--
+      "A newer version is available" for libraries, the Android Gradle plugin and the target SDK.
+      Upgrades are deliberate changes with their own pull request; these checks would turn a green
+      build red overnight without any change to the code.
+    -->
+    <issue id="GradleDependency" severity="ignore" />
+    <issue id="AndroidGradlePluginVersion" severity="ignore" />
+    <issue id="OldTargetApi" severity="ignore" />
+</lint>

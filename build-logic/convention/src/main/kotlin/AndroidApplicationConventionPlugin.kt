@@ -16,7 +16,7 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
         pluginManager.apply("org.jetbrains.kotlin.plugin.compose")
 
         extensions.configure<ApplicationExtension> {
-            configureAndroidCommon()
+            configureAndroidCommon(target)
             defaultConfig {
                 minSdk = StudioSdk.MIN
                 targetSdk = StudioSdk.TARGET

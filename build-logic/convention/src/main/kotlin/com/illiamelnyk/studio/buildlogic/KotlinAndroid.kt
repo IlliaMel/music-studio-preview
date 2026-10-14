@@ -17,11 +17,14 @@ object StudioSdk {
 
 private val JAVA_VERSION = JavaVersion.VERSION_17
 
-/** Shared by application and library modules: compile SDK and Java version. */
-internal fun CommonExtension.configureAndroidCommon() {
+/** Shared by application and library modules: compile SDK, Java version and lint rules. */
+internal fun CommonExtension.configureAndroidCommon(project: Project) {
     compileSdk = StudioSdk.COMPILE
     compileOptions.sourceCompatibility = JAVA_VERSION
     compileOptions.targetCompatibility = JAVA_VERSION
+    // One lint.xml for every module; each check it switches off says why.
+    lint.lintConfig = project.rootDir.resolve("lint.xml")
+    lint.warningsAsErrors = true
 }
 
 /** AGP 9 ships Kotlin built in, so the compile tasks are configured directly. */
