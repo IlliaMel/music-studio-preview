@@ -2,14 +2,17 @@
 <resources>
     <string name="app_name">Studio</string>
 
-    <!-- Design system: what TalkBack reads for elements without a visible text -->
+    <!-- Design system: the components' own texts, and what TalkBack reads for elements without one -->
     <string name="ui_remove">Remove %1$s</string>
     <string name="ui_more_options">More options</string>
     <string name="ui_retry">Retry</string>
     <string name="ui_verified">Verified</string>
     <string name="ui_play_named">Play %1$s</string>
     <string name="ui_pause_named">Pause %1$s</string>
+    <string name="ui_send">Send</string>
+    <string name="ui_clear">Clear</string>
     <string name="ui_soon">Soon</string>
+    <string name="ui_character_count">%1$d/%2$d</string>
     <plurals name="ui_credits_left">
         <item quantity="one">%d credit left</item>
         <item quantity="other">%d credits left</item>
