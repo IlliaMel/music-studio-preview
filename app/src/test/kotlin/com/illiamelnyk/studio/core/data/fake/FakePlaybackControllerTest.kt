@@ -17,6 +17,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FakePlaybackControllerTest {
@@ -124,6 +125,42 @@ class FakePlaybackControllerTest {
 
         assertEquals(null, player.state.value.current)
         assertEquals(0L, player.state.value.positionMs)
+    }
+
+    @Test
+    fun `a station starts over after its last track, even when repeat is set to one track`() = runTest {
+        val player = player()
+        player.setRepeat(RepeatMode.One)
+
+        player.playStation(listOf(a, b))
+        advance(2.seconds)
+        assertEquals(b, player.state.value.current)
+        advance(2.seconds)
+
+        assertEquals(a, player.state.value.current)
+        assertTrue(player.state.value.isPlaying)
+        assertTrue(player.state.value.isStation)
+    }
+
+    @Test
+    fun `next on the last track of a station goes back to its first`() = runTest {
+        val player = player()
+        player.playStation(listOf(a, b))
+
+        player.next()
+        player.next()
+
+        assertEquals(a, player.state.value.current)
+    }
+
+    @Test
+    fun `a queue played after a station is not a station`() = runTest {
+        val player = player()
+        player.playStation(listOf(a, b))
+
+        player.play(listOf(c), startIndex = 0)
+
+        assertFalse(player.state.value.isStation)
     }
 
     private fun TestScope.player() = FakePlaybackController(backgroundScope, Random(seed = 7))
