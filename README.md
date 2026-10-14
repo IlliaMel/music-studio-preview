@@ -16,3 +16,4 @@ Work in progress.
 ## Third-party
 
 - [Inter](https://github.com/rsms/inter) by Rasmus Andersson, from [Google Fonts](https://github.com/google/fonts/tree/main/ofl/inter): SIL Open Font License 1.1, in `app/src/main/assets/licenses/inter-OFL.txt`.
+- [Material Symbols](https://github.com/google/material-design-icons) by Google, converted to vector drawables: Apache License 2.0, in `app/src/main/assets/licenses/material-symbols-LICENSE.txt`.
