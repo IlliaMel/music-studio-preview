@@ -9,6 +9,15 @@ import org.junit.Test
 
 class FakePlaylistRepositoryTest {
     @Test
+    fun `account cleanup clears playlists and their membership`() = runTest {
+        val repository = FakePlaylistRepository()
+        val playlist = (repository.create("Road trip") as Outcome.Success).value
+        repository.addTrack(playlist.id, FakeCatalog.tracks.first())
+        repository.clear()
+        assertTrue(repository.observeAll().first().isEmpty())
+    }
+
+    @Test
     fun `create trims name and rejects blank without adding a playlist`() = runTest {
         val repository = FakePlaylistRepository()
         assertTrue(repository.create("   ") is Outcome.Failure)

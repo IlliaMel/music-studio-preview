@@ -19,6 +19,10 @@ class FakePlaylistRepository : PlaylistRepository {
 
     override fun observeAll(): Flow<List<Playlist>> = playlists.asStateFlow()
 
+    override suspend fun clear() {
+        playlists.value = emptyList()
+    }
+
     override suspend fun create(name: String): Outcome<Playlist> {
         val trimmed = name.trim()
         if (trimmed.length !in 1..MAX_NAME_LENGTH) return Outcome.Failure(AppError.InvalidPrompt(null))

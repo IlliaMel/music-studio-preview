@@ -19,4 +19,7 @@ interface PlaylistRepository {
     suspend fun addTrack(playlistId: String, track: Track): Outcome<Unit>
 
     suspend fun removeTrack(playlistId: String, trackId: TrackId): Outcome<Unit>
+
+    /** Drops the signed-in user's local playlists when their account is deleted. */
+    suspend fun clear()
 }
