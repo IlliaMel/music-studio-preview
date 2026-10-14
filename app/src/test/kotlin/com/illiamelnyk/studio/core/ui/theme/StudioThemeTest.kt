@@ -5,7 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import com.illiamelnyk.studio.core.ui.foundation.LocalStudioContentColor
 import com.illiamelnyk.studio.core.ui.foundation.PressScaleIndication
 import org.junit.Assert.assertEquals
