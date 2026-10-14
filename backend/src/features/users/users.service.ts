@@ -25,6 +25,8 @@ export class UsersService {
   constructor(
     private readonly repository: UsersRepository,
     private readonly auth: AuthProvider,
+    /** Other features remove what they keep outside the database, such as audio files. */
+    private readonly onAccountDeleted: (userId: string) => Promise<void> = async () => {},
     private readonly now: () => Date = () => new Date(),
   ) {}
 
@@ -82,6 +84,7 @@ export class UsersService {
    * retries: the token is still valid then, and both steps ignore what is already gone.
    */
   async deleteAccount(user: CurrentUser): Promise<void> {
+    await this.onAccountDeleted(user.id)
     await this.repository.delete(user.id)
     await this.auth.deleteAccount(user.firebaseUid)
   }

@@ -16,12 +16,12 @@ type Profile = {
 }
 
 let database: DatabaseHandle
-let app: ReturnType<typeof createTestApp>['app']
+let app: Awaited<ReturnType<typeof createTestApp>>['app']
 let auth: RecordingAuthProvider
 
 beforeAll(async () => {
   database = await createTestDatabase()
-  const testApp = createTestApp(database.db)
+  const testApp = await createTestApp(database.db)
   app = testApp.app
   auth = testApp.auth as RecordingAuthProvider
 })

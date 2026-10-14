@@ -6,6 +6,8 @@ import { FirebaseAuthProvider } from './core/auth/firebase-auth-provider.js'
 import { type Config, ConfigError, loadConfig } from './core/config.js'
 import { openDatabase } from './core/db/database.js'
 import { createLogger } from './core/logger.js'
+import { LocalAudioStorage } from './core/storage/audio-storage.js'
+import { MockMusicProvider } from './features/tracks/generation/mock-music-provider.js'
 
 // Reads the configuration, creates the real services and starts the server.
 // The features and their wiring live in compose.ts, which the tests use as well.
@@ -26,7 +28,27 @@ if (config.auth.mode === 'dev') {
   log.warn('dev sign-in is on: the token dev:<name> signs in as <name>')
 }
 
-const { app, features } = composeApp({ db: database.db, log, auth })
+const { generation } = config
+const { app, features, worker } = composeApp({
+  db: database.db,
+  log,
+  auth,
+  storage: new LocalAudioStorage(config.storage.audioDir),
+  provider: new MockMusicProvider(generation.mockDelayMs),
+  tracks: {
+    dailyLimit: generation.dailyLimit,
+    defaultModel: 'music_v2_5',
+    publicBaseUrl: config.server.publicBaseUrl,
+    worker: {
+      concurrency: generation.concurrency,
+      timeoutMs: generation.timeoutMs,
+      retryDelaysMs: [2_000, 4_000, 8_000],
+      pollIntervalMs: 5_000,
+    },
+  },
+})
+worker.start()
+log.info({ provider: generation.provider, concurrency: generation.concurrency }, 'worker started')
 const server = serve(
   { fetch: app.fetch, hostname: config.server.host, port: config.server.port },
   (info) =>
@@ -41,9 +63,12 @@ const shutdown = (signal: NodeJS.Signals) => {
   if (stopping) return
   stopping = true
   log.info({ signal }, 'shutting down')
-  // Requests in flight get ten seconds to finish; after that the process exits anyway.
+  // Requests and generations in flight get ten seconds to finish; after that the process exits
+  // anyway. A generation cut off here is marked INTERRUPTED once it is clearly abandoned.
   const forceExit = setTimeout(() => process.exit(1), 10_000).unref()
+  const workerStopped = worker.stop()
   server.close(async () => {
+    await workerStopped
     await database.close()
     clearTimeout(forceExit)
     process.exit(0)

@@ -13,12 +13,23 @@ export type AuthConfig =
   | { mode: 'firebase'; serviceAccount: FirebaseServiceAccount }
   | { mode: 'dev' }
 
+export type GenerationConfig = {
+  /** Only the mock for now; the ElevenLabs client arrives with its own pull request. */
+  provider: 'mock'
+  mockDelayMs: number
+  concurrency: number
+  timeoutMs: number
+  dailyLimit: number
+}
+
 export type Config = {
   env: 'development' | 'test' | 'production'
-  server: { host: string; port: number }
+  server: { host: string; port: number; publicBaseUrl?: string }
   log: { level: LogLevel; pretty: boolean }
   database: DatabaseConfig
   auth: AuthConfig
+  generation: GenerationConfig
+  storage: { audioDir: string }
 }
 
 export type LogLevel = z.infer<typeof LogLevel>
@@ -65,6 +76,13 @@ const Env = z.object({
   DATABASE_URL: optional(z.url({ protocol: /^postgres(ql)?$/ })),
   DATA_DIR: optional(z.string()),
   AUTH_MODE: optional(z.enum(['firebase', 'dev'])),
+  PUBLIC_BASE_URL: optional(
+    z.url({ protocol: /^https?$/ }).transform((url) => url.replace(/\/$/, '')),
+  ),
+  GENERATION_CONCURRENCY: optional(z.coerce.number().int().min(1).max(10)),
+  GENERATION_TIMEOUT_MS: optional(z.coerce.number().int().min(10_000)),
+  DAILY_GENERATIONS_PER_USER: optional(z.coerce.number().int().min(0)),
+  MOCK_DELAY_MS: optional(z.coerce.number().int().min(0)),
   FIREBASE_SERVICE_ACCOUNT: optional(ServiceAccountJson),
 })
 
@@ -111,7 +129,7 @@ export function loadConfig(environment: Record<string, string | undefined>): Con
 
   return {
     env: nodeEnv,
-    server: { host, port: env.PORT ?? 8787 },
+    server: { host, port: env.PORT ?? 8787, publicBaseUrl: env.PUBLIC_BASE_URL },
     log: { level: env.LOG_LEVEL ?? 'info', pretty: env.LOG_PRETTY ?? false },
     database: env.DATABASE_URL
       ? { kind: 'postgres', url: env.DATABASE_URL }
@@ -120,5 +138,13 @@ export function loadConfig(environment: Record<string, string | undefined>): Con
       authMode === 'firebase' && env.FIREBASE_SERVICE_ACCOUNT
         ? { mode: 'firebase', serviceAccount: env.FIREBASE_SERVICE_ACCOUNT }
         : { mode: 'dev' },
+    generation: {
+      provider: 'mock',
+      mockDelayMs: env.MOCK_DELAY_MS ?? 8_000,
+      concurrency: env.GENERATION_CONCURRENCY ?? 2,
+      timeoutMs: env.GENERATION_TIMEOUT_MS ?? 5 * 60_000,
+      dailyLimit: env.DAILY_GENERATIONS_PER_USER ?? 8,
+    },
+    storage: { audioDir: `${env.DATA_DIR ?? './data'}/audio` },
   }
 }

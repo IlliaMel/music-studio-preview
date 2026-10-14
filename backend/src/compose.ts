@@ -4,12 +4,18 @@ import { authenticate } from './core/auth/authenticate.js'
 import type { Database } from './core/db/database.js'
 import type { Feature } from './core/http/app-env.js'
 import type { Logger } from './core/logger.js'
+import type { AudioStorage } from './core/storage/audio-storage.js'
+import type { MusicProvider } from './features/tracks/generation/music-provider.js'
+import { createTracksFeature, type TracksFeatureOptions } from './features/tracks/index.js'
 import { createUsersFeature } from './features/users/index.js'
 
 export type AppServices = {
   db: Database
   log: Logger
   auth: AuthProvider
+  storage: AudioStorage
+  provider: MusicProvider
+  tracks: TracksFeatureOptions
 }
 
 /**
@@ -19,8 +25,19 @@ export type AppServices = {
  */
 export function composeApp(services: AppServices, extraFeatures: readonly Feature[] = []) {
   const { db, log, auth } = services
-  const users = createUsersFeature({ db, auth })
-  const features = [users.feature, ...extraFeatures]
+  const tracks = createTracksFeature({
+    db,
+    log,
+    storage: services.storage,
+    provider: services.provider,
+    options: services.tracks,
+  })
+  const users = createUsersFeature({
+    db,
+    auth,
+    onAccountDeleted: (userId) => tracks.service.deleteAllForUser(userId),
+  })
+  const features = [users.feature, tracks.feature, ...extraFeatures]
 
   const app = createApp({
     db,
@@ -28,5 +45,5 @@ export function composeApp(services: AppServices, extraFeatures: readonly Featur
     authenticate: authenticate(auth, (identity) => users.service.resolve(identity)),
     features,
   })
-  return { app, features }
+  return { app, features, worker: tracks.worker }
 }

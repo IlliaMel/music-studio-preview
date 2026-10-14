@@ -19,7 +19,12 @@ beforeAll(async () => {
 beforeEach(async () => {
   await truncateAll(database.db)
   now = new Date('2026-10-14T12:00:00Z')
-  service = new UsersService(repository, new DevAuthProvider(), () => now)
+  service = new UsersService(
+    repository,
+    new DevAuthProvider(),
+    async () => {},
+    () => now,
+  )
 })
 
 afterAll(() => database.close())

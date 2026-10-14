@@ -24,11 +24,11 @@ const probeFeature: Feature = {
 }
 
 let database: DatabaseHandle
-let app: ReturnType<typeof createTestApp>['app']
+let app: Awaited<ReturnType<typeof createTestApp>>['app']
 
 beforeAll(async () => {
   database = await createTestDatabase()
-  app = createTestApp(database.db, { features: [probeFeature] }).app
+  app = (await createTestApp(database.db, { features: [probeFeature] })).app
 })
 
 afterAll(() => database.close())
@@ -45,7 +45,7 @@ describe('health', () => {
     const broken = await createTestDatabase()
     await broken.close()
 
-    const response = await createTestApp(broken.db).app.request('/health')
+    const response = await (await createTestApp(broken.db)).app.request('/health')
 
     expect(response.status).toBe(503)
     expect(await response.json()).toEqual({ ok: false })

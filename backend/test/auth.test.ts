@@ -18,11 +18,11 @@ const guarded: Feature = {
 }
 
 let database: DatabaseHandle
-let app: ReturnType<typeof createTestApp>['app']
+let app: Awaited<ReturnType<typeof createTestApp>>['app']
 
 beforeAll(async () => {
   database = await createTestDatabase()
-  app = createTestApp(database.db, { features: [guarded] }).app
+  app = (await createTestApp(database.db, { features: [guarded] })).app
 })
 
 beforeEach(() => truncateAll(database.db))
@@ -70,7 +70,7 @@ describe('authenticate', () => {
         throw new Error('getaddrinfo ENOTFOUND www.googleapis.com')
       }
     }
-    const outage = createTestApp(database.db, { auth: new UnreachableFirebase() }).app
+    const outage = (await createTestApp(database.db, { auth: new UnreachableFirebase() })).app
 
     const response = await outage.request('/v1/me', signedInAs('alice'))
 
@@ -84,7 +84,7 @@ describe('authenticate', () => {
         throw new InvalidTokenError('auth/id-token-expired')
       }
     }
-    const expired = createTestApp(database.db, { auth: new ExpiredTokens() }).app
+    const expired = (await createTestApp(database.db, { auth: new ExpiredTokens() })).app
 
     const response = await expired.request('/v1/me', signedInAs('alice'))
 

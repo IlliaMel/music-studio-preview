@@ -16,10 +16,18 @@ describe('loadConfig', () => {
   it('runs locally with no configuration at all', () => {
     expect(loadConfig({})).toEqual({
       env: 'development',
-      server: { host: '127.0.0.1', port: 8787 },
+      server: { host: '127.0.0.1', port: 8787, publicBaseUrl: undefined },
       log: { level: 'info', pretty: false },
       database: { kind: 'pglite', dataDir: './data/pglite' },
       auth: { mode: 'dev' },
+      generation: {
+        provider: 'mock',
+        mockDelayMs: 8_000,
+        concurrency: 2,
+        timeoutMs: 300_000,
+        dailyLimit: 8,
+      },
+      storage: { audioDir: './data/audio' },
     })
   })
 
