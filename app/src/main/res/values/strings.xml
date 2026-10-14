@@ -81,4 +81,13 @@
     <string name="onboarding_terms">I accept the Terms of Service</string>
     <string name="onboarding_continue">Continue</string>
     <string name="onboarding_sign_out">Use another account</string>
+
+    <!-- Listen -->
+    <string name="listen_demo_catalog">Demo catalog</string>
+    <plurals name="listen_collection_summary">
+        <item quantity="one">%1$d track · %2$s</item>
+        <item quantity="other">%1$d tracks · %2$s</item>
+    </plurals>
+    <string name="collection_play">Play</string>
+    <string name="collection_shuffle">Shuffle</string>
 </resources>
