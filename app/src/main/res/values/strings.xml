@@ -70,4 +70,15 @@
     <string name="tool_badge">Studio</string>
     <string name="tool_use">Use tool</string>
     <string name="tool_needs_recording">This tool works on your own recording, which is coming soon.</string>
+
+    <!-- Welcome and onboarding -->
+    <string name="welcome_title">The studio for people who make music</string>
+    <string name="welcome_continue_with_google">Continue with Google (demo)</string>
+    <string name="onboarding_name_title">What\'s your name?</string>
+    <string name="onboarding_name_hint">This is your public name on Studio.</string>
+    <string name="onboarding_marketing">I want to receive updates from Studio</string>
+    <string name="onboarding_age">I confirm that I am 18 years of age or older</string>
+    <string name="onboarding_terms">I accept the Terms of Service</string>
+    <string name="onboarding_continue">Continue</string>
+    <string name="onboarding_sign_out">Use another account</string>
 </resources>
