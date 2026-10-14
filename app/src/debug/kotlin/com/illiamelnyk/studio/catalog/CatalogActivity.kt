@@ -136,7 +136,7 @@ private fun Catalog(darkTheme: Boolean, onDarkThemeChange: (Boolean) -> Unit) {
             item { Section("TrackRow") { TrackRows() } }
             item { Section("Skeleton") { Skeletons() } }
             item { Section("TopBar", edgeToEdge = true) { TopBars() } }
-            item { Section("NavigationBar") { NavigationBars() } }
+            item { Section("NavigationBar", edgeToEdge = true) { NavigationBars() } }
             item { Section("EmptyState · Orb") { EmptyStateAndOrb() } }
             item { Section("Toast") { Toasts() } }
         }
