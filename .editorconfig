@@ -11,6 +11,10 @@ indent_size = 4
 max_line_length = 120
 ij_kotlin_allow_trailing_comma = true
 ij_kotlin_allow_trailing_comma_on_call_site = true
+# ktlint, run by Spotless: the Android Studio style, which the IDE formatter also follows.
+ktlint_code_style = android_studio
+# Composable functions are named like types, in PascalCase.
+ktlint_function_naming_ignore_when_annotated_with = Composable
 
 [*.{ts,json,yml,yaml,md}]
 indent_size = 2
