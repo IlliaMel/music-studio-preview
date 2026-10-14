@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { Hono } from 'hono'
+import { Hono, type MiddlewareHandler } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { requestId } from 'hono/request-id'
 import type { Database } from './core/db/database.js'
@@ -11,13 +11,15 @@ import type { Logger } from './core/logger.js'
 export type AppDependencies = {
   db: Database
   log: Logger
+  /** Runs before every `/v1` route and sets the signed-in user. */
+  authenticate: MiddlewareHandler<AppEnv>
   features: readonly Feature[]
 }
 
 const MAX_BODY_BYTES = 64 * 1024
 
 /** Builds the HTTP app from ready dependencies, so tests can pass an in-memory database. */
-export function createApp({ db, log, features }: AppDependencies): Hono<AppEnv> {
+export function createApp({ db, log, authenticate, features }: AppDependencies): Hono<AppEnv> {
   const app = new Hono<AppEnv>()
   app.use(requestId())
   app.use(requestLogger(log))
@@ -46,6 +48,7 @@ export function createApp({ db, log, features }: AppDependencies): Hono<AppEnv> 
       },
     }),
   )
+  api.use(authenticate)
   for (const feature of features) {
     api.route('/', feature.routes)
   }

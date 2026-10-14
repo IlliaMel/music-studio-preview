@@ -1,12 +1,22 @@
 import type { Hono } from 'hono'
 import type { Logger } from '../logger.js'
 
+/** The signed-in user as every route sees it; features load more through the users service. */
+export type CurrentUser = {
+  id: string
+  firebaseUid: string
+  /** Public name set, age confirmed and the current terms accepted. */
+  onboarded: boolean
+}
+
 /** Values every request carries through the middleware chain, read with `c.get(...)`. */
 export type AppEnv = {
   Variables: {
     requestId: string
-    /** Logger that already includes the request id. */
+    /** Logger that already includes the request id, and the user id once signed in. */
     log: Logger
+    /** Set by `authenticate` on every `/v1` route; absent only on public routes like `/health`. */
+    user: CurrentUser
   }
 }
 

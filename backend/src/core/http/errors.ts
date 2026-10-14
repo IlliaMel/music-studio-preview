@@ -29,6 +29,8 @@ const errorBody = (code: string, message: string, details?: unknown): ErrorBody 
 
 export const errorHandler: ErrorHandler<AppEnv> = (error, c) => {
   if (error instanceof ApiError) {
+    // HTTP requires a 401 to name the scheme the client should use.
+    if (error.status === 401) c.header('WWW-Authenticate', 'Bearer')
     return c.json(errorBody(error.code, error.message, error.details), error.status)
   }
   if (error instanceof HTTPException) {
