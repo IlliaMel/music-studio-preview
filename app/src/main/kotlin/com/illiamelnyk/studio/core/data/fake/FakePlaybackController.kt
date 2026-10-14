@@ -40,9 +40,9 @@ class FakePlaybackController(private val scope: CoroutineScope, private val rand
     private var playOrder: List<Int> = emptyList()
     private var clock: Job? = null
 
-    override fun play(queue: List<Track>, startIndex: Int) = load(queue, startIndex, isStation = false)
+    override fun play(queue: List<Track>, startIndex: Int) = load(queue, startIndex, stationName = null)
 
-    override fun playStation(queue: List<Track>) = load(queue, startIndex = 0, isStation = true)
+    override fun playStation(name: String, queue: List<Track>) = load(queue, startIndex = 0, stationName = name)
 
     override fun togglePlayPause() {
         val state = mutableState.value
@@ -106,6 +106,13 @@ class FakePlaybackController(private val scope: CoroutineScope, private val rand
         mutableState.update { it.copy(repeat = mode) }
     }
 
+    override fun clearUpNext() {
+        val current = mutableState.value.current ?: return
+        originalQueue = listOf(current)
+        playOrder = listOf(0)
+        mutableState.update { it.copy(queue = originalQueue, currentIndex = 0) }
+    }
+
     override fun stop() {
         stopClock()
         originalQueue = emptyList()
@@ -113,7 +120,7 @@ class FakePlaybackController(private val scope: CoroutineScope, private val rand
         mutableState.update { PlaybackState(shuffle = it.shuffle, repeat = it.repeat) }
     }
 
-    private fun load(queue: List<Track>, startIndex: Int, isStation: Boolean) {
+    private fun load(queue: List<Track>, startIndex: Int, stationName: String?) {
         require(startIndex in queue.indices) { "Start index $startIndex is outside the queue of ${queue.size}" }
         originalQueue = queue
         val shuffle = mutableState.value.shuffle
@@ -124,7 +131,7 @@ class FakePlaybackController(private val scope: CoroutineScope, private val rand
                 currentIndex = if (shuffle) 0 else startIndex,
                 positionMs = 0,
                 isPlaying = true,
-                isStation = isStation,
+                stationName = stationName,
             )
         }
         startClock()
@@ -159,9 +166,6 @@ class FakePlaybackController(private val scope: CoroutineScope, private val rand
 }
 
 private fun PlaybackState.atTrack(index: Int) = copy(currentIndex = index, positionMs = 0)
-
-/** Whether the queue starts over after its last track: it repeats, or it is a station. */
-private val PlaybackState.loops: Boolean get() = repeat == RepeatMode.All || isStation
 
 /** The state [elapsedMs] later: the position moves on, and at the end of a track the queue does. */
 private fun PlaybackState.advancedBy(elapsedMs: Long): PlaybackState {

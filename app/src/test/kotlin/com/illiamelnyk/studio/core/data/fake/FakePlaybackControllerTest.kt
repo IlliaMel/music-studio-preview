@@ -132,20 +132,20 @@ class FakePlaybackControllerTest {
         val player = player()
         player.setRepeat(RepeatMode.One)
 
-        player.playStation(listOf(a, b))
+        player.playStation("Lo-fi", listOf(a, b))
         advance(2.seconds)
         assertEquals(b, player.state.value.current)
         advance(2.seconds)
 
         assertEquals(a, player.state.value.current)
         assertTrue(player.state.value.isPlaying)
-        assertTrue(player.state.value.isStation)
+        assertEquals("Lo-fi", player.state.value.stationName)
     }
 
     @Test
     fun `next on the last track of a station goes back to its first`() = runTest {
         val player = player()
-        player.playStation(listOf(a, b))
+        player.playStation("Lo-fi", listOf(a, b))
 
         player.next()
         player.next()
@@ -156,11 +156,28 @@ class FakePlaybackControllerTest {
     @Test
     fun `a queue played after a station is not a station`() = runTest {
         val player = player()
-        player.playStation(listOf(a, b))
+        player.playStation("Lo-fi", listOf(a, b))
 
         player.play(listOf(c), startIndex = 0)
 
-        assertFalse(player.state.value.isStation)
+        assertEquals(null, player.state.value.stationName)
+    }
+
+    @Test
+    fun `clearing what plays next keeps the current track where it is`() = runTest {
+        val player = player()
+        player.play(listOf(a, b, c), startIndex = 1)
+        advance(1.seconds)
+
+        player.clearUpNext()
+
+        assertEquals(listOf(b), player.state.value.queue)
+        assertEquals(b, player.state.value.current)
+        assertEquals(1_000L, player.state.value.positionMs)
+        assertTrue(player.state.value.isPlaying)
+        // Nothing comes after it now: the queue ends with it.
+        advance(1.seconds)
+        assertFalse(player.state.value.isPlaying)
     }
 
     private fun TestScope.player() = FakePlaybackController(backgroundScope, Random(seed = 7))
