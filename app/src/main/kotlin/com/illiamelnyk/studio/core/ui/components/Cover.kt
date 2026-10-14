@@ -18,7 +18,9 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.Dp
 import com.illiamelnyk.studio.core.ui.theme.ArtPalette
@@ -36,6 +38,7 @@ import kotlin.math.sin
  * @param size one of `StudioTheme.dimens.size.cover`, or an avatar size.
  * @param shape by default the radius tokens.json gives covers of this size.
  * @param generating makes the cover "living": the gradient drifts while the track is being composed.
+ * @param muted greys the art out, for something that isn't available yet.
  */
 @Composable
 fun Cover(
@@ -44,13 +47,14 @@ fun Cover(
     modifier: Modifier = Modifier,
     shape: Shape = CoverDefaults.shape(size),
     generating: Boolean = false,
+    muted: Boolean = false,
 ) {
     val drift = if (generating) rememberDrift() else null
     Box(
         modifier
             .size(size)
             .clip(shape)
-            .coverArt(seed, drift?.let { state -> { state.value } }),
+            .coverArt(seed, drift?.let { state -> { state.value } }, muted),
     )
 }
 
@@ -74,27 +78,64 @@ object CoverDefaults {
  *
  * @param drift `null` for a still cover; otherwise read on every frame, from 0 to 1: the gradient is
  *   three times the size of the cover and pans across it, as `.living` does in the kit.
+ * @param muted the kit's `grayscale(.6) brightness(.8)` for unavailable items.
  */
-internal fun Modifier.coverArt(seed: String, drift: (() -> Float)? = null): Modifier = drawWithCache {
-    val hash = seed.hashCode()
-    val gradient = ArtPalette.coverGradients[Math.floorMod(hash, ArtPalette.coverGradients.size)]
-    // Turning the gradient by a quarter, picked by other bits of the hash, gives four covers per gradient.
-    val angle = gradient.angle + QUARTER_TURN * Math.floorMod(hash / ArtPalette.coverGradients.size, 4)
-    val still = gradient.brush(angle, Rect(Offset.Zero, size))
-    onDrawBehind {
-        val brush = if (drift == null) {
-            still
-        } else {
-            val position = drift()
-            val width = size.width * LIVING_SCALE
-            val height = size.height * LIVING_SCALE
-            // background-position moves from 0 % 40 % to 100 % 60 %.
-            val left = (size.width - width) * position
-            val top = (size.height - height) * (LIVING_TOP_FROM + (LIVING_TOP_TO - LIVING_TOP_FROM) * position)
-            gradient.brush(angle, Rect(left, top, left + width, top + height))
+internal fun Modifier.coverArt(seed: String, drift: (() -> Float)? = null, muted: Boolean = false): Modifier =
+    drawWithCache {
+        val hash = seed.hashCode()
+        val picked = coverGradientFor(hash)
+        val gradient = if (muted) picked.muted() else picked
+        // Turning the gradient by a quarter, picked by other bits of the hash, gives four covers per gradient.
+        val angle = gradient.angle + QUARTER_TURN * Math.floorMod(hash / ArtPalette.coverGradients.size, 4)
+        val still = gradient.brush(angle, Rect(Offset.Zero, size))
+        onDrawBehind {
+            val brush = if (drift == null) {
+                still
+            } else {
+                val position = drift()
+                val width = size.width * LIVING_SCALE
+                val height = size.height * LIVING_SCALE
+                // background-position moves from 0 % 40 % to 100 % 60 %.
+                val left = (size.width - width) * position
+                val top = (size.height - height) * (LIVING_TOP_FROM + (LIVING_TOP_TO - LIVING_TOP_FROM) * position)
+                gradient.brush(angle, Rect(left, top, left + width, top + height))
+            }
+            drawRect(brush)
         }
-        drawRect(brush)
     }
+
+/**
+ * Paints a dark version of the cover art for [seed], for the background of a header or the player:
+ * the cover's colors shaded towards black, so white text on it stays readable.
+ */
+internal fun Modifier.coverBackdrop(seed: String): Modifier = drawWithCache {
+    val cover = coverGradientFor(seed.hashCode())
+    val backdrop = CoverGradient(
+        angle = BACKDROP_ANGLE,
+        start = lerp(cover.start, Color.Black, BACKDROP_SHADE_START),
+        middle = lerp(cover.middle, Color.Black, BACKDROP_SHADE_MIDDLE),
+        middleStop = cover.middleStop,
+        end = lerp(cover.end, Color.Black, BACKDROP_SHADE_END),
+    )
+    val brush = backdrop.brush(backdrop.angle, Rect(Offset.Zero, size))
+    onDrawBehind { drawRect(brush) }
+}
+
+private fun coverGradientFor(hash: Int): CoverGradient =
+    ArtPalette.coverGradients[Math.floorMod(hash, ArtPalette.coverGradients.size)]
+
+private fun CoverGradient.muted(): CoverGradient =
+    copy(start = start.muted(), middle = middle.muted(), end = end.muted())
+
+/** CSS `grayscale(0.6) brightness(0.8)`: towards the color's luminance, then darker. */
+private fun Color.muted(): Color {
+    val gray = LUMA_RED * red + LUMA_GREEN * green + LUMA_BLUE * blue
+    return Color(
+        red = (red + (gray - red) * MUTE_GRAYSCALE) * MUTE_BRIGHTNESS,
+        green = (green + (gray - green) * MUTE_GRAYSCALE) * MUTE_BRIGHTNESS,
+        blue = (blue + (gray - blue) * MUTE_GRAYSCALE) * MUTE_BRIGHTNESS,
+        alpha = alpha,
+    )
 }
 
 @Composable
@@ -133,6 +174,17 @@ private const val QUARTER_TURN = 90f
 private const val LIVING_SCALE = 3f
 private const val LIVING_TOP_FROM = 0.4f
 private const val LIVING_TOP_TO = 0.6f
+private const val MUTE_GRAYSCALE = 0.6f
+private const val MUTE_BRIGHTNESS = 0.8f
+private const val LUMA_RED = 0.2126f
+private const val LUMA_GREEN = 0.7152f
+private const val LUMA_BLUE = 0.0722f
+
+// The kit's media background: the cover's colors at 160°, shaded more and more towards black.
+private const val BACKDROP_ANGLE = 160f
+private const val BACKDROP_SHADE_START = 0.45f
+private const val BACKDROP_SHADE_MIDDLE = 0.6f
+private const val BACKDROP_SHADE_END = 0.85f
 
 @PreviewLightDark
 @Composable
