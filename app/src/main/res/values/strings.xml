@@ -4,6 +4,8 @@
 
     <!-- Design system: what TalkBack reads for elements without a visible text -->
     <string name="ui_remove">Remove %1$s</string>
+    <string name="ui_more_options">More options</string>
+    <string name="ui_retry">Retry</string>
     <string name="ui_verified">Verified</string>
     <plurals name="ui_credits_left">
         <item quantity="one">%d credit left</item>
