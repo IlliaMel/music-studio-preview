@@ -15,6 +15,8 @@ ij_kotlin_allow_trailing_comma_on_call_site = true
 ktlint_code_style = android_studio
 # Composable functions are named like types, in PascalCase.
 ktlint_function_naming_ignore_when_annotated_with = Composable
+# The design system's theme values and content color: the only CompositionLocals so far.
+compose_allowed_composition_locals = LocalStudioColors,LocalStudioTypography,LocalStudioDimens,LocalStudioShapes,LocalStudioMotion,LocalStudioContentColor
 
 [*.{ts,json,yml,yaml,md}]
 indent_size = 2
