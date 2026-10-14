@@ -25,3 +25,4 @@ google-services.json
 backend/node_modules/
 backend/data/
 backend/.env
+backend/dist/
