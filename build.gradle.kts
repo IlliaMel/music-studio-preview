@@ -15,17 +15,19 @@ plugins {
 spotless {
     // .gitattributes stores every text file with LF, so there is nothing to read from git.
     lineEndings = LineEnding.UNIX
-    val generated = listOf("**/build/**", "**/.gradle/**", "**/.kotlin/**")
     val ktlintVersion = libs.versions.ktlint.get()
 
+    // Only source folders are walked. A `**` pattern over the repository also descends into build
+    // folders, and the build tasks running next to spotlessCheck rewrite them at the same time.
     kotlin {
-        target("**/*.kt")
-        targetExclude(generated)
+        target(
+            fileTree("app/src") { include("**/*.kt") },
+            fileTree("build-logic/convention/src") { include("**/*.kt") },
+        )
         ktlint(ktlintVersion).customRuleSets(listOf(libs.compose.rules.ktlint.get().toString()))
     }
     kotlinGradle {
-        target("**/*.kts")
-        targetExclude(generated)
+        target("*.gradle.kts", "app/*.gradle.kts", "build-logic/*.gradle.kts", "build-logic/convention/*.gradle.kts")
         ktlint(ktlintVersion)
     }
 }
