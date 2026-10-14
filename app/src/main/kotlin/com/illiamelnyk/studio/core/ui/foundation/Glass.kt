@@ -55,7 +55,13 @@ fun ProvideGlassBackdrop(backdrop: GlassBackdrop, content: @Composable () -> Uni
     CompositionLocalProvider(LocalGlassBackdrop provides backdrop, content = content)
 }
 
-/** How a glass surface looks: its [shape], [tint], [outline] and the [blur] of the content behind it. */
+/**
+ * How a glass surface looks: its [shape], [tint], [outline] and the [blur] of the content behind it.
+ *
+ * [backdropColor] is the opaque color the backdrop content sits on, such as the screen background.
+ * The blur spreads the content into it; without it, the blurred edges would turn see-through and
+ * show the sharp content underneath.
+ */
 @Immutable
 data class GlassStyle(
     val shape: Shape,
@@ -63,14 +69,18 @@ data class GlassStyle(
     val outline: Color,
     val outlineWidth: Dp,
     val blur: Dp,
+    val backdropColor: Color,
     val minSdk: Int,
 )
 
 object GlassDefaults {
-    /** The `overlay.glass` surface with its outline and `glass.blur`, in [shape]. */
+    /**
+     * The `overlay.glass` surface with its outline and `glass.blur`, in [shape], over content on
+     * [backdropColor].
+     */
     @Composable
     @ReadOnlyComposable
-    fun style(shape: Shape): GlassStyle {
+    fun style(shape: Shape, backdropColor: Color = StudioTheme.colors.background): GlassStyle {
         val colors = StudioTheme.colors
         val glass = StudioTheme.effects.glass
         return GlassStyle(
@@ -79,6 +89,7 @@ object GlassDefaults {
             outline = colors.overlay.glassOutline,
             outlineWidth = StudioTheme.dimens.stroke.hairline,
             blur = glass.blur,
+            backdropColor = backdropColor,
             minSdk = glass.minSdk,
         )
     }
@@ -95,6 +106,7 @@ fun Modifier.studioGlass(backdrop: GlassBackdrop?, style: GlassStyle): Modifier 
             input = HazeInput.Sources(backdrop.hazeState),
             style = HazeBlurStyle {
                 blurRadius(style.blur)
+                backgroundColor(style.backdropColor)
                 noiseFactor(0f)
                 colorEffects(listOf(HazeColorEffect.tint(style.tint)))
                 fallbackColorEffect(HazeColorEffect.tint(style.tint))
