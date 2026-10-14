@@ -1,12 +1,23 @@
 package com.illiamelnyk.studio.feature.create.presentation
 
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.presentation.ObserveEffects
 import com.illiamelnyk.studio.feature.create.domain.Tool
+import com.illiamelnyk.studio.feature.create.presentation.common.ToastHostState
+import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -23,10 +34,45 @@ fun CreateRoute(
     viewModel: CreateViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val listState = rememberLazyListState()
+    val toasts = remember { ToastHostState() }
+    val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
     ObserveEffects(viewModel.effects) { effect ->
         when (effect) {
             is CreateEffect.OpenTool -> onOpenTool(effect.tool)
+
+            is CreateEffect.ShowToast -> scope.launch { toasts.show(effect.toast) }
+
+            is CreateEffect.ShareTrack -> context.shareTrack(effect.title, effect.prompt)
+
+            CreateEffect.TracksStarted -> {
+                // The keyboard goes, and the list shows where the new tracks are.
+                focusManager.clearFocus()
+                scope.launch { listState.revealTracks() }
+            }
         }
     }
-    CreateScreen(state = state, onIntent = viewModel::onIntent, modifier = modifier, contentPadding = contentPadding)
+    CreateScreen(
+        state = state,
+        onIntent = viewModel::onIntent,
+        modifier = modifier,
+        contentPadding = contentPadding,
+        listState = listState,
+        toasts = toasts,
+    )
+}
+
+/** Scrolls up to "Your tracks" when the list is past it, where new tracks would be out of sight. */
+private suspend fun LazyListState.revealTracks() {
+    if (firstVisibleItemIndex > CreateFeedItems.TRACKS_HEADER) animateScrollToItem(CreateFeedItems.TRACKS_HEADER)
+}
+
+private fun Context.shareTrack(title: String, prompt: String) {
+    val send = Intent(Intent.ACTION_SEND)
+        .setType("text/plain")
+        .putExtra(Intent.EXTRA_SUBJECT, title)
+        .putExtra(Intent.EXTRA_TEXT, getString(R.string.create_share_text, title, prompt))
+    startActivity(Intent.createChooser(send, getString(R.string.create_share_title)))
 }
