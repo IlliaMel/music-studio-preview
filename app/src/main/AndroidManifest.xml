@@ -4,6 +4,7 @@
     <!-- Backup is off: tracks are large local files and the library only makes sense with them.
          fullBackupContent covers Android 11 and lower, dataExtractionRules covers Android 12+. -->
     <application
+        android:name=".StudioApp"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
