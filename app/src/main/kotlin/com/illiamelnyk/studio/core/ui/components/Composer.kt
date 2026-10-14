@@ -44,7 +44,7 @@ import com.illiamelnyk.studio.core.ui.theme.StudioTheme
  *
  * It is stateless: the caller owns [value] and decides when it is [expanded], typically while it has
  * focus or text. The send button is disabled until [sendEnabled], and when the text is over
- * [characterLimit]; a counter shows how much is left.
+ * [characterLimit]; a counter shows how much is left. Set [showSend] to false for a collapsed toolbar.
  *
  * It doesn't move out of the keyboard's way by itself: put it in a container with `imePadding()`
  * (the activity resizes with the keyboard, edge to edge), so the insets are applied once.
@@ -63,6 +63,7 @@ fun Composer(
     options: (@Composable () -> Unit)? = null,
     leadingActions: @Composable RowScope.() -> Unit = {},
     trailingActions: @Composable RowScope.() -> Unit = {},
+    showSend: Boolean = true,
 ) {
     val colors = StudioTheme.colors
     val dimens = StudioTheme.dimens
@@ -130,14 +131,16 @@ fun Composer(
                     )
                 }
                 trailingActions()
-                StudioIconButton(
-                    icon = StudioIcons.ArrowUpward,
-                    contentDescription = stringResource(R.string.ui_send),
-                    onClick = onSend,
-                    style = StudioIconButtonStyle.Primary,
-                    size = StudioIconButtonSize.Small,
-                    enabled = sendEnabled && !overLimit,
-                )
+                if (showSend) {
+                    StudioIconButton(
+                        icon = StudioIcons.ArrowUpward,
+                        contentDescription = stringResource(R.string.ui_send),
+                        onClick = onSend,
+                        style = StudioIconButtonStyle.Primary,
+                        size = StudioIconButtonSize.Small,
+                        enabled = sendEnabled && !overLimit,
+                    )
+                }
             }
         }
     }
@@ -174,6 +177,27 @@ private fun ComposerPreview() {
                     style = StudioIconButtonStyle.Surface,
                     size = StudioIconButtonSize.Small,
                 )
+            },
+        )
+    }
+}
+
+@PreviewLightDark
+@Composable
+private fun ComposerCollapsedPreview() {
+    PreviewSurface {
+        Composer(
+            value = "",
+            onValueChange = {},
+            onSend = {},
+            expanded = false,
+            placeholder = "Describe your track?",
+            showSend = false,
+            leadingActions = {
+                StudioIconButton(StudioIcons.Add, "Attach", onClick = {}, size = StudioIconButtonSize.Small)
+            },
+            trailingActions = {
+                StudioIconButton(StudioIcons.Tune, "Settings", onClick = {}, size = StudioIconButtonSize.Small)
             },
         )
     }
