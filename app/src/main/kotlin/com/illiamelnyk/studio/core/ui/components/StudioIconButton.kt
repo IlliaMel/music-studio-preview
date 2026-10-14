@@ -34,6 +34,9 @@ enum class StudioIconButtonStyle {
 
     /** On cover art or its color. */
     OnMedia,
+
+    /** On glass, such as the mini player. */
+    OnGlass,
 }
 
 enum class StudioIconButtonSize {
@@ -83,8 +86,14 @@ fun StudioIconButton(
 }
 
 private fun StudioIconButtonStyle.containerColor(colors: StudioColors, enabled: Boolean): Color = when (this) {
-    StudioIconButtonStyle.Plain, StudioIconButtonStyle.Muted, StudioIconButtonStyle.OnMedia -> Color.Transparent
+    StudioIconButtonStyle.Plain,
+    StudioIconButtonStyle.Muted,
+    StudioIconButtonStyle.OnMedia,
+    StudioIconButtonStyle.OnGlass,
+    -> Color.Transparent
+
     StudioIconButtonStyle.Surface -> colors.surface.level3
+
     StudioIconButtonStyle.Primary -> if (enabled) colors.inverse.surface else colors.surface.level3
 }
 
@@ -93,6 +102,7 @@ private fun StudioIconButtonStyle.contentColor(colors: StudioColors): Color = wh
     StudioIconButtonStyle.Muted -> colors.content.secondary
     StudioIconButtonStyle.Primary -> colors.inverse.content
     StudioIconButtonStyle.OnMedia -> colors.overlay.onMediaPrimary
+    StudioIconButtonStyle.OnGlass -> colors.overlay.onGlass
 }
 
 @PreviewLightDark
