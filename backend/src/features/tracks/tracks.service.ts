@@ -39,15 +39,14 @@ export class TracksService {
     input: CreateTrackInput,
   ): Promise<{ track: Track; created: boolean }> {
     const now = this.now()
+    const request = {
+      prompt: input.prompt,
+      lengthMs: input.lengthMs ?? null,
+      instrumental: input.instrumental,
+      modelId: input.modelId ?? this.options.defaultModel,
+    }
     const outcome = await this.repository.create(
-      {
-        userId: user.id,
-        idempotencyKey,
-        prompt: input.prompt,
-        lengthMs: input.lengthMs ?? null,
-        instrumental: input.instrumental,
-        modelId: input.modelId ?? this.options.defaultModel,
-      },
+      { userId: user.id, idempotencyKey, ...request },
       { since: startOfDay(now), max: this.options.dailyLimit },
       now,
     )
@@ -58,6 +57,15 @@ export class TracksService {
           resetsAt: startOfNextDay(now).toISOString(),
         })
       case 'existing':
+        // A retry must be the same request; a reused key with a new prompt is a client bug,
+        // and quietly answering with the old track would lose the user's edit.
+        if (!sameRequest(outcome.track, request)) {
+          throw new ApiError(
+            422,
+            'IDEMPOTENCY_KEY_REUSED',
+            'This Idempotency-Key was used for a different request; use a new key per attempt',
+          )
+        }
         return { track: outcome.track, created: false }
       case 'created':
         this.worker.wake()
@@ -96,27 +104,44 @@ export class TracksService {
     return file
   }
 
-  /** Works in any state. A track being generated finishes in the background and is discarded. */
+  /**
+   * Works in any state; a track still generating has its result thrown away when it arrives.
+   * The file goes first: if that fails, the track is still listed and the delete can be retried.
+   */
   async delete(user: CurrentUser, id: string): Promise<void> {
-    if (!(await this.repository.deleteForUser(user.id, id))) throw trackNotFound()
+    await this.get(user, id)
     await this.storage.delete(id)
+    if (!(await this.repository.softDeleteForUser(user.id, id, this.now()))) throw trackNotFound()
   }
 
   async quota(user: CurrentUser): Promise<Quota> {
     const now = this.now()
-    const used = await this.repository.countSince(user.id, startOfDay(now))
+    const used = await this.repository.countTowardLimit(user.id, startOfDay(now))
     const limit = this.options.dailyLimit
     return { limit, used, remaining: Math.max(0, limit - used), resetsAt: startOfNextDay(now) }
   }
 
-  /** Part of deleting an account: the rows and every audio file. */
+  /**
+   * Part of deleting an account: every audio file, then the rows. In this order a failed file
+   * delete leaves the rows in place, so the retried account deletion still finds the files.
+   */
   async deleteAllForUser(userId: string): Promise<void> {
-    const ids = await this.repository.deleteAllForUser(userId)
+    const ids = await this.repository.listIdsForUser(userId)
     await Promise.all(ids.map((id) => this.storage.delete(id)))
+    await this.repository.deleteAllForUser(userId)
   }
 }
 
 const trackNotFound = () => new ApiError(404, 'TRACK_NOT_FOUND', 'No such track')
+
+const sameRequest = (
+  track: Track,
+  request: Pick<Track, 'prompt' | 'lengthMs' | 'instrumental' | 'modelId'>,
+) =>
+  track.prompt === request.prompt &&
+  track.lengthMs === request.lengthMs &&
+  track.instrumental === request.instrumental &&
+  track.modelId === request.modelId
 
 const startOfDay = (time: Date) =>
   new Date(Date.UTC(time.getUTCFullYear(), time.getUTCMonth(), time.getUTCDate()))

@@ -88,10 +88,10 @@ async function queue(prompt = 'A calm piano piece for a rainy day'): Promise<Tra
   return outcome.track
 }
 
-async function workerWith(provider: MusicProvider, timeoutMs = 2_000) {
+async function workerWith(provider: MusicProvider, timeoutMs = 2_000, repository = tracks) {
   const storage = new LocalAudioStorage(await mkdtemp(join(tmpdir(), 'studio-worker-')))
   const worker = new GenerationWorker(
-    { repository: tracks, provider, storage, log: silentLogger },
+    { repository, provider, storage, log: silentLogger },
     { concurrency: 2, timeoutMs, retryDelaysMs: [1, 1], pollIntervalMs: 20 },
   )
   return { worker, storage }
@@ -191,7 +191,7 @@ describe('GenerationWorker', () => {
     const track = await queue()
     const provider = new ScriptedProvider([
       async () => {
-        await tracks.deleteForUser(userId, track.id)
+        await tracks.softDeleteForUser(userId, track.id, new Date())
         return song('Too late')
       },
     ])
@@ -200,6 +200,41 @@ describe('GenerationWorker', () => {
     await worker.runOnce()
 
     expect(await storage.open(track.id)).toBeUndefined()
+  })
+
+  it('fails the track and removes the file when the result cannot be saved', async () => {
+    class LostConnection extends TracksRepository {
+      override async complete(): Promise<boolean> {
+        throw new Error('Connection terminated unexpectedly')
+      }
+    }
+    const { worker, storage } = await workerWith(
+      new ScriptedProvider([succeed('Paid for')]),
+      2_000,
+      new LostConnection(database.db),
+    )
+    const track = await queue()
+
+    await worker.runOnce()
+
+    expect(await reload(track)).toMatchObject({
+      status: 'failed',
+      errorCode: 'INTERNAL',
+      errorMessage: 'The song was generated but could not be saved',
+    })
+    expect(await storage.open(track.id)).toBeUndefined()
+  })
+
+  it('puts the song in progress back in the queue when the server stops', async () => {
+    const { worker } = await workerWith(new ScriptedProvider([hang]))
+    const track = await queue()
+    worker.start()
+    worker.wake()
+    await expect.poll(async () => (await reload(track))?.status, { timeout: 2_000 }).toBe('running')
+
+    await worker.stop()
+
+    expect(await reload(track)).toMatchObject({ status: 'queued', startedAt: null })
   })
 
   it('picks up new work right away once started, and stops cleanly', async () => {

@@ -74,7 +74,10 @@ export const tracksRoutes = (tracks: TracksService, publicBaseUrl?: string) => {
     })
     .get('/tracks/:id/audio', validate('param', TrackParams), async (c) => {
       const file = await tracks.audio(c.get('user'), c.req.valid('param').id)
-      return fileResponse(file, 'audio/mpeg', c.req.header('Range'))
+      return fileResponse(file, 'audio/mpeg', {
+        method: c.req.method,
+        range: c.req.header('Range'),
+      })
     })
     .delete('/tracks/:id', validate('param', TrackParams), async (c) => {
       await tracks.delete(c.get('user'), c.req.valid('param').id)

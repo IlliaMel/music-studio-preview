@@ -66,11 +66,13 @@ describe('loadConfig', () => {
 })
 
 describe('loadConfig in production', () => {
-  it('needs a real database and Firebase', () => {
+  it('needs a real database, persistent audio, its public address and Firebase', () => {
     const error = captureError(() => loadConfig({ NODE_ENV: 'production' })) as ConfigError
 
     expect(error.problems.map((problem) => problem.split(':')[0])).toEqual([
       'DATABASE_URL',
+      'PUBLIC_BASE_URL',
+      'AUDIO_DIR',
       'FIREBASE_SERVICE_ACCOUNT',
     ])
   })
@@ -80,8 +82,13 @@ describe('loadConfig in production', () => {
       NODE_ENV: 'production',
       HOST: '0.0.0.0',
       DATABASE_URL: 'postgres://db.internal/studio',
+      PUBLIC_BASE_URL: 'https://api.studio.example/',
+      AUDIO_DIR: '/data/audio',
       FIREBASE_SERVICE_ACCOUNT: serviceAccount,
     })
+
+    expect(config.server.publicBaseUrl).toBe('https://api.studio.example')
+    expect(config.storage.audioDir).toBe('/data/audio')
 
     expect(config.auth).toEqual({
       mode: 'firebase',

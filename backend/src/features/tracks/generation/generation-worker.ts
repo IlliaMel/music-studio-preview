@@ -3,7 +3,12 @@ import type { AudioStorage } from '../../../core/storage/audio-storage.js'
 import type { TrackFailure, TracksRepository } from '../tracks.repository.js'
 import type { Track } from '../tracks.table.js'
 import { abortableDelay } from './abortable-delay.js'
-import { type ModelId, type MusicProvider, ProviderError } from './music-provider.js'
+import {
+  type ComposedSong,
+  type ModelId,
+  type MusicProvider,
+  ProviderError,
+} from './music-provider.js'
 
 export type GenerationWorkerOptions = {
   /** How many songs are generated at the same time; ElevenLabs limits this per plan. */
@@ -14,6 +19,12 @@ export type GenerationWorkerOptions = {
   retryDelaysMs: readonly number[]
   /** How often an idle worker looks for work it was not woken up for. */
   pollIntervalMs: number
+}
+
+const SAVE_FAILED: TrackFailure = {
+  code: 'INTERNAL',
+  message: 'The song was generated but could not be saved',
+  promptSuggestion: null,
 }
 
 const ABANDONED: TrackFailure = {
@@ -31,6 +42,8 @@ export class GenerationWorker {
   private running = false
   private loops: Promise<void>[] = []
   private readonly sleepers = new Set<() => void>()
+  /** Cancels the generations in progress when the server shuts down. */
+  private shutdown = new AbortController()
   private reaper?: NodeJS.Timeout
 
   constructor(
@@ -47,6 +60,7 @@ export class GenerationWorker {
   start(): void {
     if (this.running) return
     this.running = true
+    this.shutdown = new AbortController()
     void this.failAbandoned()
     // A track that has been running longer than any generation can take lost its worker.
     this.reaper = setInterval(() => void this.failAbandoned(), 60_000).unref()
@@ -60,10 +74,15 @@ export class GenerationWorker {
     for (const sleeper of this.sleepers) sleeper()
   }
 
-  /** Stops taking new work and waits for the songs in progress to finish or time out. */
+  /**
+   * Stops taking new work and cancels the songs in progress, which go back to the queue: the
+   * next server (after a deploy) or the next start generates them again. Waiting instead would
+   * outlast the few seconds a platform gives a stopping server.
+   */
   async stop(): Promise<void> {
     this.running = false
     clearInterval(this.reaper)
+    this.shutdown.abort()
     this.wake()
     await Promise.all(this.loops)
     this.loops = []
@@ -90,9 +109,12 @@ export class GenerationWorker {
   private async generate(track: Track): Promise<void> {
     const log = this.deps.log.child({ trackId: track.id })
     const startedAt = performance.now()
-    const signal = AbortSignal.timeout(this.options.timeoutMs)
+    const timeout = AbortSignal.timeout(this.options.timeoutMs)
+    const signal = AbortSignal.any([timeout, this.shutdown.signal])
+
+    let song: ComposedSong
     try {
-      const song = await withRetries(
+      song = await withRetries(
         () =>
           this.deps.provider.compose(
             {
@@ -106,6 +128,20 @@ export class GenerationWorker {
         this.options.retryDelaysMs,
         signal,
       )
+    } catch (error) {
+      if (this.shutdown.signal.aborted && !timeout.aborted) {
+        await this.deps.repository.requeue(track.id, this.now()).catch((requeueError) => {
+          log.error({ err: requeueError }, 'could not requeue; it will be failed as abandoned')
+        })
+        log.info('generation cancelled by shutdown, back in the queue')
+        return
+      }
+      await this.recordFailure(track, toFailure(error, timeout), log, error)
+      return
+    }
+
+    // The song exists and is paid for; from here on a failure is ours, not the provider's.
+    try {
       await this.deps.storage.save(track.id, song.audio)
       const { audio: _, ...result } = song
       const saved = await this.deps.repository.complete(track.id, result, this.now())
@@ -113,11 +149,23 @@ export class GenerationWorker {
       if (!saved) await this.deps.storage.delete(track.id)
       log.info({ durationMs: Math.round(performance.now() - startedAt) }, 'track generated')
     } catch (error) {
-      const failure = toFailure(error, signal)
-      await this.deps.repository.fail(track.id, failure, this.now())
-      const level = failure.code === 'INTERNAL' ? 'error' : 'warn'
-      log[level]({ code: failure.code, err: error }, 'generation failed')
+      await this.deps.storage.delete(track.id).catch(() => {})
+      await this.recordFailure(track, SAVE_FAILED, log, error)
     }
+  }
+
+  /** If even this write fails, the track stays running and is failed later as abandoned. */
+  private async recordFailure(
+    track: Track,
+    failure: TrackFailure,
+    log: Logger,
+    error: unknown,
+  ): Promise<void> {
+    const level = failure.code === 'INTERNAL' ? 'error' : 'warn'
+    log[level]({ code: failure.code, err: error }, 'generation failed')
+    await this.deps.repository.fail(track.id, failure, this.now()).catch((writeError) => {
+      log.error({ err: writeError }, 'could not record the failure')
+    })
   }
 
   private async failAbandoned(): Promise<void> {
@@ -165,8 +213,8 @@ async function withRetries<T>(
   }
 }
 
-function toFailure(error: unknown, signal: AbortSignal): TrackFailure {
-  if (signal.aborted) {
+function toFailure(error: unknown, timeout: AbortSignal): TrackFailure {
+  if (timeout.aborted) {
     return { code: 'TIMEOUT', message: 'The generation took too long', promptSuggestion: null }
   }
   if (error instanceof ProviderError) {

@@ -1,4 +1,18 @@
-import { and, asc, count, desc, eq, gte, inArray, lt, ne, or, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  lt,
+  not,
+  or,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
 import type { Database } from '../../core/db/database.js'
 import { type Track, tracks } from './tracks.table.js'
 
@@ -21,6 +35,35 @@ export type CreateOutcome =
   | { kind: 'created'; track: Track }
   | { kind: 'existing'; track: Track }
   | { kind: 'limit-reached'; used: number }
+
+/**
+ * Failures the provider does not charge for: it refused the request before generating anything.
+ * Every other outcome counts against the limit, including a timeout or an interruption, where
+ * the song may well have been generated and paid for.
+ */
+const FREE_FAILURES = [
+  'INVALID_PROMPT',
+  'QUOTA_EXCEEDED',
+  'PROVIDER_AUTH',
+  'RATE_LIMITED',
+  'PROVIDER_UNAVAILABLE',
+]
+
+/** The one definition of "counts against today's limit", for enforcing it and for showing it. */
+const countsTowardLimit = (userId: string, since: Date): SQL | undefined =>
+  and(
+    eq(tracks.userId, userId),
+    gte(tracks.createdAt, since),
+    // Deleted tracks still count: deleting must not hand back a generation that was paid for.
+    not(
+      and(
+        eq(tracks.status, 'failed'),
+        inArray(sql`coalesce(${tracks.errorCode}, '')`, FREE_FAILURES),
+      ) as SQL,
+    ),
+  )
+
+const visible = isNull(tracks.deletedAt)
 
 /** SQL for the `tracks` table, which is also the queue the generation worker takes jobs from. */
 export class TracksRepository {
@@ -50,13 +93,7 @@ export class TracksRepository {
       const [{ used = 0 } = {}] = await tx
         .select({ used: count() })
         .from(tracks)
-        .where(
-          and(
-            eq(tracks.userId, input.userId),
-            gte(tracks.createdAt, limit.since),
-            ne(tracks.status, 'failed'),
-          ),
-        )
+        .where(countsTowardLimit(input.userId, limit.since))
       if (used >= limit.max) return { kind: 'limit-reached', used }
 
       const [track] = await tx
@@ -72,7 +109,7 @@ export class TracksRepository {
     const [track] = await this.db
       .select()
       .from(tracks)
-      .where(and(eq(tracks.userId, userId), eq(tracks.id, id)))
+      .where(and(eq(tracks.userId, userId), eq(tracks.id, id), visible))
     return track
   }
 
@@ -83,6 +120,7 @@ export class TracksRepository {
       .where(
         and(
           eq(tracks.userId, userId),
+          visible,
           before &&
             or(
               lt(tracks.createdAt, before.createdAt),
@@ -94,20 +132,17 @@ export class TracksRepository {
       .limit(limit)
   }
 
-  /** Generations that count against today's limit: everything except failures. */
-  async countSince(userId: string, since: Date): Promise<number> {
+  async countTowardLimit(userId: string, since: Date): Promise<number> {
     const [{ used = 0 } = {}] = await this.db
       .select({ used: count() })
       .from(tracks)
-      .where(
-        and(eq(tracks.userId, userId), gte(tracks.createdAt, since), ne(tracks.status, 'failed')),
-      )
+      .where(countsTowardLimit(userId, since))
     return used
   }
 
   /**
    * Takes the oldest queued track and marks it running, in one statement. `skip locked` lets
-   * several workers, even on several servers, take different tracks without waiting on each other.
+   * several workers take different tracks without waiting on each other.
    */
   async claimNext(now: Date): Promise<Track | undefined> {
     const oldestQueued = this.db
@@ -125,7 +160,7 @@ export class TracksRepository {
     return track
   }
 
-  /** False when the track is gone or no longer running, for example deleted meanwhile. */
+  /** False when the track was deleted meanwhile: its audio is no longer wanted. */
   async complete(id: string, result: TrackResult, now: Date): Promise<boolean> {
     return this.finish(id, { ...result, status: 'done' }, now)
   }
@@ -143,7 +178,17 @@ export class TracksRepository {
     )
   }
 
-  /** Fails tracks whose worker vanished (a crash or a deploy) mid-generation. */
+  /** Puts a track the server stopped working on back in the queue, for the next worker. */
+  async requeue(id: string, now: Date): Promise<boolean> {
+    const requeued = await this.db
+      .update(tracks)
+      .set({ status: 'queued', startedAt: null, updatedAt: now })
+      .where(and(eq(tracks.id, id), eq(tracks.status, 'running')))
+      .returning({ id: tracks.id })
+    return requeued.length > 0
+  }
+
+  /** Fails tracks whose worker vanished without saying so (a crash) mid-generation. */
   async failAbandoned(startedBefore: Date, failure: TrackFailure, now: Date): Promise<number> {
     const abandoned = await this.db
       .update(tracks)
@@ -160,23 +205,42 @@ export class TracksRepository {
     return abandoned.length
   }
 
-  async deleteForUser(userId: string, id: string): Promise<boolean> {
+  /**
+   * Wipes what the user wrote and got back, and hides the track. The row stays for the daily
+   * limit; it disappears with the account.
+   */
+  async softDeleteForUser(userId: string, id: string, now: Date): Promise<boolean> {
     const deleted = await this.db
-      .delete(tracks)
-      .where(and(eq(tracks.userId, userId), eq(tracks.id, id)))
+      .update(tracks)
+      .set({
+        prompt: '',
+        title: null,
+        genres: null,
+        words: null,
+        errorMessage: null,
+        promptSuggestion: null,
+        deletedAt: now,
+        updatedAt: now,
+      })
+      .where(and(eq(tracks.userId, userId), eq(tracks.id, id), visible))
       .returning({ id: tracks.id })
     return deleted.length > 0
   }
 
-  /** Removes every track of a user and returns their ids, so the audio files can go too. */
-  async deleteAllForUser(userId: string): Promise<string[]> {
-    const deleted = await this.db
-      .delete(tracks)
+  /** Every track of a user, deleted ones included: account deletion removes their files first. */
+  async listIdsForUser(userId: string): Promise<string[]> {
+    const rows = await this.db
+      .select({ id: tracks.id })
+      .from(tracks)
       .where(eq(tracks.userId, userId))
-      .returning({ id: tracks.id })
-    return deleted.map(({ id }) => id)
+    return rows.map(({ id }) => id)
   }
 
+  async deleteAllForUser(userId: string): Promise<void> {
+    await this.db.delete(tracks).where(eq(tracks.userId, userId))
+  }
+
+  /** Only a running, not deleted track can finish; anything else was decided meanwhile. */
   private async finish(
     id: string,
     values: Partial<typeof tracks.$inferInsert>,
@@ -185,7 +249,7 @@ export class TracksRepository {
     const finished = await this.db
       .update(tracks)
       .set({ ...values, finishedAt: now, updatedAt: now })
-      .where(and(eq(tracks.id, id), eq(tracks.status, 'running')))
+      .where(and(eq(tracks.id, id), eq(tracks.status, 'running'), visible))
       .returning({ id: tracks.id })
     return finished.length > 0
   }

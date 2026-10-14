@@ -32,15 +32,17 @@ export async function createTestApp(
     provider = new MockMusicProvider(0),
     features = [],
     dailyLimit = 8,
+    storage: makeStorage = (dir: string) => new LocalAudioStorage(dir),
   }: {
     auth?: AuthProvider
     provider?: MusicProvider
     features?: Feature[]
     dailyLimit?: number
+    storage?: (audioDir: string) => LocalAudioStorage
   } = {},
 ) {
   const audioDir = await mkdtemp(join(tmpdir(), 'studio-audio-'))
-  const storage = new LocalAudioStorage(audioDir)
+  const storage = makeStorage(audioDir)
   const { app, worker } = composeApp(
     {
       db,

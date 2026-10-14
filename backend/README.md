@@ -91,11 +91,11 @@ POST /v1/tracks  ──►  queued  ──► worker claims it ──►  runnin
 
 The app creates a track and polls `GET /v1/tracks/:id` every few seconds until it is `done` or `failed`, then downloads `audioUrl` once. Generation takes from half a minute to a few minutes, so it never runs inside the request.
 
-- **The queue is the `tracks` table.** Each worker loop claims the oldest `queued` row with `FOR UPDATE SKIP LOCKED`: several loops, even on several servers, never take the same track, and a restart loses nothing queued. A track left `running` by a crashed server is failed as `INTERRUPTED` once it is clearly abandoned.
-- **Idempotency.** The app sends an `Idempotency-Key` per attempt and reuses it on network retries; the same key returns the same track instead of paying for a second generation. "Try again" after a failure is a new attempt with a new key.
-- **Daily limit** per user (`DAILY_GENERATIONS_PER_USER`, UTC days), checked under a per-user lock so parallel requests cannot slip past it. Failed generations do not count. `GET /v1/me/quota` shows what is left.
+- **The queue is the `tracks` table.** Each worker loop claims the oldest `queued` row with `FOR UPDATE SKIP LOCKED`, so loops never take the same track and nothing queued lives only in memory. On shutdown the songs in progress are cancelled and put back in the queue for the next server; a track left `running` by a crash is failed as `INTERRUPTED` once it is clearly abandoned.
+- **Idempotency.** The app sends an `Idempotency-Key` per attempt and reuses it on network retries; the same key returns the same track instead of paying for a second generation. The same key with a different body is `422 IDEMPOTENCY_KEY_REUSED`. "Try again" after a failure is a new attempt with a new key.
+- **Daily limit** per user (`DAILY_GENERATIONS_PER_USER`, UTC days), checked under a per-user lock so parallel requests cannot slip past it. Failures the provider refuses up front (rejected prompt, rate limit, outage, no credits) do not count; a timeout or an interruption does, since the song may have been generated and paid for. Deleting a track wipes its content but does not give the generation back. `GET /v1/me/quota` shows what is left.
 - **Retries and timeout.** Rate limits and a briefly unavailable provider are retried after 2, 4 and 8 seconds; a rejected prompt is not. Each song gives up after `GENERATION_TIMEOUT_MS`.
-- **Audio** is served with `Range` support, so the player can seek without downloading the whole file again.
+- **Audio** is served with `Range` support, so the player can seek without downloading the whole file again. It is kept in `AUDIO_DIR` on the server's disk, so run **one** instance with a persistent volume; several instances need an object store behind `AudioStorage`.
 
 | Endpoint | What it does |
 |---|---|
@@ -123,5 +123,5 @@ Say, playlists:
 ## Database
 
 - **Locally and in tests:** PGlite, nothing to install and no Docker.
-- **Deployed:** any Postgres through `DATABASE_URL` (for example Railway's). The server refuses to start in production without it.
+- **Deployed:** any Postgres through `DATABASE_URL` (for example Railway's). In production the server also requires `PUBLIC_BASE_URL` (the HTTPS address the app uses, for audio links) and `AUDIO_DIR` (a persistent volume), and refuses to start without them.
 - **Migrations** are plain SQL files generated from the schema and reviewed in pull requests. The server applies the pending ones at start, so a deploy is a single step.

@@ -92,6 +92,20 @@ describe('creating a track', () => {
     expect(track).toMatchObject({ status: 'queued', audioUrl: null, error: null })
   })
 
+  it('refuses a reused key with a different request, instead of losing the edit', async () => {
+    await onboard('alice')
+    await createTrack('alice', SONG, 'edited-key-1')
+
+    const response = await createTrack(
+      'alice',
+      { ...SONG, prompt: `${SONG.prompt}, slower` },
+      'edited-key-1',
+    )
+
+    expect(response.status).toBe(422)
+    expect(await errorCode(response)).toBe('IDEMPOTENCY_KEY_REUSED')
+  })
+
   it('returns the same track when the app retries with the same key', async () => {
     await onboard('alice')
 
@@ -149,6 +163,21 @@ describe('a generated track', () => {
     expect(part.status).toBe(206)
     expect(part.headers.get('Content-Range')).toBe(`bytes 0-99/${bytes.length}`)
     expect((await part.arrayBuffer()).byteLength).toBe(100)
+  })
+
+  it('answers HEAD with the size and no body', async () => {
+    await onboard('alice')
+    const { id } = await json<TrackJson>(await createTrack('alice', SONG))
+    await testApp.worker.runOnce()
+
+    const response = await request(
+      `/v1/tracks/${id}/audio`,
+      signedInAs('alice', { method: 'HEAD' }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(Number(response.headers.get('Content-Length'))).toBeGreaterThan(0)
+    expect((await response.arrayBuffer()).byteLength).toBe(0)
   })
 
   it('has no audio until it is done', async () => {
@@ -239,7 +268,20 @@ describe('the daily limit', () => {
     })
   })
 
-  it('does not count failed generations', async () => {
+  it('is not given back by deleting a track', async () => {
+    await onboard('alice')
+    const ids: string[] = []
+    for (let i = 0; i < 3; i++) {
+      ids.push((await json<TrackJson>(await createTrack('alice', SONG))).id)
+    }
+
+    await request(`/v1/tracks/${ids[0]}`, signedInAs('alice', { method: 'DELETE' }))
+    const response = await createTrack('alice', SONG)
+
+    expect(response.status).toBe(429)
+  })
+
+  it('does not count a prompt the provider refused', async () => {
     await onboard('alice')
     await createTrack('alice', { prompt: 'Broken on purpose [mock:credits]' })
     await testApp.worker.runOnce()

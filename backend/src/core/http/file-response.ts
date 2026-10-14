@@ -10,10 +10,13 @@ type ResponseBody = ConstructorParameters<typeof Response>[0]
 export function fileResponse(
   file: StoredFile,
   contentType: string,
-  rangeHeader: string | undefined,
+  request: { method: string; range: string | undefined },
 ): Response {
   const headers = new Headers({ 'Content-Type': contentType, 'Accept-Ranges': 'bytes' })
-  const range = parseRange(rangeHeader, file.size)
+  const range = parseRange(request.range, file.size)
+  // A HEAD answer has no body; opening the file for it would leave a descriptor nobody closes.
+  const body = (byteRange?: ByteRange) =>
+    request.method === 'HEAD' ? null : (file.stream(byteRange) as ResponseBody)
 
   if (range === 'unsatisfiable') {
     headers.set('Content-Range', `bytes */${file.size}`)
@@ -21,11 +24,11 @@ export function fileResponse(
   }
   if (!range) {
     headers.set('Content-Length', String(file.size))
-    return new Response(file.stream() as ResponseBody, { status: 200, headers })
+    return new Response(body(), { status: 200, headers })
   }
   headers.set('Content-Length', String(range.end - range.start + 1))
   headers.set('Content-Range', `bytes ${range.start}-${range.end}/${file.size}`)
-  return new Response(file.stream(range) as ResponseBody, { status: 206, headers })
+  return new Response(body(range), { status: 206, headers })
 }
 
 /**

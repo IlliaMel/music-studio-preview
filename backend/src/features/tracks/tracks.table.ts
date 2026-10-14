@@ -58,6 +58,9 @@ export const tracks = pgTable(
     updatedAt: timestampTz('updated_at').notNull().defaultNow(),
     startedAt: timestampTz('started_at'),
     finishedAt: timestampTz('finished_at'),
+    // Deleting a track wipes its content but keeps the row, because a generation that was paid
+    // for still counts against the day's limit. Deleting the account removes the rows for good.
+    deletedAt: timestampTz('deleted_at'),
   },
   (table) => [
     uniqueIndex('tracks_user_idempotency_key').on(table.userId, table.idempotencyKey),

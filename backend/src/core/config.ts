@@ -75,6 +75,7 @@ const Env = z.object({
   LOG_PRETTY: optional(flag),
   DATABASE_URL: optional(z.url({ protocol: /^postgres(ql)?$/ })),
   DATA_DIR: optional(z.string()),
+  AUDIO_DIR: optional(z.string()),
   AUTH_MODE: optional(z.enum(['firebase', 'dev'])),
   PUBLIC_BASE_URL: optional(
     z.url({ protocol: /^https?$/ }).transform((url) => url.replace(/\/$/, '')),
@@ -112,6 +113,16 @@ export function loadConfig(environment: Record<string, string | undefined>): Con
   if (nodeEnv === 'production' && !env.DATABASE_URL) {
     problems.push('DATABASE_URL: required in production; PGlite is for local work only')
   }
+  if (nodeEnv === 'production' && !env.PUBLIC_BASE_URL) {
+    problems.push(
+      'PUBLIC_BASE_URL: required in production; behind a proxy the request origin is an internal address',
+    )
+  }
+  if (nodeEnv === 'production' && !env.AUDIO_DIR) {
+    problems.push(
+      'AUDIO_DIR: required in production; point it at a persistent volume, or every deploy loses the audio',
+    )
+  }
   if (nodeEnv === 'production' && env.LOG_PRETTY) {
     problems.push(
       'LOG_PRETTY: pretty logs need pino-pretty, a dev dependency; production logs JSON',
@@ -145,6 +156,6 @@ export function loadConfig(environment: Record<string, string | undefined>): Con
       timeoutMs: env.GENERATION_TIMEOUT_MS ?? 5 * 60_000,
       dailyLimit: env.DAILY_GENERATIONS_PER_USER ?? 8,
     },
-    storage: { audioDir: `${env.DATA_DIR ?? './data'}/audio` },
+    storage: { audioDir: env.AUDIO_DIR ?? `${env.DATA_DIR ?? './data'}/audio` },
   }
 }
