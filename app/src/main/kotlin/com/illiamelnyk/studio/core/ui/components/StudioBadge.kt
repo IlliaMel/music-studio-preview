@@ -86,7 +86,7 @@ fun VerifiedMark(modifier: Modifier = Modifier) {
             lineTo(size.width * CHECK_CORNER.x, size.height * CHECK_CORNER.y)
             lineTo(size.width * CHECK_END.x, size.height * CHECK_END.y)
         }
-        drawPath(check, colors.accent.onVerified, style = Stroke(width = dimens.spacing.hairline.toPx()))
+        drawPath(check, colors.accent.onVerified, style = Stroke(width = dimens.stroke.thick.toPx()))
     }
 }
 

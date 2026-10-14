@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -31,8 +32,7 @@ enum class StudioToastKind {
 /**
  * A message that floats at the top of the screen: an icon, a title and a line of detail. This is
  * only how it looks; showing, queueing and hiding toasts is the job of a host that comes later.
- * The border separates it from the content below. The kit's drop shadow has no token yet and is too
- * heavy on the light scheme, so it waits for an elevation token.
+ * It floats with the `elevation.floating` shadow.
  *
  * TalkBack announces it when it appears.
  */
@@ -50,8 +50,9 @@ fun StudioToast(
         modifier = modifier
             .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
             .fillMaxWidth()
+            .dropShadow(shape, StudioTheme.effects.elevation.floating.toShadow())
             .background(colors.surface.level3, shape)
-            .border(dimens.size.component.divider, colors.outline.subtle, shape)
+            .border(dimens.stroke.hairline, colors.outline.subtle, shape)
             .padding(horizontal = dimens.spacing.m, vertical = dimens.spacing.s),
         horizontalArrangement = Arrangement.spacedBy(dimens.spacing.s),
         verticalAlignment = Alignment.Top,

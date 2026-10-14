@@ -13,8 +13,8 @@ import com.illiamelnyk.studio.core.ui.foundation.LocalStudioContentColor
 import com.illiamelnyk.studio.core.ui.foundation.PressScaleIndication
 
 /**
- * The design system's theme. Everything below it reads colors, type, dimensions, shapes and motion
- * through [StudioTheme]; `clickable` gets the press-scale feedback instead of a ripple, and text
+ * The design system's theme. Everything below it reads colors, type, dimensions, shapes, motion and
+ * effects through [StudioTheme]; `clickable` gets the press-scale feedback instead of a ripple, and text
  * defaults to the primary content color.
  *
  * @param darkTheme the dark scheme is the main one; by default the scheme follows the system setting.
@@ -31,6 +31,7 @@ fun StudioTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable
         LocalStudioDimens provides Dimens,
         LocalStudioShapes provides Shapes,
         LocalStudioMotion provides Motion,
+        LocalStudioEffects provides Effects,
         LocalIndication provides PressIndication,
         LocalStudioContentColor provides colors.content.primary,
         LocalTextSelectionColors provides selectionColors,
@@ -62,6 +63,10 @@ object StudioTheme {
     val motion: StudioMotion
         @Composable @ReadOnlyComposable
         get() = LocalStudioMotion.current
+
+    val effects: StudioEffects
+        @Composable @ReadOnlyComposable
+        get() = LocalStudioEffects.current
 }
 
 // Static locals: the values change only when the scheme switches, and then everything below has to
@@ -72,6 +77,7 @@ internal val LocalStudioTypography = staticCompositionLocalOf<StudioTypography> 
 internal val LocalStudioDimens = staticCompositionLocalOf<StudioDimens> { missingTheme() }
 internal val LocalStudioShapes = staticCompositionLocalOf<StudioShapes> { missingTheme() }
 internal val LocalStudioMotion = staticCompositionLocalOf<StudioMotion> { missingTheme() }
+internal val LocalStudioEffects = staticCompositionLocalOf<StudioEffects> { missingTheme() }
 
 internal fun missingTheme(): Nothing = error("StudioTheme is missing: wrap the content in StudioTheme { }")
 
@@ -80,4 +86,5 @@ private val Typography = StudioTypography()
 private val Dimens = StudioDimens()
 private val Shapes = StudioShapes()
 private val Motion = StudioMotion()
+private val Effects = StudioEffects()
 private val PressIndication = PressScaleIndication(Motion)

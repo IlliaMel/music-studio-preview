@@ -142,11 +142,11 @@ private fun FailedCover() {
 private fun Equalizer() {
     val color = StudioTheme.colors.content.primary
     val dimens = StudioTheme.dimens
-    val loop = StudioTheme.motion.loop
+    val motion = StudioTheme.motion
     val time by rememberInfiniteTransition(label = "equalizer").animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(loop.equalizer, easing = LinearEasing)),
+        animationSpec = infiniteRepeatable(tween(motion.loop.equalizer, easing = LinearEasing)),
         label = "time",
     )
     Canvas(Modifier.size(dimens.size.icon.s)) {
@@ -157,7 +157,7 @@ private fun Equalizer() {
             // Each bar grows from 30 % to full height and back once a period, like the kit's keyframes.
             val progress = (time + phase) % 1f
             val triangle = if (progress < 0.5f) progress * 2 else (1 - progress) * 2
-            val height = size.height * (BAR_MIN + (1 - BAR_MIN) * loop.easing.transform(triangle))
+            val height = size.height * (BAR_MIN + (1 - BAR_MIN) * motion.loopEasing.transform(triangle))
             drawRoundRect(
                 color = color,
                 topLeft = Offset(index * (barWidth + gap), size.height - height),

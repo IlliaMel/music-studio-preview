@@ -46,7 +46,7 @@ fun StudioSpinner(
         label = "rotation",
     )
     Canvas(modifier.progressSemantics().size(dimens.size.icon.s)) {
-        val stroke = Stroke(width = dimens.spacing.hairline.toPx())
+        val stroke = Stroke(width = dimens.stroke.thick.toPx())
         val topLeft = Offset(stroke.width / 2, stroke.width / 2)
         val arcSize = Size(size.width - stroke.width, size.height - stroke.width)
         drawArc(trackColor, 0f, FULL_TURN, useCenter = false, topLeft = topLeft, size = arcSize, style = stroke)
@@ -64,11 +64,11 @@ fun StudioSpinner(
 @Composable
 fun StudioLinearProgress(modifier: Modifier = Modifier) {
     val colors = StudioTheme.colors
-    val loop = StudioTheme.motion.loop
+    val motion = StudioTheme.motion
     val position by rememberInfiniteTransition(label = "linearProgress").animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(loop.progress, easing = loop.easing)),
+        animationSpec = infiniteRepeatable(tween(motion.loop.progress, easing = motion.loopEasing)),
         label = "position",
     )
     Canvas(

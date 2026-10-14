@@ -23,7 +23,6 @@ internal object ArtPalette {
     val orbHighlight = Color(0xFFEAF6FF)
     val orbDeep = Color(0xFF0B3FD1)
     val orbLight = Color(0xFF2FA4FF)
-    val orbGlow = Color(red = 24, green = 142, blue = 236).copy(alpha = 0.45f)
 }
 
 /**

@@ -4,7 +4,7 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.runtime.Immutable
 
-/** Durations, easings and the press scale from `motion` in tokens.json. Durations are in milliseconds. */
+/** Durations, easings, the press scale and looping animations from `motion` in tokens.json, in milliseconds. */
 @Immutable
 data class StudioMotion(
     val duration: Durations = Durations(),
@@ -12,6 +12,8 @@ data class StudioMotion(
     /** How far a pressed element shrinks: the press feedback of the design system, instead of a ripple. */
     val pressScale: Float = 0.96f,
     val loop: Loops = Loops(),
+    /** CSS `ease-in-out`, for the loops that go back and forth. */
+    val loopEasing: Easing = CubicBezierEasing(0.42f, 0f, 0.58f, 1f),
 ) {
     @Immutable
     data class Durations(
@@ -29,10 +31,7 @@ data class StudioMotion(
         val emphasized: Easing = CubicBezierEasing(0.3f, 0f, 0f, 1f),
     )
 
-    /**
-     * Periods of the looping animations, from the animations in ui-kit.html. They aren't in
-     * tokens.json yet, so they are kept here rather than scattered over the components.
-     */
+    /** Periods of the looping animations. */
     @Immutable
     data class Loops(
         val spinner: Int = 800,
@@ -41,7 +40,7 @@ data class StudioMotion(
         val progress: Int = 1_600,
         val livingCover: Int = 4_000,
         val orb: Int = 7_000,
-        /** CSS `ease-in-out`, which the kit's back-and-forth loops use. */
-        val easing: Easing = CubicBezierEasing(0.42f, 0f, 0.58f, 1f),
+        /** One breath of the orb's glow, in and out. */
+        val glowBreath: Int = 2_400,
     )
 }

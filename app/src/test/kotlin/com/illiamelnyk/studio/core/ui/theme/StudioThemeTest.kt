@@ -74,16 +74,19 @@ class StudioThemeTest {
     fun `theme provides the scheme-independent tokens and the press-scale indication`() {
         lateinit var dimens: StudioDimens
         lateinit var motion: StudioMotion
+        lateinit var effects: StudioEffects
         var indicationIsPressScale = false
         composeRule.setContent {
             StudioTheme(darkTheme = true) {
                 dimens = StudioTheme.dimens
                 motion = StudioTheme.motion
+                effects = StudioTheme.effects
                 indicationIsPressScale = LocalIndication.current is PressScaleIndication
             }
         }
 
         assertEquals(StudioDimens(), dimens)
+        assertEquals(StudioEffects(), effects)
         assertEquals(0.96f, motion.pressScale)
         assertTrue(indicationIsPressScale)
     }

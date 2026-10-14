@@ -86,7 +86,7 @@ fun StudioButton(
     val container = if (enabled) style.containerColor(colors) else style.disabledContainerColor(colors)
     val content = if (enabled) style.contentColor(colors) else colors.content.disabled
     val border = if (style == StudioButtonStyle.Glass) {
-        Modifier.border(StudioTheme.dimens.size.component.divider, colors.overlay.glassOutline, shape)
+        Modifier.border(StudioTheme.dimens.stroke.hairline, colors.overlay.glassOutline, shape)
     } else {
         Modifier
     }

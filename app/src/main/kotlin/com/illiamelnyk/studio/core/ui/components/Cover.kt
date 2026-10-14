@@ -99,12 +99,15 @@ internal fun Modifier.coverArt(seed: String, drift: (() -> Float)? = null): Modi
 
 @Composable
 private fun rememberDrift(): State<Float> {
-    val loop = StudioTheme.motion.loop
+    val motion = StudioTheme.motion
     return rememberInfiniteTransition(label = "livingCover").animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         // There and back again in one period.
-        animationSpec = infiniteRepeatable(tween(loop.livingCover / 2, easing = loop.easing), RepeatMode.Reverse),
+        animationSpec = infiniteRepeatable(
+            tween(motion.loop.livingCover / 2, easing = motion.loopEasing),
+            RepeatMode.Reverse,
+        ),
         label = "drift",
     )
 }

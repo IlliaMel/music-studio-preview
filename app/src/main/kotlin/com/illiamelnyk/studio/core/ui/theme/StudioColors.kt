@@ -177,4 +177,4 @@ fun lightStudioColors(): StudioColors = StudioColors(
 )
 
 /** Translucent colors in the `rgba()` notation of tokens.json, so the values compare at a glance. */
-private fun rgba(red: Int, green: Int, blue: Int, alpha: Float): Color = Color(red, green, blue).copy(alpha = alpha)
+internal fun rgba(red: Int, green: Int, blue: Int, alpha: Float): Color = Color(red, green, blue).copy(alpha = alpha)

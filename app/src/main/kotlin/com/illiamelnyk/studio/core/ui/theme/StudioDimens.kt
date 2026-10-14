@@ -5,12 +5,18 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Spacing, layout and sizes from tokens.json, grouped and named as there: `size.component.trackRow`
- * in the JSON is `dimens.size.component.trackRow` here. Everything sits on the 4 dp grid.
+ * Spacing, layout, sizes and strokes from tokens.json, grouped and named as there:
+ * `size.component.trackRow` in the JSON is `dimens.size.component.trackRow` here. Everything but the
+ * strokes sits on the 4 dp grid.
  */
 @Immutable
-data class StudioDimens(val spacing: Spacing = Spacing(), val layout: Layout = Layout(), val size: Sizes = Sizes()) {
-    /** Paddings and gaps. [hairline] is for thin gaps and strokes only. */
+data class StudioDimens(
+    val spacing: Spacing = Spacing(),
+    val layout: Layout = Layout(),
+    val size: Sizes = Sizes(),
+    val stroke: Stroke = Stroke(),
+) {
+    /** Paddings and gaps. [hairline] is for thin gaps only; line widths are in [stroke]. */
     @Immutable
     data class Spacing(
         val none: Dp = 0.dp,
@@ -112,7 +118,15 @@ data class StudioDimens(val spacing: Spacing = Spacing(), val layout: Layout = L
         val seekTrack: Dp = 4.dp,
         val seekThumb: Dp = 12.dp,
         val playButton: Dp = 64.dp,
-        /** Dividers and component borders. */
         val divider: Dp = 1.dp,
+    )
+
+    /** Line widths, from `stroke` in tokens.json. */
+    @Immutable
+    data class Stroke(
+        /** Borders and dividers. */
+        val hairline: Dp = 1.dp,
+        /** Drawn marks: the spinner, the verified check. */
+        val thick: Dp = 2.dp,
     )
 }
