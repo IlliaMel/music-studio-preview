@@ -5,12 +5,14 @@ import androidx.datastore.preferences.preferencesDataStoreFile
 import com.illiamelnyk.studio.core.data.fake.FakeCreditsRepository
 import com.illiamelnyk.studio.core.data.fake.FakeLyricsRepository
 import com.illiamelnyk.studio.core.data.fake.FakePlaybackController
+import com.illiamelnyk.studio.core.data.fake.FakePlaylistRepository
 import com.illiamelnyk.studio.core.data.fake.FakeSessionRepository
 import com.illiamelnyk.studio.core.data.fake.FakeTrackRepository
 import com.illiamelnyk.studio.core.data.settings.DataStoreThemePreferenceRepository
 import com.illiamelnyk.studio.core.domain.credits.CreditsRepository
 import com.illiamelnyk.studio.core.domain.playback.LyricsRepository
 import com.illiamelnyk.studio.core.domain.playback.PlaybackController
+import com.illiamelnyk.studio.core.domain.playlist.PlaylistRepository
 import com.illiamelnyk.studio.core.domain.session.SessionRepository
 import com.illiamelnyk.studio.core.domain.session.SignOut
 import com.illiamelnyk.studio.core.domain.settings.ThemePreferenceRepository
@@ -42,6 +44,7 @@ val coreModule = module {
     single { FakeTrackRepository(get(), get(), get(named(APP_SCOPE)), get()) } bind TrackRepository::class
     single { FakePlaybackController(get(named(APP_SCOPE))) } bind PlaybackController::class
     singleOf(::FakeLyricsRepository) bind LyricsRepository::class
+    singleOf(::FakePlaylistRepository) bind PlaylistRepository::class
     factoryOf(::SignOut)
 
     single(named(SETTINGS)) {
