@@ -24,6 +24,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -47,14 +48,21 @@ class FakeTrackRepository(
 ) : TrackRepository {
 
     private val tracks = MutableStateFlow(seedTracks())
+    private val catalogLikes = MutableStateFlow<Map<TrackId, Track>>(emptyMap())
     private val requests = ConcurrentHashMap<TrackId, GenerationRequest>()
     private val generations = ConcurrentHashMap<TrackId, Job>()
     private val nextId = AtomicInteger(1)
 
     override fun observeMine(): Flow<List<Track>> = tracks.asStateFlow()
 
+    override fun observeLiked(): Flow<List<Track>> = combine(tracks, catalogLikes) { mine, catalog ->
+        mine.filter(Track::isLiked) + catalog.values
+    }
+
     override fun observeById(id: TrackId): Flow<Track?> =
-        tracks.map { list -> list.find { it.id == id } }.distinctUntilChanged()
+        combine(tracks, catalogLikes) { list, catalog ->
+            list.find { it.id == id } ?: catalog[id] ?: FakeCatalog.tracks.find { it.id == id }
+        }.distinctUntilChanged()
 
     override suspend fun create(request: GenerationRequest, variants: Int): Outcome<List<Track>> {
         require(variants in 1..2) { "Variants must be between 1 and 2" }
@@ -106,6 +114,12 @@ class FakeTrackRepository(
 
     override suspend fun setLiked(id: TrackId, liked: Boolean): Outcome<Unit> {
         delay(FakeNetwork.latency)
+        val catalogTrack = FakeCatalog.tracks.find { it.id == id }
+        if (catalogTrack != null) {
+            catalogLikes.update { if (liked) it + (id to catalogTrack.copy(isLiked = true)) else it - id }
+            return Outcome.Success(Unit)
+        }
+        if (tracks.value.none { it.id == id }) return Outcome.Failure(AppError.Unknown)
         tracks.update { list -> list.map { if (it.id == id) it.copy(isLiked = liked) else it } }
         return Outcome.Success(Unit)
     }

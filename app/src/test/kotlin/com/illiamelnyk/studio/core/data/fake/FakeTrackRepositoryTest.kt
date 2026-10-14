@@ -26,6 +26,29 @@ import org.junit.Test
 
 class FakeTrackRepositoryTest {
 
+    @Test
+    fun `liking a catalog track adds it to liked without adding it to creations`() = runTest {
+        val repository = repository()
+        val catalogTrack = FakeCatalog.tracks.first()
+        val mine = repository.observeMine().first()
+
+        repository.setLiked(catalogTrack.id, true)
+
+        assertEquals(mine, repository.observeMine().first())
+        assertTrue(repository.observeLiked().first().any { it.id == catalogTrack.id && it.isLiked })
+        assertEquals(true, repository.observeById(catalogTrack.id).first()?.isLiked)
+
+        repository.setLiked(catalogTrack.id, false)
+
+        assertTrue(repository.observeLiked().first().none { it.id == catalogTrack.id })
+        assertEquals(false, repository.observeById(catalogTrack.id).first()?.isLiked)
+    }
+
+    @Test
+    fun `liking an unknown track reports failure`() = runTest {
+        assertEquals(Outcome.Failure(AppError.Unknown), repository().setLiked(TrackId("missing"), true))
+    }
+
     private val credits = FakeCreditsRepository()
     private val now = Instant.parse("2026-10-14T09:00:00Z")
     private val clock = object : Clock {

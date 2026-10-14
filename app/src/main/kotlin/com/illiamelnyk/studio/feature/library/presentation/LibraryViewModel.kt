@@ -22,7 +22,7 @@ class LibraryViewModel(tracks: TrackRepository, private val playback: PlaybackCo
 
     init {
         combine(
-            tracks.observeMine().map { list -> list.filter { it.isLiked && it.status == TrackStatus.Ready } },
+            tracks.observeLiked().map { list -> list.filter { it.status == TrackStatus.Ready } },
             playback.state.map { it.current?.id }.distinctUntilChanged(),
         ) { list, playingId -> list to playingId }
             .onEach { (list, playingId) ->

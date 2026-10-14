@@ -2,11 +2,15 @@ package com.illiamelnyk.studio.core.domain.track
 
 import com.illiamelnyk.studio.core.domain.Outcome
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 /** The user's own tracks: generating them and keeping them. */
 interface TrackRepository {
     /** The user's tracks, newest first. Emits again whenever a track is added, changes or goes. */
     fun observeMine(): Flow<List<Track>>
+
+    /** Liked tracks from both the user's library and the public catalog. */
+    fun observeLiked(): Flow<List<Track>> = observeMine().map { tracks -> tracks.filter(Track::isLiked) }
 
     /** One of the user's tracks, or `null` once it is deleted. */
     fun observeById(id: TrackId): Flow<Track?>
