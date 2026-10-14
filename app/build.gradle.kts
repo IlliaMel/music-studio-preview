@@ -23,5 +23,7 @@ android {
 }
 
 dependencies {
+    implementation(libs.haze)
+    implementation(libs.haze.blur)
     implementation(libs.androidx.activity.compose)
 }

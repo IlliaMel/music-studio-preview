@@ -8,11 +8,11 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 
 /**
- * Shadows and glows from `elevation` and `glow` in tokens.json. They are the same in both schemes,
- * like the colors on cover art.
+ * Shadows, glows and glass from `elevation`, `glow` and `glass` in tokens.json. They are the same in
+ * both schemes, like the colors on cover art.
  */
 @Immutable
-data class StudioEffects(val elevation: Elevation = Elevation(), val glow: Glow = Glow()) {
+data class StudioEffects(val elevation: Elevation = Elevation(), val glow: Glow = Glow(), val glass: Glass = Glass()) {
     @Immutable
     data class Elevation(
         /** Toasts and other floating elements. */
@@ -34,6 +34,10 @@ data class StudioEffects(val elevation: Elevation = Elevation(), val glow: Glow 
             color = Color(0xFF188EEC),
         ),
     )
+
+    /** Frosted glass: the content behind is blurred by [blur], from Android [minSdk] on. */
+    @Immutable
+    data class Glass(val blur: Dp = 16.dp, val minSdk: Int = 31)
 
     /** A CSS `box-shadow: 0 offsetY blur color`, drawn with `Modifier.dropShadow`. */
     @Immutable

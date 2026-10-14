@@ -2,7 +2,6 @@ package com.illiamelnyk.studio.core.ui.components
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -21,9 +20,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.Dp
+import com.illiamelnyk.studio.core.ui.foundation.GlassDefaults
+import com.illiamelnyk.studio.core.ui.foundation.LocalGlassBackdrop
 import com.illiamelnyk.studio.core.ui.foundation.ProvideContentColor
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.foundation.minimumTouchTarget
+import com.illiamelnyk.studio.core.ui.foundation.studioGlass
 import com.illiamelnyk.studio.core.ui.icons.StudioIcon
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.core.ui.theme.PreviewSurface
@@ -38,10 +40,8 @@ enum class StudioButtonStyle {
     Secondary,
 
     /**
-     * On cover art or its color, such as the player. The blur behind it comes with the player.
-     *
-     * Its text is `content.primary`, not the kit's `overlay.onMediaPrimary`: white text is unreadable
-     * on the light scheme's white glass, and tokens.json has no role for text on glass yet.
+     * On cover art or its color, such as the player: frosted glass over the [LocalGlassBackdrop], or
+     * the plain glass tint without one.
      */
     Glass,
 
@@ -85,10 +85,10 @@ fun StudioButton(
     val metrics = buttonMetrics(size, style)
     val container = if (enabled) style.containerColor(colors) else style.disabledContainerColor(colors)
     val content = if (enabled) style.contentColor(colors) else colors.content.disabled
-    val border = if (style == StudioButtonStyle.Glass) {
-        Modifier.border(StudioTheme.dimens.stroke.hairline, colors.overlay.glassOutline, shape)
+    val surface = if (enabled && style == StudioButtonStyle.Glass) {
+        Modifier.studioGlass(LocalGlassBackdrop.current, GlassDefaults.style(shape))
     } else {
-        Modifier
+        Modifier.background(container, shape)
     }
     Row(
         // clickable comes before the container so that the press scale shrinks the whole pill.
@@ -98,8 +98,7 @@ fun StudioButton(
             // One node for TalkBack: the button reports the progress, the spinner inside stays silent.
             .semantics { if (loading) progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate }
             .heightIn(min = metrics.height)
-            .background(container, shape)
-            .then(border)
+            .then(surface)
             .padding(horizontal = metrics.horizontalPadding),
         horizontalArrangement = Arrangement.spacedBy(metrics.gap, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
@@ -183,7 +182,8 @@ private fun StudioButtonStyle.spinnerTrackColor(colors: StudioColors): Color = w
 
 private fun StudioButtonStyle.contentColor(colors: StudioColors): Color = when (this) {
     StudioButtonStyle.Primary -> colors.inverse.content
-    StudioButtonStyle.Secondary, StudioButtonStyle.Glass -> colors.content.primary
+    StudioButtonStyle.Secondary -> colors.content.primary
+    StudioButtonStyle.Glass -> colors.overlay.onGlass
     StudioButtonStyle.Text -> colors.content.secondary
     StudioButtonStyle.Danger -> colors.error.onError
 }

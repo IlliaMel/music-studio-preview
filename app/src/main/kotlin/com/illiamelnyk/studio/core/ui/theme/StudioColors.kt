@@ -88,6 +88,8 @@ data class StudioColors(
         /** Floating glass elements. */
         val glass: Color,
         val glassOutline: Color,
+        /** Text and icons on glass. */
+        val onGlass: Color,
         /** Text and icons on cover art or its color. */
         val onMediaPrimary: Color,
         val onMediaSecondary: Color,
@@ -130,6 +132,7 @@ fun darkStudioColors(): StudioColors = StudioColors(
         scrim = rgba(0, 0, 0, 0.6f),
         glass = rgba(40, 40, 42, 0.55f),
         glassOutline = rgba(255, 255, 255, 0.08f),
+        onGlass = Color(0xFFEBEBEB),
         onMediaPrimary = Color(0xFFFFFFFF),
         onMediaSecondary = rgba(255, 255, 255, 0.7f),
         onMediaTrack = rgba(255, 255, 255, 0.2f),
@@ -170,6 +173,7 @@ fun lightStudioColors(): StudioColors = StudioColors(
         scrim = rgba(0, 0, 0, 0.4f),
         glass = rgba(255, 255, 255, 0.6f),
         glassOutline = rgba(0, 0, 0, 0.06f),
+        onGlass = Color(0xFF111111),
         onMediaPrimary = Color(0xFFFFFFFF),
         onMediaSecondary = rgba(255, 255, 255, 0.7f),
         onMediaTrack = rgba(255, 255, 255, 0.2f),

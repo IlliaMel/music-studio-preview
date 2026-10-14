@@ -5,6 +5,7 @@ composeBom = "2026.09.00"
 activityCompose = "1.13.0"
 spotless = "8.10.3"
 ktlint = "1.8.0"
+haze = "2.0.1"
 composeRules = "0.6.7"
 junit = "4.13.2"
 robolectric = "4.17"
@@ -19,6 +20,10 @@ androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-te
 androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+
+# Frosted glass for the design system: hazeSource on the content, hazeBlur on the glass
+haze = { group = "dev.chrisbanes.haze", name = "haze", version.ref = "haze" }
+haze-blur = { group = "dev.chrisbanes.haze", name = "haze-blur", version.ref = "haze" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
