@@ -1,53 +1,60 @@
 package com.illiamelnyk.studio.feature.player.presentation.components
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.PreviewLightDark
-import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
+import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.tooling.preview.PreviewParameterProvider
+import com.illiamelnyk.studio.core.presentation.asString
+import com.illiamelnyk.studio.core.ui.components.LyricsView
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
+import com.illiamelnyk.studio.feature.player.presentation.LyricsUi
+import com.illiamelnyk.studio.feature.player.presentation.PlayerPreviewData
+import com.illiamelnyk.studio.feature.player.presentation.PlayerPreviewSurface
 
 /**
- * The line being sung and the one after it. It keeps its height when there are no lyrics, so the
- * controls below don't jump between tracks.
+ * The lyrics on cover color: the kit's synced view, which follows [positionMs] through derived
+ * state, so it recomposes when the line or the word changes rather than on every tick. Tapping a
+ * line seeks to it; scrolling by hand stops following until the Follow along pill is tapped.
  */
 @Composable
-fun PlayerLyrics(line: String?, nextLine: String?, modifier: Modifier = Modifier) {
-    val dimens = StudioTheme.dimens
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = dimens.size.cover.l / 2)
-            .padding(horizontal = dimens.layout.screenPadding, vertical = dimens.spacing.s),
-        verticalArrangement = Arrangement.spacedBy(dimens.spacing.xxs),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        if (line != null) {
-            StudioText(line, StudioTheme.typography.titleMedium, textAlign = TextAlign.Center, maxLines = 2)
-        }
-        if (nextLine != null) {
-            StudioText(
-                text = nextLine,
-                style = StudioTheme.typography.bodyMedium,
-                color = StudioTheme.colors.content.tertiary,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-            )
-        }
+fun PlayerLyrics(
+    lyrics: LyricsUi,
+    positionMs: () -> Long,
+    onLineClick: (startMs: Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    when (lyrics) {
+        LyricsUi.Loading -> Box(modifier)
+
+        is LyricsUi.Synced -> LyricsView(
+            lines = lyrics.lines,
+            positionMs = positionMs,
+            onSeek = onLineClick,
+            modifier = modifier,
+        )
+
+        LyricsUi.None -> Box(modifier)
     }
+}
+
+private class PlayerLyricsPreviewData : PreviewParameterProvider<LyricsUi> {
+    override val values = sequenceOf(PlayerPreviewData.syncedLyrics, LyricsUi.None)
 }
 
 @PreviewLightDark
 @Composable
-private fun PlayerLyricsPreview() {
-    PreviewScreen {
-        PlayerLyrics(line = "Boats asleep in the evening haze", nextLine = "I keep your voice in a paper lantern")
+private fun PlayerLyricsPreview(@PreviewParameter(PlayerLyricsPreviewData::class) lyrics: LyricsUi) {
+    PlayerPreviewSurface {
+        PlayerLyrics(lyrics, positionMs = { 17_500L }, onLineClick = {}, modifier = Modifier.fillMaxSize())
     }
 }

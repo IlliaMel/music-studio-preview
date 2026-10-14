@@ -1,70 +1,136 @@
 package com.illiamelnyk.studio.feature.player.presentation
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.tooling.preview.PreviewParameter
-import com.illiamelnyk.studio.R
-import com.illiamelnyk.studio.core.presentation.BackTopBar
-import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
-import com.illiamelnyk.studio.core.ui.components.EmptyState
-import com.illiamelnyk.studio.core.ui.icons.StudioIcons
+import com.illiamelnyk.studio.core.ui.theme.StudioTheme
+import com.illiamelnyk.studio.feature.player.presentation.components.PlayerActions
 import com.illiamelnyk.studio.feature.player.presentation.components.PlayerArtwork
-import com.illiamelnyk.studio.feature.player.presentation.components.PlayerControls
-import com.illiamelnyk.studio.feature.player.presentation.components.PlayerLyrics
+import com.illiamelnyk.studio.feature.player.presentation.components.PlayerBackdrop
+import com.illiamelnyk.studio.feature.player.presentation.components.PlayerComingSoonSheet
+import com.illiamelnyk.studio.feature.player.presentation.components.PlayerLayout
+import com.illiamelnyk.studio.feature.player.presentation.components.PlayerQueueSheet
+import com.illiamelnyk.studio.feature.player.presentation.components.PlayerTopBar
+import com.illiamelnyk.studio.feature.player.presentation.components.PlayerTrackInfo
+import com.illiamelnyk.studio.feature.player.presentation.components.PlayerTransport
 
-/** The full player: the track, the line being sung and the controls. */
+/**
+ * The full player on its cover's colors: the top bar, the cover or the lyrics, the track, the
+ * controls and the actions, and the sheets over them. [clock] is read only by the parts that show
+ * the position, while they draw. Nothing is drawn while nothing is loaded.
+ *
+ * @param coverModifier makes the cover the shared element that travels from the mini player.
+ * @param bodyModifier for the player's body under the sheets, such as the drag that closes it.
+ */
 @Composable
 fun PlayerScreen(
-    state: PlayerState,
+    state: PlayerContent,
+    clock: () -> PlaybackClock,
     onIntent: (PlayerIntent) -> Unit,
     modifier: Modifier = Modifier,
+    coverModifier: Modifier = Modifier,
+    bodyModifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(contentPadding),
-    ) {
-        BackTopBar(onBack = { onIntent(PlayerIntent.BackClicked) })
-        val track = state.track
-        if (track == null) {
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                EmptyState(
-                    icon = StudioIcons.MusicNote,
-                    title = stringResource(R.string.player_nothing_playing),
-                    message = stringResource(R.string.player_nothing_playing_message),
+    val track = state.track ?: return
+    PlayerBackdrop(track.coverSeed, modifier) {
+        PlayerLayout(
+            modifier = bodyModifier.padding(contentPadding),
+            topBar = {
+                PlayerTopBar(
+                    showActions = !state.isStation,
+                    onCollapse = { onIntent(PlayerIntent.CollapseClicked) },
+                    onShare = { onIntent(PlayerIntent.ShareClicked) },
+                    onComingSoon = { onIntent(PlayerIntent.ComingSoonClicked(it)) },
+                )
+            },
+            artwork = { artworkModifier ->
+                PlayerArtwork(
+                    coverSeed = track.coverSeed,
+                    trackKey = track.id.value,
+                    showLyrics = state.showLyrics && state.hasLyrics && !state.isStation,
+                    lyrics = state.lyrics,
+                    positionMs = { clock().positionMs },
+                    onLyricLineClick = { onIntent(PlayerIntent.LyricLineClicked(it)) },
+                    modifier = artworkModifier,
+                    coverModifier = coverModifier,
+                )
+            },
+        ) {
+            PlayerTrackInfo(
+                track = track,
+                showLyrics = state.showLyrics && state.hasLyrics && !state.isStation,
+                onLyricsClick = if (state.hasLyrics &&
+                    !state.isStation
+                ) {
+                    ({ onIntent(PlayerIntent.LyricsClicked) })
+                } else {
+                    null
+                },
+                onQueueClick = if (!state.isStation) ({ onIntent(PlayerIntent.QueueClicked) }) else null,
+            )
+            Transport(state, clock, onIntent)
+            if (!state.isStation) {
+                PlayerActions(
+                    isLiked = state.isLiked,
+                    onRemixClick = { onIntent(PlayerIntent.ComingSoonClicked(SoonFeature.Remix)) },
+                    onAddToClick = { onIntent(PlayerIntent.ComingSoonClicked(SoonFeature.AddToPlaylist)) },
+                    onLikeClick = { onIntent(PlayerIntent.LikeClicked) },
                 )
             }
-            return@Column
         }
-        PlayerArtwork(track = track, modifier = Modifier.weight(1f))
-        PlayerLyrics(line = state.lyricLine, nextLine = state.nextLyricLine)
-        PlayerControls(
-            isPlaying = state.isPlaying,
-            position = state.position,
-            duration = state.duration,
-            shuffle = state.shuffle,
-            repeat = state.repeat,
-            onPlayPauseClick = { onIntent(PlayerIntent.PlayPauseClicked) },
-            onPreviousClick = { onIntent(PlayerIntent.PreviousClicked) },
-            onNextClick = { onIntent(PlayerIntent.NextClicked) },
-            onShuffleClick = { onIntent(PlayerIntent.ShuffleClicked) },
-            onRepeatClick = { onIntent(PlayerIntent.RepeatClicked) },
-        )
+        Sheets(state, onIntent)
     }
+}
+
+/** The seek bar and the transport, with their callbacks as intents. */
+@Composable
+private fun Transport(state: PlayerContent, clock: () -> PlaybackClock, onIntent: (PlayerIntent) -> Unit) {
+    PlayerTransport(
+        isStation = state.isStation,
+        isPlaying = state.isPlaying,
+        shuffle = state.shuffle,
+        repeat = state.repeat,
+        clock = clock,
+        onSeek = { onIntent(PlayerIntent.SeekRequested(it)) },
+        onPlayPause = { onIntent(PlayerIntent.PlayPauseClicked) },
+        onStop = { onIntent(PlayerIntent.StopClicked) },
+        onPrevious = { onIntent(PlayerIntent.PreviousClicked) },
+        onNext = { onIntent(PlayerIntent.NextClicked) },
+        onShuffleChange = { onIntent(PlayerIntent.ShuffleChanged(it)) },
+        onRepeatChange = { onIntent(PlayerIntent.RepeatChanged(it)) },
+    )
+}
+
+/** The queue and the coming-soon sheets, with their callbacks as intents. */
+@Composable
+private fun Sheets(state: PlayerContent, onIntent: (PlayerIntent) -> Unit) {
+    val onDismiss = { onIntent(PlayerIntent.SheetDismissed) }
+    PlayerQueueSheet(
+        visible = state.sheet == PlayerSheet.Queue,
+        upNext = state.upNext,
+        shuffle = state.shuffle,
+        repeat = state.repeat,
+        onShuffle = { onIntent(PlayerIntent.ShuffleChanged(!state.shuffle)) },
+        onRepeat = { onIntent(PlayerIntent.RepeatChanged(!state.repeat)) },
+        onAutoplay = { onIntent(PlayerIntent.ComingSoonClicked(SoonFeature.Autoplay)) },
+        onClear = { onIntent(PlayerIntent.ClearUpNextClicked) },
+        onTrackClick = { onIntent(PlayerIntent.UpNextTrackClicked(it)) },
+        onDismissRequest = onDismiss,
+    )
+    PlayerComingSoonSheet(
+        feature = (state.sheet as? PlayerSheet.ComingSoon)?.feature,
+        onWantIt = { onIntent(PlayerIntent.WantItClicked) },
+        onDismissRequest = onDismiss,
+    )
 }
 
 @PreviewLightDark
 @Composable
-private fun PlayerScreenPreview(@PreviewParameter(PlayerPreviewData::class) state: PlayerState) {
-    PreviewScreen { PlayerScreen(state = state, onIntent = {}) }
+private fun PlayerScreenPreview(@PreviewParameter(PlayerPreviewData.States::class) state: PlayerContent) {
+    // The player always uses the dark scheme; see PlayerHost.
+    StudioTheme(darkTheme = true) { PlayerScreen(state = state, clock = { PlayerPreviewData.clock }, onIntent = {}) }
 }
