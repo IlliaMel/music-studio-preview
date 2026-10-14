@@ -94,6 +94,11 @@ export function loadConfig(environment: Record<string, string | undefined>): Con
   if (nodeEnv === 'production' && !env.DATABASE_URL) {
     problems.push('DATABASE_URL: required in production; PGlite is for local work only')
   }
+  if (nodeEnv === 'production' && env.LOG_PRETTY) {
+    problems.push(
+      'LOG_PRETTY: pretty logs need pino-pretty, a dev dependency; production logs JSON',
+    )
+  }
   if (authMode === 'dev' && (nodeEnv === 'production' || !LOOPBACK_HOSTS.has(host))) {
     problems.push(
       'AUTH_MODE: dev sign-in lets anyone claim any account, so it runs only on a loopback HOST and never in production',

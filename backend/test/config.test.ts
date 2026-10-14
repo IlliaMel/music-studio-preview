@@ -126,6 +126,16 @@ describe('FIREBASE_SERVICE_ACCOUNT', () => {
       loadConfig({ AUTH_MODE: 'firebase', FIREBASE_SERVICE_ACCOUNT: withoutKey }),
     ).toThrow(/FIREBASE_SERVICE_ACCOUNT\.private_key/)
   })
+
+  it('refuses pretty logs in production, where pino-pretty is not installed', () => {
+    expect(() =>
+      loadConfig({
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgres://db.internal/studio',
+        LOG_PRETTY: 'true',
+      }),
+    ).toThrow(/LOG_PRETTY/)
+  })
 })
 
 function captureError(block: () => unknown): unknown {

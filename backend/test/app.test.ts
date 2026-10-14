@@ -102,6 +102,26 @@ describe('feature routes', () => {
     expect(response.status).toBe(413)
     expect(((await response.json()) as ErrorBody).error.code).toBe('PAYLOAD_TOO_LARGE')
   })
+
+  it('reject an oversized body sent in chunks, without a Content-Length', async () => {
+    const chunk = new TextEncoder().encode('x'.repeat(16 * 1024))
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (let i = 0; i < 5; i++) controller.enqueue(chunk)
+        controller.close()
+      },
+    })
+
+    const response = await app.request('/v1/probe/echo', {
+      method: 'POST',
+      body,
+      headers: { 'Content-Type': 'application/json' },
+      duplex: 'half',
+    } as RequestInit)
+
+    expect(response.status).toBe(413)
+    expect(((await response.json()) as ErrorBody).error.code).toBe('PAYLOAD_TOO_LARGE')
+  })
 })
 
 describe('errors', () => {
