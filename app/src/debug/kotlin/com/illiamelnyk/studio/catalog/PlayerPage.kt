@@ -35,6 +35,7 @@ import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 /**
  * A player on cover color with a simulated clock: the seek bar, the transport and synced lyrics all
  * follow one position that advances every frame. Only the draw phase and derived state read it.
+ * Scrolling the lyrics by hand shows their "Follow along" pill.
  */
 @Composable
 internal fun PlayerPage() {

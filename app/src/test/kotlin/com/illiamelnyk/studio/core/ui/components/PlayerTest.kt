@@ -93,19 +93,22 @@ class PlayerTest {
     }
 
     @Test
-    fun `scrolling the lyrics by hand pauses the auto-scroll for three seconds`() {
+    fun `scrolling the lyrics by hand stops following until Follow along is tapped`() {
         var position by mutableLongStateOf(LINE_GAP_MS * 2)
         setLyrics { position }
         assertLineAtFocus(2)
-        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithText(FOLLOW_ALONG).assertDoesNotExist()
 
         composeRule.onNodeWithTag(LYRICS).performTouchInput { swipeUp() }
         position = LINE_GAP_MS * 3
-        composeRule.mainClock.advanceTimeBy(LyricsDefaults.MANUAL_SCROLL_PAUSE_MS - SETTLE_MS)
-        assertFalse("line 3 followed during the pause", isLineAtFocus(3))
+        // Long after a pause would have run out: it doesn't come back by itself.
+        composeRule.mainClock.advanceTimeBy(SETTLE_MS * 10)
+        assertFalse("line 3 followed after scrolling by hand", isLineAtFocus(3))
 
-        composeRule.mainClock.advanceTimeBy(SETTLE_MS * 2)
+        composeRule.onNodeWithText(FOLLOW_ALONG).performClick()
+        composeRule.waitForIdle()
         assertLineAtFocus(3)
+        composeRule.onNodeWithText(FOLLOW_ALONG).assertDoesNotExist()
     }
 
     @Test
@@ -166,6 +169,7 @@ class PlayerTest {
         const val TICKS = 10
         const val LYRICS = "lyrics"
         const val SETTLE_MS = 1_000L
+        const val FOLLOW_ALONG = "Follow along"
         const val FOCUS_TOLERANCE_PX = 2f
         val LyricsHeight = 320.dp
 

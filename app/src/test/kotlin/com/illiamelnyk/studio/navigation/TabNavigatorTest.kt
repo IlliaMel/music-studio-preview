@@ -74,7 +74,7 @@ class TabNavigatorTest {
         val navigator = navigator(ShellVariant.BottomBar)
         navigator.select(TopLevelTab.Listen)
         navigator.navigate(collection)
-        navigator.navigate(Destination.Player)
+        navigator.navigate(Destination.Profile)
 
         navigator.select(TopLevelTab.Listen)
 
@@ -109,13 +109,13 @@ class TabNavigatorTest {
     @Test
     fun `a destination opened from another tab moves there, so no screen is shown twice`() {
         val navigator = navigator(ShellVariant.BottomBar)
-        navigator.navigate(Destination.Player)
+        navigator.navigate(Destination.Profile)
         navigator.select(TopLevelTab.Listen)
 
-        navigator.navigate(Destination.Player)
+        navigator.navigate(Destination.Profile)
 
         assertEquals(listOf<NavKey>(Destination.Create), navigator.backStack(TopLevelTab.Create))
-        assertEquals(listOf(Destination.Listen, Destination.Player), navigator.backStack(TopLevelTab.Listen))
+        assertEquals(listOf(Destination.Listen, Destination.Profile), navigator.backStack(TopLevelTab.Listen))
     }
 
     @Test
