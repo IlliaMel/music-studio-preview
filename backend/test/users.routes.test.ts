@@ -132,7 +132,8 @@ describe('DELETE /v1/me', () => {
 
     expect(response.status).toBe(204)
     expect(auth.deletedAccounts).toEqual(['dev-alice'])
-    // The old token is still valid for up to an hour; a request with it meets an empty profile.
+    // A dev token never expires, so the next request meets a new, empty profile. A Firebase
+    // token stops working once its account is deleted (see firebase-auth-provider.test.ts).
     const after = await getProfile('alice')
     expect(after.id).not.toBe(before.id)
   })

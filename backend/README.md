@@ -40,7 +40,8 @@ Nothing else to install: without `DATABASE_URL` the server uses PGlite, a real P
 
 ```
 src/
-├─ main.ts           composition root: reads config, opens the database, creates every object, starts the server
+├─ main.ts           reads config, opens the database, creates the real services, starts the server
+├─ compose.ts        creates every feature and wires the app; main.ts and the tests share it
 ├─ app.ts            createApp(deps): middleware, /health, feature routes under /v1, error handling
 ├─ core/             shared plumbing, no product rules
 │  ├─ config.ts      environment → checked Config; the server refuses to start on a bad value
@@ -64,7 +65,7 @@ Dependencies point one way: routes → service → repository → database. `cor
 
 The app signs in with Firebase (Google, email link; Apple later) and sends the Firebase ID token with every request as `Authorization: Bearer <token>`. The server never sees passwords and keeps no sessions:
 
-1. `authenticate` checks the token's signature, expiry and audience with the Firebase Admin SDK, using Google's cached public keys.
+1. `authenticate` checks the token's signature, expiry and audience with the Firebase Admin SDK, using Google's cached public keys, and asks Firebase whether the account still exists and is enabled, so a deleted or blocked user is locked out at once.
 2. `UsersService.resolve` finds our user by the Firebase uid, or creates them on their first request.
 3. Routes read the user with `c.get('user')`. Routes that need a finished profile add `requireOnboarding`.
 
@@ -89,7 +90,7 @@ Say, playlists:
 3. **Repository.** Typed queries in `playlists.repository.ts`; a wrong column name is a compile error.
 4. **Service.** The rules in `playlists.service.ts`, with dependencies passed to the constructor.
 5. **Routes.** `playlists.routes.ts` returns a `Hono<AppEnv>`; validate input with `validate('json', schema)` and read it with `c.req.valid('json')`.
-6. **Register.** Create the feature in `main.ts` and add it to the `features` list.
+6. **Register.** Create the feature in `compose.ts` and add it to the `features` list; the tests pick it up from there too.
 7. **Tests.** `createTestDatabase()` gives a migrated in-memory Postgres; `truncateAll()` empties it between tests. Route tests call `app.request(...)`, without a network.
 
 ## Database

@@ -9,12 +9,14 @@ import {
 /** Stands in for the Admin SDK: returns a fixed token or fails with a Firebase error code. */
 class FakeFirebaseAuth implements FirebaseAuthApi {
   readonly deleted: string[] = []
+  readonly revocationChecks: (boolean | undefined)[] = []
 
   constructor(
     private readonly outcome: { token?: Partial<DecodedIdToken>; errorCode?: string } = {},
   ) {}
 
-  async verifyIdToken(): Promise<DecodedIdToken> {
+  async verifyIdToken(_token: string, checkRevoked?: boolean): Promise<DecodedIdToken> {
+    this.revocationChecks.push(checkRevoked)
     if (this.outcome.errorCode) throw firebaseError(this.outcome.errorCode)
     return {
       uid: 'uid-alice',
@@ -45,6 +47,14 @@ describe('FirebaseAuthProvider.verifyIdToken', () => {
     })
   })
 
+  it('asks Firebase whether the account was deleted, disabled or signed out everywhere', async () => {
+    const firebase = new FakeFirebaseAuth()
+
+    await new FirebaseAuthProvider(firebase).verifyIdToken('token')
+
+    expect(firebase.revocationChecks).toEqual([true])
+  })
+
   it('copes with an account that has no email, as with a hidden Apple address', async () => {
     const provider = new FirebaseAuthProvider(new FakeFirebaseAuth())
 
@@ -60,6 +70,7 @@ describe('FirebaseAuthProvider.verifyIdToken', () => {
     'auth/argument-error',
     'auth/invalid-argument',
     'auth/user-disabled',
+    'auth/user-not-found',
   ])('treats %s as a bad token', async (errorCode) => {
     const provider = new FirebaseAuthProvider(new FakeFirebaseAuth({ errorCode }))
 

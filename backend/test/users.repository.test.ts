@@ -62,11 +62,11 @@ describe('UsersRepository', () => {
     expect(await repository.findByFirebaseUid('firebase-nobody')).toBeUndefined()
   })
 
-  it('updates only the profile fields it is given', async () => {
+  it('saves only the onboarding answers it is given', async () => {
     const user = await repository.insertOrGet(alice, now)
     const later = new Date('2026-10-14T20:00:00Z')
 
-    const updated = await repository.updateProfile(
+    const updated = await repository.saveOnboarding(
       user.id,
       { displayName: 'Alice', marketingOptIn: true },
       later,
@@ -101,9 +101,38 @@ describe('UsersRepository', () => {
   it('updates nothing for an unknown id', async () => {
     const missing = '00000000-0000-4000-8000-000000000000'
 
-    expect(await repository.updateProfile(missing, { displayName: 'Ghost' }, new Date())).toBe(
-      undefined,
-    )
+    expect(
+      await repository.saveOnboarding(missing, { displayName: 'Ghost' }, new Date()),
+    ).toBeUndefined()
+  })
+
+  it('keeps the first age confirmation, even when two requests race', async () => {
+    const user = await repository.insertOrGet(alice, now)
+    const first = new Date('2026-10-14T13:00:00Z')
+    const second = new Date('2026-10-14T13:00:01Z')
+
+    await Promise.all([
+      repository.saveOnboarding(user.id, { confirmAge: true }, first),
+      repository.saveOnboarding(user.id, { confirmAge: true }, second),
+    ])
+    const confirmedAt = (await repository.findById(user.id))?.ageConfirmedAt
+    await repository.saveOnboarding(user.id, { confirmAge: true }, new Date('2026-10-15T00:00Z'))
+
+    expect([first.getTime(), second.getTime()]).toContain(confirmedAt?.getTime())
+    expect((await repository.findById(user.id))?.ageConfirmedAt).toEqual(confirmedAt)
+  })
+
+  it('stamps the terms acceptance once per version', async () => {
+    const user = await repository.insertOrGet(alice, now)
+    const accepted = new Date('2026-10-14T13:00:00Z')
+    const later = new Date('2026-10-20T09:00:00Z')
+
+    await repository.saveOnboarding(user.id, { acceptTermsVersion: 'v1' }, accepted)
+    const again = await repository.saveOnboarding(user.id, { acceptTermsVersion: 'v1' }, later)
+    const newVersion = await repository.saveOnboarding(user.id, { acceptTermsVersion: 'v2' }, later)
+
+    expect(again).toMatchObject({ termsVersion: 'v1', termsAcceptedAt: accepted })
+    expect(newVersion).toMatchObject({ termsVersion: 'v2', termsAcceptedAt: later })
   })
 
   it('deletes a user once and reports a repeated delete', async () => {

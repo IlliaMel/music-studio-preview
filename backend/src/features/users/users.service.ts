@@ -62,30 +62,24 @@ export class UsersService {
         termsVersion: TERMS_VERSION,
       })
     }
-    const current = await this.getProfile(userId)
-    const now = this.now()
-    const updated = await this.repository.updateProfile(
+    const updated = await this.repository.saveOnboarding(
       userId,
       {
         displayName: update.displayName,
         marketingOptIn: update.marketingOptIn,
-        // The first confirmation is the one that counts, so it is never overwritten.
-        ...(update.ageConfirmed && !current.ageConfirmedAt && { ageConfirmedAt: now }),
-        ...(update.acceptedTermsVersion &&
-          current.termsVersion !== TERMS_VERSION && {
-            termsVersion: TERMS_VERSION,
-            termsAcceptedAt: now,
-          }),
+        confirmAge: update.ageConfirmed,
+        acceptTermsVersion: update.acceptedTermsVersion,
       },
-      now,
+      this.now(),
     )
     if (!updated) throw userNotFound()
     return updated
   }
 
   /**
-   * Deletes our data first, then the Firebase account. If the second step fails, the client
-   * retries and both steps run again safely: each of them ignores what is already gone.
+   * Deletes our data first, then the Firebase account. Personal data going away is what matters
+   * most, so it never waits on Firebase. If the second step fails, the client gets a 500 and
+   * retries: the token is still valid then, and both steps ignore what is already gone.
    */
   async deleteAccount(user: CurrentUser): Promise<void> {
     await this.repository.delete(user.id)

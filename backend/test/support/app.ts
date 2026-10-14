@@ -1,10 +1,8 @@
-import { createApp } from '../../src/app.js'
+import { composeApp } from '../../src/compose.js'
 import type { AuthProvider } from '../../src/core/auth/auth-provider.js'
-import { authenticate } from '../../src/core/auth/authenticate.js'
 import { DevAuthProvider } from '../../src/core/auth/dev-auth-provider.js'
 import type { Database } from '../../src/core/db/database.js'
 import type { Feature } from '../../src/core/http/app-env.js'
-import { createUsersFeature } from '../../src/features/users/index.js'
 import { silentLogger } from './logger.js'
 
 /** Dev sign-in that remembers which accounts the server asked Firebase to delete. */
@@ -16,7 +14,7 @@ export class RecordingAuthProvider extends DevAuthProvider {
   }
 }
 
-/** The app wired as in `main.ts`, with dev sign-in and any extra features a test needs. */
+/** The app wired by the same `composeApp` as `main.ts`, with dev sign-in and test features. */
 export function createTestApp(
   db: Database,
   {
@@ -24,13 +22,7 @@ export function createTestApp(
     features = [],
   }: { auth?: AuthProvider; features?: Feature[] } = {},
 ) {
-  const users = createUsersFeature({ db, auth })
-  const app = createApp({
-    db,
-    log: silentLogger,
-    authenticate: authenticate(auth, (identity) => users.service.resolve(identity)),
-    features: [users.feature, ...features],
-  })
+  const { app } = composeApp({ db, log: silentLogger, auth }, features)
   return { app, auth }
 }
 

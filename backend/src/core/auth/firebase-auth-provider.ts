@@ -14,6 +14,7 @@ const TOKEN_ERROR_CODES = new Set([
   'auth/id-token-expired',
   'auth/id-token-revoked',
   'auth/user-disabled',
+  'auth/user-not-found',
 ])
 
 export class FirebaseAuthProvider implements AuthProvider {
@@ -29,9 +30,12 @@ export class FirebaseAuthProvider implements AuthProvider {
 
   async verifyIdToken(token: string): Promise<VerifiedIdentity> {
     try {
-      // Checks the signature against Google's public keys, the expiry and that the token was
-      // issued for our project. The keys are cached, so this rarely touches the network.
-      const decoded = await this.auth.verifyIdToken(token)
+      // Checks the signature against Google's cached public keys, the expiry and that the token
+      // was issued for our project. `checkRevoked` also asks Firebase whether the account still
+      // exists and is enabled: one extra call per request, but a deleted or blocked user is
+      // locked out at once instead of for up to an hour, and a token that outlived its account
+      // cannot quietly create that account again.
+      const decoded = await this.auth.verifyIdToken(token, true)
       return {
         uid: decoded.uid,
         email: decoded.email ?? null,

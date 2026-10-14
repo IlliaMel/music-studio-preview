@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import type { Database } from '../../core/db/database.js'
 import { type User, users } from './users.table.js'
 
@@ -8,12 +8,13 @@ export type SignInIdentity = Pick<
   'firebaseUid' | 'email' | 'emailVerified' | 'signInProvider'
 >
 
-export type ProfileChanges = Partial<
-  Pick<
-    User,
-    'displayName' | 'ageConfirmedAt' | 'termsVersion' | 'termsAcceptedAt' | 'marketingOptIn'
-  >
->
+/** Onboarding answers to save; anything left undefined stays as it is. */
+export type OnboardingAnswers = {
+  displayName?: string
+  marketingOptIn?: boolean
+  confirmAge?: boolean
+  acceptTermsVersion?: string
+}
 
 /** SQL for the `users` table and nothing else: the rules live in the service. */
 export class UsersRepository {
@@ -48,8 +49,33 @@ export class UsersRepository {
     return this.update(id, { ...identity, lastSeenAt: now, updatedAt: now })
   }
 
-  async updateProfile(id: string, changes: ProfileChanges, now: Date): Promise<User | undefined> {
-    return this.update(id, { ...changes, updatedAt: now })
+  /**
+   * Saves onboarding answers in one statement. The time of the first age confirmation and of
+   * accepting a terms version is decided by the database, so neither a repeated nor a
+   * concurrent request can overwrite it.
+   */
+  async saveOnboarding(
+    id: string,
+    answers: OnboardingAnswers,
+    now: Date,
+  ): Promise<User | undefined> {
+    const [user] = await this.db
+      .update(users)
+      .set({
+        displayName: answers.displayName,
+        marketingOptIn: answers.marketingOptIn,
+        ...(answers.confirmAge && {
+          ageConfirmedAt: sql`coalesce(${users.ageConfirmedAt}, ${now})`,
+        }),
+        ...(answers.acceptTermsVersion !== undefined && {
+          termsVersion: answers.acceptTermsVersion,
+          termsAcceptedAt: sql`case when ${users.termsVersion} is distinct from ${answers.acceptTermsVersion} then ${now} else ${users.termsAcceptedAt} end`,
+        }),
+        updatedAt: now,
+      })
+      .where(eq(users.id, id))
+      .returning()
+    return user
   }
 
   /** Returns false when there was no such user, so deleting twice is not an error. */

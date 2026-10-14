@@ -1,16 +1,14 @@
 import { serve } from '@hono/node-server'
-import { createApp } from './app.js'
+import { composeApp } from './compose.js'
 import type { AuthProvider } from './core/auth/auth-provider.js'
-import { authenticate } from './core/auth/authenticate.js'
 import { DevAuthProvider } from './core/auth/dev-auth-provider.js'
 import { FirebaseAuthProvider } from './core/auth/firebase-auth-provider.js'
 import { type Config, ConfigError, loadConfig } from './core/config.js'
 import { openDatabase } from './core/db/database.js'
-import type { Feature } from './core/http/app-env.js'
 import { createLogger } from './core/logger.js'
-import { createUsersFeature } from './features/users/index.js'
 
-// The composition root: the only place that creates objects and wires them together.
+// Reads the configuration, creates the real services and starts the server.
+// The features and their wiring live in compose.ts, which the tests use as well.
 
 loadEnvFileIfPresent()
 const config = loadConfigOrExit()
@@ -28,15 +26,7 @@ if (config.auth.mode === 'dev') {
   log.warn('dev sign-in is on: the token dev:<name> signs in as <name>')
 }
 
-const users = createUsersFeature({ db: database.db, auth })
-const features: Feature[] = [users.feature]
-
-const app = createApp({
-  db: database.db,
-  log,
-  authenticate: authenticate(auth, (identity) => users.service.resolve(identity)),
-  features,
-})
+const { app, features } = composeApp({ db: database.db, log, auth })
 const server = serve(
   { fetch: app.fetch, hostname: config.server.host, port: config.server.port },
   (info) =>
