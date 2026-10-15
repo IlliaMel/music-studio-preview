@@ -29,8 +29,9 @@ class LibraryViewModel(tracks: TrackRepository, private val playback: PlaybackCo
 
     init {
         tracks.observeLiked().onEach { list ->
-            liked = list.filter { it.status == TrackStatus.Ready }
-            setState { copy(liked = liked.map(Track::toUi).toImmutableList(), isLoading = false) }
+            val ready = list.filter { it.status == TrackStatus.Ready }
+            liked = ready
+            setState { copy(liked = ready.map(Track::toUi).toImmutableList(), isLoading = false) }
         }.launchIn(viewModelScope)
         playlists.observeAll().onEach { list ->
             lists = list
