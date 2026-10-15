@@ -27,12 +27,14 @@ fun signedInEntries(
     navigator: TabNavigator,
     padding: State<ShellPadding>,
     transitions: ShellTransitions,
+    onOpenPlayer: () -> Unit,
 ): (NavKey) -> NavEntry<NavKey> = entryProvider {
     entry<Destination.Create>(metadata = transitions.tabRoot) {
         val contentPadding = padding.value.tabRoot
         CreateRoute(
             onOpenTool = { tool -> navigator.navigate(Destination.Tool(tool.name)) },
             onOpenTools = { navigator.navigate(Destination.Tools) },
+            onOpenPlayer = onOpenPlayer,
             modifier = Modifier.destination(StudioTheme.colors.background, contentPadding),
             contentPadding = contentPadding,
         )
@@ -41,6 +43,7 @@ fun signedInEntries(
         val contentPadding = padding.value.tabRoot
         ListenRoute(
             onOpenCollection = { id -> navigator.navigate(Destination.Collection(id)) },
+            onOpenPlayer = onOpenPlayer,
             modifier = Modifier.destination(StudioTheme.colors.background, contentPadding),
             contentPadding = contentPadding,
         )
@@ -52,6 +55,11 @@ fun signedInEntries(
         val contentPadding = if (libraryIsTab) padding.value.tabRoot else padding.value.screen
         LibraryRoute(
             onBack = if (libraryIsTab) null else ({ navigator.goBack() }),
+            onOpenPlayer = onOpenPlayer,
+            onExplore = {
+                if (!libraryIsTab) navigator.goBack()
+                navigator.select(TopLevelTab.Listen)
+            },
             modifier = Modifier.destination(StudioTheme.colors.background, contentPadding),
             contentPadding = contentPadding,
         )
@@ -60,6 +68,8 @@ fun signedInEntries(
         val contentPadding = padding.value.screen
         CollectionRoute(
             collectionId = key.id,
+            onOpenPlayer = onOpenPlayer,
+            onOpenCollection = { id -> navigator.navigate(Destination.Collection(id)) },
             onClose = navigator::goBack,
             modifier = Modifier.destination(StudioTheme.colors.background, contentPadding),
             contentPadding = contentPadding,

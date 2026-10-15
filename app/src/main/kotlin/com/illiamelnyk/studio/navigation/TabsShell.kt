@@ -58,23 +58,23 @@ fun TabsShell(
     val padding = rememberShellPadding(bottomChrome)
     val paddingState = rememberUpdatedState(padding)
     val transitions = rememberShellTransitions()
-    val entryProvider = remember(navigator, transitions) { signedInEntries(navigator, paddingState, transitions) }
-    // Every tab's entries stay decorated, shown or not, so a hidden tab keeps its state.
-    val entriesByTab = TopLevelTab.entries.associateWith { tab ->
-        key(tab) {
-            rememberDecoratedNavEntries(
-                backStack = navigator.backStack(tab),
-                entryDecorators = listOf(
-                    rememberSaveableStateHolderNavEntryDecorator(),
-                    rememberViewModelStoreNavEntryDecorator(),
-                ),
-                entryProvider = entryProvider,
-            )
-        }
-    }
     val motion = StudioTheme.motion
     val backdrop = rememberGlassBackdrop()
     PlayerHost(modifier.fillMaxSize()) { player ->
+        val entryProvider = remember(navigator, transitions, player) { signedInEntries(navigator, paddingState, transitions, onOpenPlayer = player::expand) }
+        // Every tab's entries stay decorated, shown or not, so a hidden tab keeps its state.
+        val entriesByTab = TopLevelTab.entries.associateWith { tab ->
+            key(tab) {
+                rememberDecoratedNavEntries(
+                    backStack = navigator.backStack(tab),
+                    entryDecorators = listOf(
+                        rememberSaveableStateHolderNavEntryDecorator(),
+                        rememberViewModelStoreNavEntryDecorator(),
+                    ),
+                    entryProvider = entryProvider,
+                )
+            }
+        }
         Layout(
             contents = listOf(
                 {
