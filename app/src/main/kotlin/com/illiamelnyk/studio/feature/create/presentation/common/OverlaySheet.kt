@@ -16,6 +16,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import com.illiamelnyk.studio.core.ui.components.StudioBottomSheet
+import com.illiamelnyk.studio.core.ui.foundation.FeedbackWindow
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
 /**
@@ -46,6 +47,7 @@ fun OverlaySheet(
             decorFitsSystemWindows = false,
         ),
     ) {
+        FeedbackWindow {
         PlainWindow()
         StudioBottomSheet(visible = visible, onDismissRequest = onDismissRequest, modifier = modifier) {
             DisposableEffect(Unit) {
@@ -53,6 +55,7 @@ fun OverlaySheet(
                 onDispose { onScreen = false }
             }
             content()
+        }
         }
     }
 }

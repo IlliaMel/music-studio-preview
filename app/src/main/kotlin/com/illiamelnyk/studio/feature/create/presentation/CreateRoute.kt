@@ -11,17 +11,18 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.illiamelnyk.studio.R
+import com.illiamelnyk.studio.core.presentation.ToastController
+import com.illiamelnyk.studio.core.ui.components.StudioToastKind
 import com.illiamelnyk.studio.core.presentation.ObserveEffects
 import com.illiamelnyk.studio.feature.create.domain.Tool
-import com.illiamelnyk.studio.feature.create.presentation.common.ToastHostState
 import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -41,7 +42,7 @@ fun CreateRoute(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
-    val toasts = remember { ToastHostState() }
+    val feedback: ToastController = koinInject()
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
@@ -58,7 +59,7 @@ fun CreateRoute(
 
             is CreateEffect.OpenTool -> onOpenTool(effect.tool)
 
-            is CreateEffect.ShowToast -> scope.launch { toasts.show(effect.toast) }
+            is CreateEffect.ShowToast -> feedback.show(effect.toast.title, effect.toast.message, isError = effect.toast.kind == StudioToastKind.Error)
 
             is CreateEffect.ShareTrack -> context.shareTrack(effect.title, effect.prompt)
 
@@ -75,7 +76,6 @@ fun CreateRoute(
         modifier = modifier,
         contentPadding = contentPadding,
         listState = listState,
-        toasts = toasts,
     )
 }
 
