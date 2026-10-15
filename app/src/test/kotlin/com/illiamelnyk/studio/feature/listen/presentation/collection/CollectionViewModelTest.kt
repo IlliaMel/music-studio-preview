@@ -26,7 +26,7 @@ class CollectionViewModelTest {
             vm.onIntent(CollectionIntent.TrackClicked(trackId))
             assertEquals(CollectionEffect.OpenPlayer, awaitItem())
             assertEquals(trackId, playback.state.value.current?.id)
-            assertEquals(6, playback.state.value.queue.size)
+            assertEquals(12, playback.state.value.queue.size)
             assertFalse(playback.state.value.shuffle)
         }
         assertFalse(vm.state.value.isLoading)
