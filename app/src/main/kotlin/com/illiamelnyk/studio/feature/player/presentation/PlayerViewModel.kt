@@ -87,6 +87,7 @@ class PlayerViewModel(
         is PlayerIntent.UpNextTrackClicked -> playUpNext(intent.position)
         PlayerIntent.ClearUpNextClicked -> playback.clearUpNext()
         PlayerIntent.SheetDismissed -> setContent { copy(sheet = null) }
+        PlayerIntent.AddToClicked -> playback.state.value.current?.let { sendEffect(PlayerEffect.OpenPlaylistPicker(it)) }
         PlayerIntent.LikeClicked -> toggleLike()
         PlayerIntent.ShareClicked -> share()
         is PlayerIntent.ComingSoonClicked -> setContent { copy(sheet = PlayerSheet.ComingSoon(intent.feature)) }

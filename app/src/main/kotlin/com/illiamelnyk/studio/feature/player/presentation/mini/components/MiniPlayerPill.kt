@@ -30,8 +30,8 @@ import com.illiamelnyk.studio.feature.player.presentation.host.playerCoverShape
  * player's cover.
  *
  * @param progress read only while drawing the progress line, from 0 to 1.
- * @param onNext `null` when there is nothing to skip to: the kit's mini player has no disabled
- *   state for it, so the button goes.
+ * @param onNext `null` hides the next button, as for a station.
+ * @param nextEnabled false at the end of a queue; the next button stays in place.
  * @param onRemix `null` hides the wand, as for a station.
  * @param pillModifier for the pill alone, such as the drag that opens the full player.
  */
@@ -48,6 +48,7 @@ fun MiniPlayerPill(
     modifier: Modifier = Modifier,
     pillModifier: Modifier = Modifier,
     coverModifier: Modifier = Modifier,
+    nextEnabled: Boolean = true,
 ) {
     val dimens = StudioTheme.dimens
     Row(
@@ -65,6 +66,7 @@ fun MiniPlayerPill(
                 onClick = onOpen,
                 onPlayPause = onPlayPause,
                 onNext = onNext,
+                nextEnabled = nextEnabled,
                 live = isStation,
             )
             // Where the kit places its cover: the pill's start padding, centered vertically.

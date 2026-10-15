@@ -2,6 +2,7 @@ package com.illiamelnyk.studio.feature.player.presentation
 
 import android.net.Uri
 import androidx.compose.runtime.Immutable
+import com.illiamelnyk.studio.core.domain.track.Track
 import com.illiamelnyk.studio.core.presentation.UiText
 import com.illiamelnyk.studio.core.presentation.track.TrackUi
 import com.illiamelnyk.studio.core.ui.components.LyricLine
@@ -39,6 +40,7 @@ data class PlaybackClock(val positionMs: Long = 0, val durationMs: Long = 0) {
 data class PlayerContent(
     val track: NowPlayingUi? = null,
     val isPlaying: Boolean = false,
+    val hasNext: Boolean = false,
     val isStation: Boolean = false,
     val isLiked: Boolean = false,
     val shuffle: Boolean = false,
@@ -76,9 +78,6 @@ sealed interface PlayerSheet {
 enum class SoonFeature {
     /** A new version of the track through the Music API. */
     Remix,
-
-    /** Playlists live in Library, which the player can't reach yet. */
-    AddToPlaylist,
 
     /** Saving the audio file: needs real audio. */
     Download,
@@ -122,6 +121,8 @@ sealed interface PlayerIntent {
 
     data object SheetDismissed : PlayerIntent
 
+    data object AddToClicked : PlayerIntent
+
     data object LikeClicked : PlayerIntent
 
     data object ShareClicked : PlayerIntent
@@ -141,6 +142,8 @@ sealed interface PlayerEffect {
      * one: a `content://` URI, such as a FileProvider gives for a downloaded file.
      */
     data class Share(val text: UiText, val audio: Uri? = null) : PlayerEffect
+
+    data class OpenPlaylistPicker(val track: Track) : PlayerEffect
 
     data class ShowToast(val toast: PlayerToastUi) : PlayerEffect
 }

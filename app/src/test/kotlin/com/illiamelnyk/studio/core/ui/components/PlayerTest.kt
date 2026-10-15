@@ -13,6 +13,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -134,6 +137,50 @@ class PlayerTest {
         }
 
         assertEquals(1, compositions)
+    }
+
+    @Test
+    fun `next stays disabled at the end and becomes actionable when another track arrives`() {
+        var enabled by androidx.compose.runtime.mutableStateOf(false)
+        var skips = 0
+        setThemedContent {
+            PlayerControls(
+                isPlaying = true,
+                onPlayPause = {},
+                onPrevious = {},
+                onNext = { skips++ },
+                shuffle = false,
+                onShuffleChange = {},
+                repeat = false,
+                onRepeatChange = {},
+                nextEnabled = enabled,
+            )
+        }
+        composeRule.onNodeWithContentDescription("Next").assertIsNotEnabled().performClick()
+        assertEquals(0, skips)
+        enabled = true
+        composeRule.onNodeWithContentDescription("Next").assertIsEnabled().performClick()
+        assertEquals(1, skips)
+    }
+
+    @Test
+    fun `mini player retains a disabled next button when its queue ends`() {
+        var skips = 0
+        setThemedContent {
+            MiniPlayer(
+                title = "Last track",
+                subtitle = "Studio",
+                coverSeed = "last",
+                isPlaying = true,
+                progress = { 0f },
+                onClick = {},
+                onPlayPause = {},
+                onNext = { skips++ },
+                nextEnabled = false,
+            )
+        }
+        composeRule.onNodeWithContentDescription("Next").assertIsNotEnabled().performTouchInput { click() }
+        assertEquals(0, skips)
     }
 
     private fun setLyrics(position: () -> Long) {

@@ -125,11 +125,6 @@
         <item>The track goes to `/v1/music` as `conditioning_ref`</item>
         <item>The remix shows up in Your tracks</item>
     </string-array>
-    <string name="player_soon_add_to_playlist">Keep this track in one of your playlists.</string>
-    <string-array name="player_soon_add_to_playlist_steps">
-        <item>Pick a playlist or make a new one</item>
-        <item>The track is saved on this device, in Library</item>
-    </string-array>
     <string name="player_soon_autoplay">Keep listening to similar tracks after the queue ends.</string>
     <string-array name="player_soon_autoplay_steps">
         <item>Find similar songs from the catalog</item>

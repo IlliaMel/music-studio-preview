@@ -20,6 +20,7 @@ fun PlayerContent.withPlayback(playback: PlaybackState): PlayerContent {
     return copy(
         track = nowPlaying,
         isPlaying = playback.isPlaying,
+        hasNext = playback.hasNext,
         isStation = playback.isStation,
         shuffle = playback.shuffle,
         repeat = playback.repeat != RepeatMode.Off,

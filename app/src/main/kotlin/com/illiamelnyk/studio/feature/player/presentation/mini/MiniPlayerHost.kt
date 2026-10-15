@@ -77,13 +77,8 @@ fun MiniPlayerHost(
                     progress = { state.value.progress },
                     onOpen = host.sheet::expand,
                     onPlayPause = { viewModel.onIntent(MiniPlayerIntent.PlayPauseClicked) },
-                    onNext = if (hasNext &&
-                        !isStation
-                    ) {
-                        ({ viewModel.onIntent(MiniPlayerIntent.NextClicked) })
-                    } else {
-                        null
-                    },
+                    onNext = if (!isStation) ({ viewModel.onIntent(MiniPlayerIntent.NextClicked) }) else null,
+                    nextEnabled = hasNext,
                     onRemix = if (!isStation) ({ host.remixSoonVisible = true }) else null,
                     coverModifier = host.rememberSharedCover(this),
                     pillModifier = Modifier.draggable(

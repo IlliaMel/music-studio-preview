@@ -19,6 +19,9 @@ interface PlaybackController {
      */
     fun playStation(name: String, queue: List<Track>)
 
+    /** Moves [track] immediately after the current one without changing its clock or play state. */
+    fun enqueueNext(track: Track)
+
     /** Pauses if playing, plays if paused. */
     fun togglePlayPause()
 

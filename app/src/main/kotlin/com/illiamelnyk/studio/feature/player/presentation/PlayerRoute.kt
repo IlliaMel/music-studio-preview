@@ -3,7 +3,6 @@ package com.illiamelnyk.studio.feature.player.presentation
 import android.content.Intent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -16,9 +15,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.illiamelnyk.studio.R
+import com.illiamelnyk.studio.core.domain.track.Track
+import com.illiamelnyk.studio.core.presentation.ToastController
+import com.illiamelnyk.studio.core.presentation.playlist.PlaylistPickerRoute
+import com.illiamelnyk.studio.core.ui.components.StudioToastKind
 import com.illiamelnyk.studio.core.presentation.ObserveEffects
 import com.illiamelnyk.studio.core.presentation.asString
-import com.illiamelnyk.studio.feature.player.presentation.components.PlayerToast
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -45,7 +48,8 @@ fun PlayerRoute(
     val content by remember { derivedStateOf { state.value.content } }
     val context = LocalContext.current
     val collapse by rememberUpdatedState(onCollapse)
-    var toast by remember { mutableStateOf<PlayerToastUi?>(null) }
+    val feedback: ToastController = koinInject()
+    var playlistTrack by remember { mutableStateOf<Track?>(null) }
     ObserveEffects(viewModel.effects) { effect ->
         when (effect) {
             PlayerEffect.Collapse -> onCollapse()
@@ -62,7 +66,12 @@ fun PlayerRoute(
                 context.startActivity(Intent.createChooser(send, context.getString(R.string.player_share)))
             }
 
-            is PlayerEffect.ShowToast -> toast = effect.toast
+            is PlayerEffect.OpenPlaylistPicker -> playlistTrack = effect.track
+            is PlayerEffect.ShowToast -> feedback.show(
+                effect.toast.title,
+                effect.toast.message,
+                isError = effect.toast.kind == StudioToastKind.Error,
+            )
         }
     }
     // Nothing left to show, such as after a station was stopped or when the app comes back without
@@ -77,6 +86,6 @@ fun PlayerRoute(
             coverModifier = coverModifier,
             bodyModifier = bodyModifier,
         )
-        PlayerToast(toast, onDismiss = { toast = null }, modifier = Modifier.padding(contentPadding))
+        playlistTrack?.let { track -> PlaylistPickerRoute(track, onDismiss = { playlistTrack = null }) }
     }
 }

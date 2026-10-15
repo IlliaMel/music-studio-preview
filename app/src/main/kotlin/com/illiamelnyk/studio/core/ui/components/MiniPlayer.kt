@@ -49,6 +49,7 @@ fun MiniPlayer(
     modifier: Modifier = Modifier,
     onNext: (() -> Unit)? = null,
     live: Boolean = false,
+    nextEnabled: Boolean = true,
 ) {
     val colors = StudioTheme.colors
     val dimens = StudioTheme.dimens
@@ -93,6 +94,7 @@ fun MiniPlayer(
                     contentDescription = stringResource(R.string.ui_next),
                     onClick = onNext,
                     style = StudioIconButtonStyle.OnGlass,
+                    enabled = nextEnabled,
                 )
             }
         }

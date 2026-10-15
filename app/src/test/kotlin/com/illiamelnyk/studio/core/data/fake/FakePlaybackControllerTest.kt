@@ -180,6 +180,33 @@ class FakePlaybackControllerTest {
         assertFalse(player.state.value.isPlaying)
     }
 
+    @Test
+    fun `play next moves an existing track ahead of shuffled rest without resuming or seeking`() = runTest {
+        val player = player()
+        player.play(listOf(a, b, c), startIndex = 0)
+        player.setShuffle(true)
+        player.seekTo(750)
+        player.togglePlayPause()
+        player.enqueueNext(c)
+        assertEquals(listOf(a, c, b), player.state.value.queue)
+        assertEquals(750L, player.state.value.positionMs)
+        assertFalse(player.state.value.isPlaying)
+        player.next()
+        assertEquals(c, player.state.value.current)
+        player.setShuffle(false)
+        assertEquals(listOf(a, c, b), player.state.value.queue)
+        assertEquals(c, player.state.value.current)
+    }
+
+    @Test
+    fun `play next on an empty player starts the requested track`() = runTest {
+        val player = player()
+        player.enqueueNext(b)
+        assertEquals(listOf(b), player.state.value.queue)
+        assertEquals(b, player.state.value.current)
+        assertTrue(player.state.value.isPlaying)
+    }
+
     private fun TestScope.player() = FakePlaybackController(backgroundScope, Random(seed = 7))
 
     private fun TestScope.advance(time: Duration) {

@@ -38,6 +38,8 @@ import com.illiamelnyk.studio.core.ui.theme.darkStudioColors
  * The player's transport on cover color: shuffle, previous, the 64 dp play/pause button, next and
  * repeat. Play and pause swap with a quick scale and fade. Shuffle and repeat are switches that
  * TalkBack reads as on or off; on, they are in the primary media color, off in the secondary one.
+ *
+ * @param nextEnabled false at the end of a queue; the next control stays in place and is disabled.
  */
 @Composable
 fun PlayerControls(
@@ -50,6 +52,7 @@ fun PlayerControls(
     repeat: Boolean,
     onRepeatChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    nextEnabled: Boolean = true,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -59,7 +62,7 @@ fun PlayerControls(
         MediaToggle(StudioIcons.Shuffle, stringResource(R.string.ui_shuffle), shuffle, onShuffleChange)
         MediaButton(StudioIcons.SkipPreviousFilled, stringResource(R.string.ui_previous), onPrevious)
         PlayButton(isPlaying, onPlayPause)
-        MediaButton(StudioIcons.SkipNextFilled, stringResource(R.string.ui_next), onNext)
+        MediaButton(StudioIcons.SkipNextFilled, stringResource(R.string.ui_next), onNext, enabled = nextEnabled)
         MediaToggle(StudioIcons.Repeat, stringResource(R.string.ui_repeat), repeat, onRepeatChange)
     }
 }
@@ -98,12 +101,12 @@ private fun PlayButton(isPlaying: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun MediaButton(@DrawableRes icon: Int, description: String, onClick: () -> Unit) {
+private fun MediaButton(@DrawableRes icon: Int, description: String, onClick: () -> Unit, enabled: Boolean = true) {
     val dimens = StudioTheme.dimens
     Box(
         modifier = Modifier
             .minimumTouchTarget()
-            .clickable(role = Role.Button, onClick = onClick)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = description }
             .size(dimens.size.component.iconButton),
         contentAlignment = Alignment.Center,
@@ -111,7 +114,7 @@ private fun MediaButton(@DrawableRes icon: Int, description: String, onClick: ()
         StudioIcon(
             icon,
             contentDescription = null,
-            tint = StudioTheme.colors.overlay.onMediaPrimary,
+            tint = if (enabled) StudioTheme.colors.overlay.onMediaPrimary else StudioTheme.colors.overlay.onMediaSecondary,
             size = dimens.size.icon.xl,
         )
     }

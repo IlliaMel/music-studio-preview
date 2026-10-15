@@ -30,6 +30,8 @@ import kotlinx.coroutines.launch
 class FakePlaybackController(private val scope: CoroutineScope, private val random: Random = Random.Default) :
     PlaybackController {
 
+    // Queue indexes and the clock advance together even when the injected scope runs off main.
+    private val playbackLock = Any()
     private val mutableState = MutableStateFlow(PlaybackState())
     override val state: StateFlow<PlaybackState> = mutableState.asStateFlow()
 
@@ -40,84 +42,127 @@ class FakePlaybackController(private val scope: CoroutineScope, private val rand
     private var playOrder: List<Int> = emptyList()
     private var clock: Job? = null
 
-    override fun play(queue: List<Track>, startIndex: Int) = load(queue, startIndex, stationName = null)
+    override fun play(queue: List<Track>, startIndex: Int) = synchronized(playbackLock) {
+        load(queue, startIndex, stationName = null)
+    }
 
-    override fun playStation(name: String, queue: List<Track>) = load(queue, startIndex = 0, stationName = name)
+    override fun playStation(name: String, queue: List<Track>) = synchronized(playbackLock) {
+        load(queue, startIndex = 0, stationName = name)
+    }
+
+    override fun enqueueNext(track: Track) {
+        synchronized(playbackLock) {
+            val state = mutableState.value
+            val current = state.current
+            if (current == null) {
+                play(listOf(track))
+                return
+            }
+            if (current.id == track.id) return
+            val currentOriginal = playOrder[state.currentIndex]
+            val retained = originalQueue.indices.filter { originalQueue[it].id != track.id }
+            val insertAt = retained.indexOf(currentOriginal) + 1
+            val updated = retained.map(originalQueue::get).toMutableList().apply { add(insertAt, track) }
+            val remapped = retained.mapIndexed { index, old -> old to if (index >= insertAt) index + 1 else index }.toMap()
+            val order = playOrder.mapNotNull(remapped::get).toMutableList()
+            val currentIndex = order.indexOf(remapped.getValue(currentOriginal))
+            order.add(currentIndex + 1, insertAt)
+            originalQueue = updated
+            playOrder = order
+            mutableState.update { it.copy(queue = order.map(updated::get), currentIndex = currentIndex) }
+        }
+    }
 
     override fun togglePlayPause() {
-        val state = mutableState.value
-        if (state.current == null) return
-        if (state.isPlaying) {
-            stopClock()
-            mutableState.update { it.copy(isPlaying = false) }
-        } else {
-            // Playing again after the queue ended starts the last track over.
-            val atEnd = state.positionMs >= state.durationMs
-            mutableState.update { it.copy(isPlaying = true, positionMs = if (atEnd) 0 else it.positionMs) }
-            startClock()
+        synchronized(playbackLock) {
+            val state = mutableState.value
+            if (state.current == null) return
+            if (state.isPlaying) {
+                stopClock()
+                mutableState.update { it.copy(isPlaying = false) }
+            } else {
+                // Playing again after the queue ended starts the last track over.
+                val atEnd = state.positionMs >= state.durationMs
+                mutableState.update { it.copy(isPlaying = true, positionMs = if (atEnd) 0 else it.positionMs) }
+                startClock()
+            }
         }
     }
 
     override fun seekTo(positionMs: Long) {
-        mutableState.update { it.copy(positionMs = positionMs.coerceIn(0, it.durationMs)) }
+        synchronized(playbackLock) {
+            mutableState.update { it.copy(positionMs = positionMs.coerceIn(0, it.durationMs)) }
+        }
     }
 
     override fun next() {
-        mutableState.update { state ->
-            when {
-                state.currentIndex < state.queue.lastIndex -> state.atTrack(state.currentIndex + 1)
-                state.loops && state.queue.isNotEmpty() -> state.atTrack(0)
-                else -> state
+        synchronized(playbackLock) {
+            mutableState.update { state ->
+                when {
+                    state.currentIndex < state.queue.lastIndex -> state.atTrack(state.currentIndex + 1)
+                    state.loops && state.queue.isNotEmpty() -> state.atTrack(0)
+                    else -> state
+                }
             }
         }
     }
 
     override fun previous() {
-        mutableState.update { state ->
-            when {
-                state.positionMs > RESTART_THRESHOLD.inWholeMilliseconds -> state.copy(positionMs = 0)
-                state.currentIndex > 0 -> state.atTrack(state.currentIndex - 1)
-                state.loops && state.queue.isNotEmpty() -> state.atTrack(state.queue.lastIndex)
-                else -> state.copy(positionMs = 0)
+        synchronized(playbackLock) {
+            mutableState.update { state ->
+                when {
+                    state.positionMs > RESTART_THRESHOLD.inWholeMilliseconds -> state.copy(positionMs = 0)
+                    state.currentIndex > 0 -> state.atTrack(state.currentIndex - 1)
+                    state.loops && state.queue.isNotEmpty() -> state.atTrack(state.queue.lastIndex)
+                    else -> state.copy(positionMs = 0)
+                }
             }
         }
     }
 
     override fun setShuffle(enabled: Boolean) {
-        val state = mutableState.value
-        if (state.shuffle == enabled) return
-        if (state.current == null) {
-            mutableState.update { it.copy(shuffle = enabled) }
-            return
-        }
-        // The current track keeps playing; only what comes after it changes.
-        val originalIndex = playOrder[state.currentIndex]
-        playOrder = if (enabled) shuffledOrder(first = originalIndex) else originalQueue.indices.toList()
-        mutableState.update {
-            it.copy(
-                queue = playOrder.map(originalQueue::get),
-                currentIndex = if (enabled) 0 else originalIndex,
-                shuffle = enabled,
-            )
+        synchronized(playbackLock) {
+            val state = mutableState.value
+            if (state.shuffle == enabled) return
+            if (state.current == null) {
+                mutableState.update { it.copy(shuffle = enabled) }
+                return
+            }
+            // The current track keeps playing; only what comes after it changes.
+            val originalIndex = playOrder[state.currentIndex]
+            playOrder = if (enabled) shuffledOrder(first = originalIndex) else originalQueue.indices.toList()
+            mutableState.update {
+                it.copy(
+                    queue = playOrder.map(originalQueue::get),
+                    currentIndex = if (enabled) 0 else originalIndex,
+                    shuffle = enabled,
+                )
+            }
         }
     }
 
     override fun setRepeat(mode: RepeatMode) {
-        mutableState.update { it.copy(repeat = mode) }
+        synchronized(playbackLock) {
+            mutableState.update { it.copy(repeat = mode) }
+        }
     }
 
     override fun clearUpNext() {
-        val current = mutableState.value.current ?: return
-        originalQueue = listOf(current)
-        playOrder = listOf(0)
-        mutableState.update { it.copy(queue = originalQueue, currentIndex = 0) }
+        synchronized(playbackLock) {
+            val current = mutableState.value.current ?: return
+            originalQueue = listOf(current)
+            playOrder = listOf(0)
+            mutableState.update { it.copy(queue = originalQueue, currentIndex = 0) }
+        }
     }
 
     override fun stop() {
-        stopClock()
-        originalQueue = emptyList()
-        playOrder = emptyList()
-        mutableState.update { PlaybackState(shuffle = it.shuffle, repeat = it.repeat) }
+        synchronized(playbackLock) {
+            stopClock()
+            originalQueue = emptyList()
+            playOrder = emptyList()
+            mutableState.update { PlaybackState(shuffle = it.shuffle, repeat = it.repeat) }
+        }
     }
 
     private fun load(queue: List<Track>, startIndex: Int, stationName: String?) {
@@ -142,8 +187,12 @@ class FakePlaybackController(private val scope: CoroutineScope, private val rand
         clock = scope.launch {
             while (isActive) {
                 delay(TICK)
-                mutableState.update { it.advancedBy(TICK.inWholeMilliseconds) }
-                if (!mutableState.value.isPlaying) break
+                val playing = synchronized(playbackLock) {
+                    if (!isActive) return@synchronized false
+                    mutableState.update { it.advancedBy(TICK.inWholeMilliseconds) }
+                    mutableState.value.isPlaying.also { playing -> if (!playing) clock = null }
+                }
+                if (!playing) break
             }
         }
     }

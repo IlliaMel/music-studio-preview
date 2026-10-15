@@ -63,13 +63,6 @@ private fun SoonFeature.content(): SoonContent = when (this) {
         StudioIcons.AutoFixHigh,
     )
 
-    SoonFeature.AddToPlaylist -> SoonContent(
-        R.string.player_add_to_playlist,
-        R.string.player_soon_add_to_playlist,
-        R.array.player_soon_add_to_playlist_steps,
-        StudioIcons.PlaylistAdd,
-    )
-
     SoonFeature.Autoplay -> SoonContent(
         R.string.player_autoplay,
         R.string.player_soon_autoplay,

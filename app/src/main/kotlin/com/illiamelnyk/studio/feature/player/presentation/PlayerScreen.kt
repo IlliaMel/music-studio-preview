@@ -44,6 +44,7 @@ fun PlayerScreen(
                     showActions = !state.isStation,
                     onCollapse = { onIntent(PlayerIntent.CollapseClicked) },
                     onShare = { onIntent(PlayerIntent.ShareClicked) },
+                    onAddTo = { onIntent(PlayerIntent.AddToClicked) },
                     onComingSoon = { onIntent(PlayerIntent.ComingSoonClicked(it)) },
                 )
             },
@@ -77,7 +78,7 @@ fun PlayerScreen(
                 PlayerActions(
                     isLiked = state.isLiked,
                     onRemixClick = { onIntent(PlayerIntent.ComingSoonClicked(SoonFeature.Remix)) },
-                    onAddToClick = { onIntent(PlayerIntent.ComingSoonClicked(SoonFeature.AddToPlaylist)) },
+                    onAddToClick = { onIntent(PlayerIntent.AddToClicked) },
                     onLikeClick = { onIntent(PlayerIntent.LikeClicked) },
                 )
             }
@@ -92,6 +93,7 @@ private fun Transport(state: PlayerContent, clock: () -> PlaybackClock, onIntent
     PlayerTransport(
         isStation = state.isStation,
         isPlaying = state.isPlaying,
+        hasNext = state.hasNext,
         shuffle = state.shuffle,
         repeat = state.repeat,
         clock = clock,

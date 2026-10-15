@@ -20,10 +20,15 @@ import com.illiamelnyk.studio.feature.player.presentation.SoonFeature
 
 /**
  * "More" with the track's menu: Remix, Add to playlist, Share and Download, as on a track row; all
- * but Share are coming soon. Like has its own button under the controls.
+ * except Remix and Download work locally. Like has its own button under the controls.
  */
 @Composable
-fun PlayerMoreMenu(onShare: () -> Unit, onComingSoon: (SoonFeature) -> Unit, modifier: Modifier = Modifier) {
+fun PlayerMoreMenu(
+    onShare: () -> Unit,
+    onComingSoon: (SoonFeature) -> Unit,
+    onAddTo: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     var expanded by remember { mutableStateOf(false) }
     val soon = stringResource(R.string.player_soon)
 
@@ -48,9 +53,8 @@ fun PlayerMoreMenu(onShare: () -> Unit, onComingSoon: (SoonFeature) -> Unit, mod
             )
             ContextMenuItem(
                 label = stringResource(R.string.player_add_to_playlist),
-                onClick = { pick { onComingSoon(SoonFeature.AddToPlaylist) } },
+                onClick = { pick(onAddTo) },
                 icon = StudioIcons.PlaylistAdd,
-                hint = soon,
             )
             ContextMenuItem(
                 label = stringResource(R.string.player_share),
@@ -71,6 +75,6 @@ fun PlayerMoreMenu(onShare: () -> Unit, onComingSoon: (SoonFeature) -> Unit, mod
 @Composable
 private fun PlayerMoreMenuPreview() {
     PlayerPreviewSurface {
-        PlayerMoreMenu(onShare = {}, onComingSoon = {})
+        PlayerMoreMenu(onShare = {}, onComingSoon = {}, onAddTo = {})
     }
 }

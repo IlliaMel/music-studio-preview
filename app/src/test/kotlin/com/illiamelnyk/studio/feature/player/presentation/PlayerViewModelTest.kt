@@ -268,6 +268,18 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun `add to passes the playing track to the shared playlist picker`() = runTest(mainDispatcherRule.testDispatcher) {
+        val playback = playback()
+        playback.play(listOf(sung), startIndex = 0)
+        val viewModel = PlayerViewModel(playback, lyrics, tracks)
+        viewModel.effects.test {
+            viewModel.onIntent(PlayerIntent.AddToClicked)
+            runCurrent()
+            assertEquals(PlayerEffect.OpenPlaylistPicker(sung), awaitItem())
+        }
+    }
+
+    @Test
     fun `sharing sends the title and the artist`() = runTest(mainDispatcherRule.testDispatcher) {
         val playback = playback()
         playback.play(listOf(sung), startIndex = 0)

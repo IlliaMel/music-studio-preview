@@ -21,6 +21,14 @@ class PlayerMappingTest {
     private val b = track("b", 20.seconds)
 
     @Test
+    fun `next is disabled on the last track and reenabled when repeat all is selected`() {
+        val ended = PlayerContent().withPlayback(PlaybackState(queue = listOf(a, b), currentIndex = 1))
+        org.junit.Assert.assertFalse(ended.hasNext)
+        val looping = ended.withPlayback(PlaybackState(queue = listOf(a, b), currentIndex = 1, repeat = RepeatMode.All))
+        assertTrue(looping.hasNext)
+    }
+
+    @Test
     fun `repeating one track shows the repeat switch on`() {
         val content = PlayerContent().withPlayback(PlaybackState(queue = listOf(a), repeat = RepeatMode.One))
 
@@ -40,7 +48,7 @@ class PlayerMappingTest {
 
         assertEquals(a.toNowPlaying(), after.track)
         assertEquals(listOf("Title b"), after.upNext.map { it.title })
-        assertEquals(before.copy(track = after.track, upNext = after.upNext), after)
+        assertEquals(before.copy(track = after.track, hasNext = true, upNext = after.upNext), after)
     }
 
     @Test

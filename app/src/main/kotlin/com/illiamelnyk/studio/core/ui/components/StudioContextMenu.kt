@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import com.illiamelnyk.studio.core.ui.foundation.FeedbackWindow
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.foundation.studioIndication
 import com.illiamelnyk.studio.core.ui.icons.StudioIcon
@@ -95,32 +96,34 @@ fun StudioContextMenu(
         // The shadow's room may run past the screen edges; clipping would push the menu inwards.
         properties = PopupProperties(focusable = true, clippingEnabled = false),
     ) {
-        // A tap in the shadow's room is a tap outside the menu.
-        Box(
-            Modifier
-                .pointerInput(Unit) { detectTapGestures { onDismissRequest() } }
-                .padding(shadowRoom),
-        ) {
-            val origin = TransformOrigin(1f, if (opensUpwards) 1f else 0f)
-            AnimatedVisibility(
-                visibleState = visibility,
-                enter = fadeIn(tween(motion.duration.short, easing = motion.easing.standard)) +
-                    scaleIn(tween(motion.duration.short, easing = motion.easing.standard), motion.pressScale, origin),
-                exit = fadeOut(tween(motion.duration.short, easing = motion.easing.standard)) +
-                    scaleOut(tween(motion.duration.short, easing = motion.easing.standard), motion.pressScale, origin),
+        FeedbackWindow {
+            // A tap in the shadow's room is a tap outside the menu.
+            Box(
+                Modifier
+                    .pointerInput(Unit) { detectTapGestures { onDismissRequest() } }
+                    .padding(shadowRoom),
             ) {
-                Column(
-                    modifier = modifier
-                        .dropShadow(shape, shadow.toShadow())
-                        .width(IntrinsicSize.Max)
-                        .clip(shape)
-                        .background(StudioTheme.colors.surface.level1)
-                        .border(dimens.stroke.hairline, StudioTheme.colors.outline.subtle, shape)
-                        // Taps between the items stay in the menu.
-                        .pointerInput(Unit) { detectTapGestures { } }
-                        .padding(dimens.spacing.xs),
-                    content = content,
-                )
+                val origin = TransformOrigin(1f, if (opensUpwards) 1f else 0f)
+                AnimatedVisibility(
+                    visibleState = visibility,
+                    enter = fadeIn(tween(motion.duration.short, easing = motion.easing.standard)) +
+                        scaleIn(tween(motion.duration.short, easing = motion.easing.standard), motion.pressScale, origin),
+                    exit = fadeOut(tween(motion.duration.short, easing = motion.easing.standard)) +
+                        scaleOut(tween(motion.duration.short, easing = motion.easing.standard), motion.pressScale, origin),
+                ) {
+                    Column(
+                        modifier = modifier
+                            .dropShadow(shape, shadow.toShadow())
+                            .width(IntrinsicSize.Max)
+                            .clip(shape)
+                            .background(StudioTheme.colors.surface.level1)
+                            .border(dimens.stroke.hairline, StudioTheme.colors.outline.subtle, shape)
+                            // Taps between the items stay in the menu.
+                            .pointerInput(Unit) { detectTapGestures { } }
+                            .padding(dimens.spacing.xs),
+                        content = content,
+                    )
+                }
             }
         }
     }

@@ -44,6 +44,9 @@ class InMemoryTrackRepository(mine: List<Track> = emptyList()) : TrackRepository
 
     override suspend fun create(request: GenerationRequest): Outcome<Track> = Outcome.Failure(AppError.Unknown)
 
+    override suspend fun create(request: GenerationRequest, variants: Int): Outcome<List<Track>> =
+        Outcome.Failure(AppError.Unknown)
+
     override suspend fun retry(id: TrackId): Outcome<Track> = Outcome.Failure(AppError.Unknown)
 
     override suspend fun delete(id: TrackId): Outcome<Unit> = Outcome.Failure(AppError.Unknown)

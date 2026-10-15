@@ -37,13 +37,14 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.IntOffset
 import androidx.core.view.WindowCompat
 import com.illiamelnyk.studio.R
+import com.illiamelnyk.studio.core.presentation.ToastController
 import com.illiamelnyk.studio.core.presentation.UiText
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.player.presentation.PlayerRoute
-import com.illiamelnyk.studio.feature.player.presentation.PlayerToastUi
 import com.illiamelnyk.studio.feature.player.presentation.SoonFeature
 import com.illiamelnyk.studio.feature.player.presentation.components.PlayerComingSoonSheet
-import com.illiamelnyk.studio.feature.player.presentation.components.PlayerToast
+
+import org.koin.compose.koinInject
 
 /**
  * What the shell's mini player slot needs from the [PlayerHost] around it: the transition between
@@ -176,18 +177,16 @@ private const val STATUS_BAR_COVERED = 0.95f
 
 @Composable
 private fun MiniPlayerRemix(host: PlayerHostScope) {
-    var toast by remember { mutableStateOf<PlayerToastUi?>(null) }
+    val feedback: ToastController = koinInject()
     PlayerComingSoonSheet(
         feature = SoonFeature.Remix.takeIf { host.remixSoonVisible },
         onDismissRequest = { host.remixSoonVisible = false },
         onWantIt = {
             host.remixSoonVisible = false
-            toast =
-                PlayerToastUi(
-                    UiText.Resource(R.string.player_want_it_title),
-                    UiText.Resource(R.string.player_want_it_message),
-                )
+            feedback.show(
+                UiText.Resource(R.string.player_want_it_title),
+                UiText.Resource(R.string.player_want_it_message),
+            )
         },
     )
-    PlayerToast(toast, onDismiss = { toast = null })
 }

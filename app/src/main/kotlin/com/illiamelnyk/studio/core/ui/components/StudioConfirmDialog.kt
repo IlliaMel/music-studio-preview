@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogWindowProvider
+import com.illiamelnyk.studio.core.ui.foundation.FeedbackWindow
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.theme.PreviewSurface
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
@@ -34,38 +35,40 @@ fun StudioConfirmDialog(
     modifier: Modifier = Modifier,
 ) {
     Dialog(onDismissRequest = onDismissRequest) {
-        val scrim = StudioTheme.colors.overlay.scrim
-        val window = (LocalView.current.parent as? DialogWindowProvider)?.window
-        SideEffect { window?.setDimAmount(scrim.alpha) }
-        val dimens = StudioTheme.dimens
-        Column(
-            modifier = modifier
-                .fillMaxWidth()
-                .clip(StudioTheme.shapes.xxl)
-                .background(StudioTheme.colors.surface.level1)
-                .padding(dimens.spacing.xl),
-            verticalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
-        ) {
-            StudioText(title, StudioTheme.typography.titleLarge)
-            StudioText(message, StudioTheme.typography.bodyMedium, color = StudioTheme.colors.content.secondary)
-            Row(
-                modifier = Modifier
-                    .padding(top = dimens.spacing.m)
-                    .fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
+        FeedbackWindow {
+            val scrim = StudioTheme.colors.overlay.scrim
+            val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+            SideEffect { window?.setDimAmount(scrim.alpha) }
+            val dimens = StudioTheme.dimens
+            Column(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .clip(StudioTheme.shapes.xxl)
+                    .background(StudioTheme.colors.surface.level1)
+                    .padding(dimens.spacing.xl),
+                verticalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
             ) {
-                StudioButton(
-                    text = dismissLabel,
-                    onClick = onDismissRequest,
-                    modifier = Modifier.weight(1f),
-                    style = StudioButtonStyle.Secondary,
-                )
-                StudioButton(
-                    text = confirmLabel,
-                    onClick = onConfirm,
-                    modifier = Modifier.weight(1f),
-                    style = StudioButtonStyle.Danger,
-                )
+                StudioText(title, StudioTheme.typography.titleLarge)
+                StudioText(message, StudioTheme.typography.bodyMedium, color = StudioTheme.colors.content.secondary)
+                Row(
+                    modifier = Modifier
+                        .padding(top = dimens.spacing.m)
+                        .fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
+                ) {
+                    StudioButton(
+                        text = dismissLabel,
+                        onClick = onDismissRequest,
+                        modifier = Modifier.weight(1f),
+                        style = StudioButtonStyle.Secondary,
+                    )
+                    StudioButton(
+                        text = confirmLabel,
+                        onClick = onConfirm,
+                        modifier = Modifier.weight(1f),
+                        style = StudioButtonStyle.Danger,
+                    )
+                }
             }
         }
     }

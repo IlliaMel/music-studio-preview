@@ -32,6 +32,7 @@ fun PlayerTopBar(
     onCollapse: () -> Unit,
     onShare: () -> Unit,
     onComingSoon: (SoonFeature) -> Unit,
+    onAddTo: () -> Unit,
     modifier: Modifier = Modifier,
     showActions: Boolean = true,
 ) {
@@ -63,7 +64,7 @@ fun PlayerTopBar(
                 )
                 Row {
                     PlayerAction(StudioIcons.IosShare, stringResource(R.string.player_share), onShare)
-                    PlayerMoreMenu(onShare = onShare, onComingSoon = onComingSoon)
+                    PlayerMoreMenu(onShare = onShare, onComingSoon = onComingSoon, onAddTo = onAddTo)
                 }
             }
         }
@@ -82,6 +83,6 @@ private const val COLLAPSE_ROTATION = -90f
 @Composable
 private fun PlayerTopBarPreview() {
     PlayerPreviewSurface {
-        PlayerTopBar(onCollapse = {}, onShare = {}, onComingSoon = {})
+        PlayerTopBar(onCollapse = {}, onShare = {}, onComingSoon = {}, onAddTo = {})
     }
 }
