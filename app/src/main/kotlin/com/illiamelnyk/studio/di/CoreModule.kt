@@ -2,9 +2,12 @@ package com.illiamelnyk.studio.di
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
+import com.illiamelnyk.studio.core.data.generation.AndroidGenerationWorkScheduler
+import com.illiamelnyk.studio.core.data.local.BearerTokenProvider
 import com.illiamelnyk.studio.core.data.local.DurableStudioRepository
 import com.illiamelnyk.studio.core.data.local.StudioApi
 import com.illiamelnyk.studio.core.data.local.StudioStore
+import com.illiamelnyk.studio.core.data.local.UnavailableBearerTokenProvider
 import com.illiamelnyk.studio.core.data.network.AndroidNetworkMonitor
 import com.illiamelnyk.studio.core.data.playback.AndroidAudioExporter
 import com.illiamelnyk.studio.core.data.playback.AndroidPlaybackController
@@ -20,6 +23,7 @@ import com.illiamelnyk.studio.core.domain.session.DeleteAccount
 import com.illiamelnyk.studio.core.domain.session.SessionRepository
 import com.illiamelnyk.studio.core.domain.session.SignOut
 import com.illiamelnyk.studio.core.domain.settings.ThemePreferenceRepository
+import com.illiamelnyk.studio.core.domain.track.GenerationWorkScheduler
 import com.illiamelnyk.studio.core.domain.track.TrackRepository
 import com.illiamelnyk.studio.core.presentation.OfflineViewModel
 import com.illiamelnyk.studio.core.presentation.ToastController
@@ -43,8 +47,18 @@ val coreModule = module {
     single<Clock> { Clock.System }
 
     single { StudioStore(androidContext()) }
-    single { StudioApi(androidContext()) }
-    single { DurableStudioRepository(androidContext(), get(), get(), get(named(APP_SCOPE))) }
+    single<BearerTokenProvider> { UnavailableBearerTokenProvider }
+    single { StudioApi(androidContext(), bearerTokens = get()) }
+    single<GenerationWorkScheduler> { AndroidGenerationWorkScheduler(androidContext()) }
+    single {
+        DurableStudioRepository(
+            androidContext(),
+            get(),
+            get(),
+            get(named(APP_SCOPE)),
+            generationWork = get(),
+        )
+    }
     single<SessionRepository> { get<DurableStudioRepository>() }
     single<CreditsRepository> { get<DurableStudioRepository>() }
     single<TrackRepository> { get<DurableStudioRepository>() }

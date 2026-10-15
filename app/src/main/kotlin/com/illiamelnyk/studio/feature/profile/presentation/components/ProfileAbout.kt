@@ -18,12 +18,10 @@ fun ProfileAbout(modifier: Modifier = Modifier, dataMode: SessionDataMode = Sess
         StudioText(stringResource(R.string.profile_backend_mode), StudioTheme.typography.titleSmall)
         StudioText(
             stringResource(
-                if (dataMode ==
-                    SessionDataMode.LocalDemo
-                ) {
-                    R.string.profile_backend_mock
-                } else {
-                    R.string.profile_backend_development_server
+                when (dataMode) {
+                    SessionDataMode.LocalDemo -> R.string.profile_backend_mock
+                    SessionDataMode.DevelopmentServer -> R.string.profile_backend_development_server
+                    SessionDataMode.FirebaseServer -> R.string.profile_backend_firebase_server
                 },
             ),
             StudioTheme.typography.bodySmall,

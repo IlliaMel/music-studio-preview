@@ -43,7 +43,15 @@ internal fun Track.toJson(): JSONObject = JSONObject().apply {
             },
         ),
     )
-    put("audioHeaders", JSONObject(audioHeaders))
+    put(
+        "audioHeaders",
+        JSONObject(
+            audioHeaders.filter { (key, value) ->
+                !key.equals("Authorization", true) ||
+                    value.startsWith("Bearer dev:")
+            },
+        ),
+    )
     style?.let {
         put(
             "style",
@@ -115,7 +123,11 @@ internal fun JSONObject.toTrack(artist: String = "", headers: Map<String, String
             headers
         } else {
             optJSONObject("audioHeaders")?.let { json ->
-                json.keys().asSequence().associateWith { json.getString(it) }
+                json.keys().asSequence().filter {
+                    !it.equals("Authorization", true) ||
+                        json.optString(it).startsWith("Bearer dev:")
+                }
+                    .associateWith { json.getString(it) }
             }.orEmpty()
         },
         customLyrics = stringOrNull("customLyrics"),

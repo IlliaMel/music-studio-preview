@@ -4,7 +4,12 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+val configuredApiUrl = providers.gradleProperty("studio.apiBaseUrl").orElse("")
+val configuredAuthMode = providers.gradleProperty("studio.authMode").orElse("firebase")
+fun buildString(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
 android {
+    buildFeatures { buildConfig = true }
     namespace = "com.illiamelnyk.studio"
 
     defaultConfig {
@@ -14,7 +19,29 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField(
+                "String",
+                "API_BASE_URL",
+                buildString(
+                    configuredApiUrl.get().ifBlank {
+                        "http://10.0.2.2:8787"
+                    },
+                ),
+            )
+            buildConfigField(
+                "String",
+                "API_AUTH_MODE",
+                buildString(if (configuredApiUrl.get().isBlank()) "development" else configuredAuthMode.get()),
+            )
+        }
         release {
+            buildConfigField("String", "API_BASE_URL", buildString(configuredApiUrl.get()))
+            buildConfigField(
+                "String",
+                "API_AUTH_MODE",
+                buildString(if (configuredApiUrl.get().isBlank()) "disabled" else configuredAuthMode.get()),
+            )
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

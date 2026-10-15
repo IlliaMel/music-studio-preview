@@ -1,6 +1,6 @@
 package com.illiamelnyk.studio.core.domain.session
 
-enum class SessionDataMode { LocalDemo, DevelopmentServer }
+enum class SessionDataMode { LocalDemo, DevelopmentServer, FirebaseServer }
 
 /**
  * Someone is signed in: their [user] profile and what is still missing from it before they can

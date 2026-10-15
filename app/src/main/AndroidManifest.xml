@@ -4,6 +4,7 @@
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Backup is off: tracks are large local files and the library only makes sense with them.
          fullBackupContent covers Android 11 and lower, dataExtractionRules covers Android 12+.
@@ -38,6 +39,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service android:name=".core.data.generation.GenerationSyncJobService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="true" />
         <service android:name=".core.data.playback.PlaybackService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
         <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.audio" android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/audio_paths" />

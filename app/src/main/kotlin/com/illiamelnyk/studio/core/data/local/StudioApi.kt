@@ -1,22 +1,99 @@
 package com.illiamelnyk.studio.core.data.local
 
 import android.content.Context
-import android.content.pm.ApplicationInfo
 import androidx.core.net.toUri
+import com.illiamelnyk.studio.BuildConfig
 import com.illiamelnyk.studio.core.domain.AppError
+import com.illiamelnyk.studio.core.domain.track.GenerationRequest
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
 import java.net.URL
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 internal class ApiFailure(val error: AppError, val serverCode: String? = null) : IOException()
 
-open class StudioApi(private val context: Context) {
-    open val isAvailable: Boolean = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
-    val baseUrl: String = "http://10.0.2.2:8787"
+open class StudioApi(
+    private val context: Context,
+    val configuration: ApiConfiguration = ApiConfiguration.fromBuild(
+        BuildConfig.API_BASE_URL,
+        BuildConfig.API_AUTH_MODE,
+        BuildConfig.DEBUG,
+    ),
+    private val bearerTokens: BearerTokenProvider = UnavailableBearerTokenProvider,
+    private val nowMillis: () -> Long = System::currentTimeMillis,
+) {
+    open val isAvailable: Boolean = configuration.isAvailable
+    val baseUrl: String = configuration.baseUrl.trimEnd('/')
+    private val resolvedTokens = java.util.concurrent.ConcurrentHashMap<String, FirebaseBearerToken>()
+
+    open suspend fun preflightGeneration(token: String, generation: GenerationRequest, variants: Int) {
+        val capabilities = try {
+            GenerationCapabilities.parse(request("GET", "/v1/capabilities", token))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: ApiFailure) {
+            throw failure
+        } catch (_: Exception) {
+            throw ApiFailure(AppError.Server)
+        }
+        capabilities.rejection(generation, variants)?.let { throw ApiFailure(it) }
+    }
+
+    internal suspend fun authorization(token: String): String {
+        if (!isAvailable) throw ApiFailure(AppError.Unauthorized)
+        if (configuration.authMode == ApiAuthMode.Development) {
+            if (!configuration.debug ||
+                !Regex("dev:[a-z0-9-]{1,32}").matches(token)
+            ) {
+                throw ApiFailure(AppError.Unauthorized)
+            }
+            return token
+        }
+        if (configuration.authMode != ApiAuthMode.Firebase ||
+            !token.startsWith("firebase:")
+        ) {
+            throw ApiFailure(AppError.Unauthorized)
+        }
+        val owner = token.removePrefix("firebase:")
+        if (owner.isBlank() || owner.length > 128) throw ApiFailure(AppError.Unauthorized)
+        resolvedTokens.remove(owner)
+        val bearer = try {
+            bearerTokens.getToken(owner)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: IOException) {
+            throw ApiFailure(AppError.Network)
+        }
+        if (bearer == null || bearer.firebaseUid != owner || bearer.expiresAtMillis <= nowMillis() + 30_000 ||
+            bearer.value.count { it == '.' } != 2 || bearer.value.any(Char::isWhitespace)
+        ) {
+            resolvedTokens.remove(owner)
+            throw ApiFailure(AppError.Unauthorized)
+        }
+        resolvedTokens[owner] = bearer
+        return bearer.value
+    }
+
+    internal fun audioHeaders(token: String): Map<String, String> {
+        if (!isAvailable) return emptyMap()
+        val bearer = when (configuration.authMode) {
+            ApiAuthMode.Development -> token.takeIf { configuration.debug && Regex("dev:[a-z0-9-]{1,32}").matches(it) }
+
+            ApiAuthMode.Firebase -> resolvedTokens[token.removePrefix("firebase:")]
+                ?.takeIf { token == "firebase:" + it.firebaseUid && it.expiresAtMillis > nowMillis() + 30_000 }?.value
+
+            ApiAuthMode.Disabled -> null
+        }
+        return bearer?.let { mapOf("Authorization" to "Bearer " + it) }.orEmpty()
+    }
+
+    internal fun forgetCredentials() {
+        resolvedTokens.clear()
+    }
 
     open suspend fun request(
         method: String,
@@ -25,13 +102,13 @@ open class StudioApi(private val context: Context) {
         body: JSONObject? = null,
         key: String? = null,
     ): JSONObject = withContext(Dispatchers.IO) {
-        if (!isAvailable) throw ApiFailure(AppError.Unauthorized)
-        val connection = URL(baseUrl + path).openConnection() as HttpURLConnection
+        val bearer = authorization(token)
+        val connection = openConnection(baseUrl + path)
         try {
             connection.requestMethod = method
             connection.connectTimeout = 5_000
             connection.readTimeout = 15_000
-            connection.setRequestProperty("Authorization", "Bearer " + token)
+            connection.setRequestProperty("Authorization", "Bearer " + bearer)
             connection.setRequestProperty("Accept", "application/json")
             key?.let { connection.setRequestProperty("Idempotency-Key", it) }
             body?.let {
@@ -52,7 +129,7 @@ open class StudioApi(private val context: Context) {
     }
 
     open suspend fun upload(uri: String, token: String): String = withContext(Dispatchers.IO) {
-        if (!isAvailable) throw ApiFailure(AppError.Unauthorized)
+        val bearer = authorization(token)
         val parsed = uri.toUri()
         val bytes = context.contentResolver.openInputStream(parsed)?.use { input ->
             val output = java.io.ByteArrayOutputStream()
@@ -70,13 +147,13 @@ open class StudioApi(private val context: Context) {
         val fallback = context.contentResolver.getType(parsed) ?: audioTypeFromPath(uri)
         val type = audioContentType(bytes, fallback)
         if (type !in SUPPORTED_AUDIO_TYPES) throw ApiFailure(AppError.InvalidPrompt(null))
-        val connection = URL(baseUrl + "/v1/uploads").openConnection() as HttpURLConnection
+        val connection = openConnection(baseUrl + "/v1/uploads")
         try {
             connection.requestMethod = "POST"
             connection.connectTimeout = 5_000
             connection.readTimeout = 30_000
             connection.doOutput = true
-            connection.setRequestProperty("Authorization", "Bearer " + token)
+            connection.setRequestProperty("Authorization", "Bearer " + bearer)
             connection.setRequestProperty("Content-Type", type)
             connection.setFixedLengthStreamingMode(bytes.size)
             connection.outputStream.use { it.write(bytes) }
@@ -91,6 +168,9 @@ open class StudioApi(private val context: Context) {
             connection.disconnect()
         }
     }
+
+    protected open fun openConnection(url: String): HttpURLConnection =
+        (URL(url).openConnection() as HttpURLConnection).apply { instanceFollowRedirects = false }
 
     private fun response(connection: HttpURLConnection): JSONObject {
         val status = connection.responseCode

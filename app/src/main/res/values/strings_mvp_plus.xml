@@ -25,4 +25,5 @@
     <string name="error_unsupported_mode">This mode is unavailable from the connected music service. Change the generation settings.</string>
     <string name="error_invalid_reference">This audio reference cannot be used. Choose another reference or remove it.</string>
     <string name="error_provider_outcome_unknown">The music service may have processed this request. Its result could not be confirmed. Repeating it may use more credits.</string>
+    <string name="profile_backend_firebase_server">Server account authenticated with Firebase. Music capabilities depend on the server configuration.</string>
 </resources>

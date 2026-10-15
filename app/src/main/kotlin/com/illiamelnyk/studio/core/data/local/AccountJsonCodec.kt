@@ -14,10 +14,10 @@ import org.json.JSONObject
 internal object AccountJsonCodec {
     fun decode(json: JSONObject): AccountSnapshot = AccountSnapshot(
         session = json.getJSONObject("profile").toSession(
-            dataMode = if (json.stringOrNull("token") == null) {
-                SessionDataMode.LocalDemo
-            } else {
-                SessionDataMode.DevelopmentServer
+            dataMode = when {
+                json.stringOrNull("token") == null -> SessionDataMode.LocalDemo
+                json.stringOrNull("token")?.startsWith("firebase:") == true -> SessionDataMode.FirebaseServer
+                else -> SessionDataMode.DevelopmentServer
             },
         ),
         token = json.stringOrNull("token"),

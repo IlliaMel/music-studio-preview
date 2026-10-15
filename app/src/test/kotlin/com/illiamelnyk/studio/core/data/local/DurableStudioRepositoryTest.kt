@@ -7,6 +7,7 @@ import com.illiamelnyk.studio.core.data.playback.playbackPreferenceKey
 import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.session.SessionDataMode
 import com.illiamelnyk.studio.core.domain.track.GenerationRequest
+import com.illiamelnyk.studio.core.domain.track.GenerationWorkScheduler
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -375,14 +376,17 @@ class DurableStudioRepositoryTest {
         val api = MemoryApi(context)
         api.failures = listOf(api.failure("pending-track", "auto").put("status", "queued"))
         val store = StudioStore(context)
+        val work = RecordingGenerationWork()
         val repo = DurableStudioRepository(
             context,
             store,
             api,
             backgroundScope,
             StandardTestDispatcher(testScheduler),
+            generationWork = work,
         )
         repo.signInServer()
+        assertEquals("server-user", work.owner)
         val track = repo.observeMine().first().first()
         val blocker = java.io.File(context.cacheDir, "audio/" + audioCacheKey(track.id) + ".mp3")
         blocker.mkdirs()
@@ -395,6 +399,8 @@ class DurableStudioRepositoryTest {
             assertEquals(requestsBeforePolling, api.libraryRequests)
             assertTrue(store.read().has("deletion-server-user"))
             assertNull(repo.activeAccountId)
+            assertNull(work.owner)
+            assertEquals(Outcome.Success(false), repo.syncPending("server-user"))
         } finally {
             child.delete()
             blocker.delete()
@@ -433,6 +439,127 @@ class DurableStudioRepositoryTest {
         assertFalse(logs.any { it.msg.contains(marker) || it.throwable?.toString()?.contains(marker) == true })
     }
 
+    @Test
+    fun acceptedGenerationSchedulesOwnerWorkAndCompletionNeverResubmitsThePaidRequest() = runTest {
+        val api = MemoryApi(context)
+        val work = RecordingGenerationWork()
+        val repo = DurableStudioRepository(context, StudioStore(context), api, backgroundScope, generationWork = work)
+        repo.signInServer()
+        assertTrue(repo.create(GenerationRequest("Warm cinematic piano"), 1) is Outcome.Success)
+        assertEquals("server-user", work.owner)
+        assertEquals(1, api.generationRequests)
+
+        assertEquals(Outcome.Success(false), repo.syncPending("server-user"))
+
+        assertNull(work.owner)
+        assertEquals(1, api.generationRequests)
+    }
+
+    @Test
+    fun backgroundSyncRejectsStaleOwnersAndRetainsPendingWorkAfterNetworkFailure() = runTest {
+        val api = MemoryApi(context)
+        val work = RecordingGenerationWork()
+        val repo = DurableStudioRepository(context, StudioStore(context), api, backgroundScope, generationWork = work)
+        repo.signInServer()
+        repo.create(GenerationRequest("Warm cinematic piano"), 1)
+        val reads = api.libraryRequests
+        assertEquals(Outcome.Success(false), repo.syncPending("other-owner"))
+        assertEquals(reads, api.libraryRequests)
+        assertEquals("server-user", work.owner)
+        api.failLibrary = true
+
+        assertEquals(
+            Outcome.Failure(com.illiamelnyk.studio.core.domain.AppError.Network),
+            repo.syncPending("server-user"),
+        )
+        assertEquals("server-user", work.owner)
+        assertEquals(1, api.generationRequests)
+        api.failLibrary = false
+        assertEquals(Outcome.Success(false), repo.syncPending("server-user"))
+        assertNull(work.owner)
+    }
+
+    @Test
+    fun acceptedGenerationRemainsSuccessfulWhenTheOsSchedulerRejectsWork() = runTest {
+        val api = MemoryApi(context)
+        val work = object : GenerationWorkScheduler {
+            override fun reconcile(ownerId: String?) {
+                if (ownerId != null) throw java.io.IOException("simulated scheduler rejection")
+            }
+        }
+        val repo = DurableStudioRepository(context, StudioStore(context), api, backgroundScope, generationWork = work)
+        repo.signInServer()
+
+        assertTrue(repo.create(GenerationRequest("Warm cinematic piano"), 1) is Outcome.Success)
+        assertEquals(1, api.generationRequests)
+        val queued = repo.observeMine().first().any {
+            it.status == com.illiamelnyk.studio.core.domain.track.TrackStatus.Queued
+        }
+        assertTrue(queued)
+    }
+
+    @Test
+    fun signOutCancelsPendingWorkAndAStaleJobCannotReviveTheSession() = runTest {
+        val api = MemoryApi(context)
+        val work = RecordingGenerationWork()
+        val repo = DurableStudioRepository(context, StudioStore(context), api, backgroundScope, generationWork = work)
+        repo.signInServer()
+        repo.create(GenerationRequest("Warm cinematic piano"), 1)
+        repo.signOut()
+        val reads = api.libraryRequests
+
+        assertNull(work.owner)
+        assertEquals(Outcome.Success(false), repo.syncPending("server-user"))
+        assertEquals(reads, api.libraryRequests)
+        assertNull(repo.session.first())
+    }
+
+    @Test
+    fun localDemoGenerationDoesNotScheduleServerWork() = runTest {
+        val work = RecordingGenerationWork()
+        val repo = DurableStudioRepository(
+            context,
+            StudioStore(context),
+            StudioApi(context),
+            backgroundScope,
+            generationWork = work,
+        )
+        repo.signInDemo()
+        repo.create(GenerationRequest("Warm cinematic piano"), 1)
+        assertNull(work.owner)
+        assertEquals(Outcome.Success(false), repo.syncPending("local-demo"))
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun restartingWithPersistedPendingGenerationSchedulesCatchUpWithoutCreatingAnotherTrack() = runTest {
+        val api = MemoryApi(context)
+        val repo = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
+        repo.signInServer()
+        repo.create(GenerationRequest("Warm cinematic piano"), 1)
+        val work = RecordingGenerationWork()
+        val restarted = DurableStudioRepository(
+            context,
+            StudioStore(context),
+            api,
+            backgroundScope,
+            StandardTestDispatcher(testScheduler),
+            work,
+        )
+        runCurrent()
+
+        assertEquals("server-user", work.owner)
+        assertEquals("server-user", restarted.activeAccountId)
+        assertEquals(1, api.generationRequests)
+    }
+
+    private class RecordingGenerationWork : GenerationWorkScheduler {
+        var owner: String? = null
+        override fun reconcile(ownerId: String?) {
+            owner = ownerId
+        }
+    }
+
     private class MemoryApi(context: Context) : StudioApi(context) {
         override val isAvailable: Boolean = true
         private val likes = mutableSetOf<String>()
@@ -440,6 +567,8 @@ class DurableStudioRepositoryTest {
         private var playlistCreated = false
         var detailRequests = 0
         var libraryRequests = 0
+        var generationRequests = 0
+        var failLibrary = false
         var renamedTitle: String? = null
         var failures: List<org.json.JSONObject> = emptyList()
         var lastGeneration: org.json.JSONObject? = null
@@ -476,6 +605,12 @@ class DurableStudioRepositoryTest {
             body: org.json.JSONObject?,
             key: String?,
         ): org.json.JSONObject = when {
+            path == "/v1/capabilities" -> org.json.JSONObject()
+                .put("provider", "mock")
+                .put("qualityModes", org.json.JSONArray(listOf("auto", "deep", "fast")))
+                .put("customLyrics", true).put("variants", org.json.JSONArray(listOf(1, 2)))
+                .put("audioReferences", "mock").put("liveCatalogRemix", false)
+
             path == "/v1/me" && method == "DELETE" -> {
                 deleteRequests++
                 if (failDelete) throw ApiFailure(com.illiamelnyk.studio.core.domain.AppError.Network)
@@ -500,6 +635,7 @@ class DurableStudioRepositoryTest {
 
             path.startsWith("/v1/tracks?") -> {
                 libraryRequests++
+                if (failLibrary) throw ApiFailure(com.illiamelnyk.studio.core.domain.AppError.Network)
                 org.json.JSONObject().put(
                     "tracks",
                     org.json.JSONArray().put(track).apply { failures.forEach { put(it) } },
@@ -507,6 +643,7 @@ class DurableStudioRepositoryTest {
             }
 
             path == "/v1/tracks" && method == "POST" -> {
+                generationRequests++
                 lastGeneration = body?.let { org.json.JSONObject(it.toString()) }
                 track.put("id", "replacement-" + key.hashCode())
                     .put("status", "queued").put("audioUrl", org.json.JSONObject.NULL)

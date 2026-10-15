@@ -13,11 +13,13 @@ import com.illiamelnyk.studio.core.domain.playlist.PlaylistRepository
 import com.illiamelnyk.studio.core.domain.session.Onboarding
 import com.illiamelnyk.studio.core.domain.session.ProfileUpdate
 import com.illiamelnyk.studio.core.domain.session.Session
+import com.illiamelnyk.studio.core.domain.session.SessionDataMode
 import com.illiamelnyk.studio.core.domain.session.SessionRepository
 import com.illiamelnyk.studio.core.domain.session.SignInMethod
 import com.illiamelnyk.studio.core.domain.session.User
 import com.illiamelnyk.studio.core.domain.session.UserId
 import com.illiamelnyk.studio.core.domain.track.GenerationRequest
+import com.illiamelnyk.studio.core.domain.track.GenerationWorkScheduler
 import com.illiamelnyk.studio.core.domain.track.MusicModel
 import com.illiamelnyk.studio.core.domain.track.Track
 import com.illiamelnyk.studio.core.domain.track.TrackId
@@ -48,6 +50,7 @@ class DurableStudioRepository(
     private val api: StudioApi,
     scope: CoroutineScope,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val generationWork: GenerationWorkScheduler = GenerationWorkScheduler.None,
 ) : TrackRepository,
     PlaylistRepository,
     SessionRepository,
@@ -67,7 +70,12 @@ class DurableStudioRepository(
 
     init {
         scope.launch(dispatcher) {
-            guarded { mutex.withLock { resumeDeletions() } }
+            guarded {
+                mutex.withLock {
+                    resumeDeletions()
+                    reconcileGenerationWork()
+                }
+            }
             while (true) {
                 delay(2_000)
                 guarded {
@@ -113,6 +121,11 @@ class DurableStudioRepository(
     }
 
     suspend fun signInServer(): Outcome<Unit> = operation {
+        if (api.configuration.authMode != ApiAuthMode.Development ||
+            !api.configuration.debug
+        ) {
+            throw ApiFailure(AppError.UnsupportedMode)
+        }
         val token = "dev:illia"
         val profile = api.request("GET", "/v1/me", token)
         var remote = profile.toSession()
@@ -132,6 +145,24 @@ class DurableStudioRepository(
         if (store.read().has("deletion-" + remote.user.id.value)) throw ApiFailure(AppError.Unauthorized)
         val cached = loadAccount(remote.user.id.value)
         save((cached ?: AccountSnapshot(remote, token)).copy(session = remote, token = token))
+        guarded { refresh() }
+    }
+
+    suspend fun signInFirebase(firebaseUid: String): Outcome<Unit> = operation {
+        if (api.configuration.authMode != ApiAuthMode.Firebase ||
+            firebaseUid.isBlank()
+        ) {
+            throw ApiFailure(AppError.Unauthorized)
+        }
+        val reference = "firebase:" + firebaseUid
+        val profile = api.request("GET", "/v1/me", reference).toSession(SessionDataMode.FirebaseServer)
+        val ownerId = profile.user.id.value
+        if (store.read().has("deletion-" + ownerId)) throw ApiFailure(AppError.Unauthorized)
+        val accepted = api.request("PATCH", "/v1/me", reference, JSONObject().put("acceptedTermsVersion", TERMS))
+            .toSession(SessionDataMode.FirebaseServer)
+        if (accepted.user.id.value != ownerId) throw ApiFailure(AppError.Unauthorized)
+        val cached = loadAccount(ownerId)
+        save((cached ?: AccountSnapshot(accepted, reference)).copy(session = accepted, token = reference))
         guarded { refresh() }
     }
 
@@ -203,6 +234,7 @@ class DurableStudioRepository(
         }
 
         val batch = if (account.token != null) {
+            api.preflightGeneration(account.token, request, variants)
             var uploaded = request.referenceUploadId
             if (uploaded == null && request.referenceAudioUri != null) {
                 val uploadKey = "upload-" + account.session.user.id.value + "-" + request.referenceAudioUri.hashCode()
@@ -466,7 +498,7 @@ class DurableStudioRepository(
                     update.acceptedTermsVersion?.let { put("acceptedTermsVersion", it) }
                     update.marketingOptIn?.let { put("marketingOptIn", it) }
                 },
-            ).toSession()
+            ).toSession(account.session.dataMode)
         } else {
             account.session.copy(
                 user = account.session.user.copy(
@@ -483,12 +515,16 @@ class DurableStudioRepository(
         val intent = state.value?.let(deletions::begin)
             ?: deletions.pending().firstOrNull() ?: throw ApiFailure(AppError.Unauthorized)
         deletingAccountId = intent.ownerId
+        reconcileGenerationWork()
         try {
             val result = deletions.execute(intent)
             if (state.value?.session?.user?.id?.value == result.ownerId) state.value = null
             result.remoteError?.let { throw ApiFailure(it) }
         } finally {
-            if (state.value?.session?.user?.id?.value != intent.ownerId) deletingAccountId = null
+            if (state.value?.session?.user?.id?.value != intent.ownerId) {
+                deletingAccountId = null
+                api.forgetCredentials()
+            }
         }
         Unit
     }
@@ -500,6 +536,7 @@ class DurableStudioRepository(
                 val result = deletions.execute(intent)
                 if (state.value?.session?.user?.id?.value == result.ownerId) state.value = null
                 if (deletingAccountId == result.ownerId) deletingAccountId = null
+                reconcileGenerationWork()
             }
         }
     }
@@ -511,7 +548,34 @@ class DurableStudioRepository(
                     it.remove("active")
                 }
                 state.value = null
+                api.forgetCredentials()
+                reconcileGenerationWork()
             }
+        }
+    }
+
+    suspend fun syncPending(ownerId: String): Outcome<Boolean> = operation {
+        val account = state.value
+        if (account?.session?.user?.id?.value != ownerId || !needsGenerationSync(account)) {
+            reconcileGenerationWork()
+            return@operation false
+        }
+        refresh()
+        needsGenerationSync(state.value)
+    }
+
+    private fun needsGenerationSync(account: AccountSnapshot?): Boolean = account != null &&
+        account.token != null && account.session.user.id.value != deletingAccountId &&
+        !store.read().has("deletion-" + account.session.user.id.value) &&
+        account.tracks.any { it.status == TrackStatus.Queued || it.status is TrackStatus.Generating }
+
+    private fun reconcileGenerationWork() {
+        val account = state.value
+        val owner = account?.session?.user?.id?.value?.takeIf { needsGenerationSync(account) }
+        try {
+            generationWork.reconcile(owner)
+        } catch (error: Exception) {
+            android.util.Log.w("StudioData", "Cannot schedule generation sync: " + error.javaClass.simpleName)
         }
     }
 
@@ -616,7 +680,7 @@ class DurableStudioRepository(
         String,
         > =
         account.token?.let {
-            mapOf("Authorization" to "Bearer " + it)
+            api.audioHeaders(it)
         }.orEmpty()
     private fun save(account: AccountSnapshot) {
         store.change { root ->
@@ -629,9 +693,13 @@ class DurableStudioRepository(
             )
         }
         state.value = account
+        reconcileGenerationWork()
     }
     private fun loadActive(): AccountSnapshot? = store.read().stringOrNull("active")?.let(::loadAccount)
         ?.takeIf { (api.isAvailable || it.token == null) && !store.read().has("deletion-" + it.session.user.id.value) }
+        ?.let { account ->
+            account.copy(tracks = account.tracks.map { it.copy(audioHeaders = authHeaders(account)) })
+        }
     private fun loadAccount(id: String): AccountSnapshot? =
         store.read().optJSONObject("account-" + id)?.let(AccountJsonCodec::decode)
 
