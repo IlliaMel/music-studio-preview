@@ -17,7 +17,9 @@ class ListenViewModel(private val catalog: CatalogRepository, private val playba
     private val jobs = mutableMapOf<CatalogSectionKind, Job>()
     private val collections = mutableMapOf<String, CatalogCollection>()
 
-    init { CatalogSectionKind.entries.forEach(::load) }
+    init {
+        CatalogSectionKind.entries.forEach(::load)
+    }
 
     override fun onIntent(intent: ListenIntent) = when (intent) {
         is ListenIntent.CollectionClicked -> open(intent.id)
@@ -38,7 +40,13 @@ class ListenViewModel(private val catalog: CatalogRepository, private val playba
                 catalog.observeSection(kind).collect { section ->
                     watchdog.cancel()
                     section.collections.forEach { collections[it.id] = it }
-                    updateSection(CatalogSectionUi(kind, section.collections.map(CatalogCollection::toUi).toImmutableList(), false))
+                    updateSection(
+                        CatalogSectionUi(
+                            kind,
+                            section.collections.map(CatalogCollection::toUi).toImmutableList(),
+                            false,
+                        ),
+                    )
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled

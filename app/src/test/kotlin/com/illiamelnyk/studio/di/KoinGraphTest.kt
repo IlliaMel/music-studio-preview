@@ -1,10 +1,10 @@
 package com.illiamelnyk.studio.di
 
+import com.illiamelnyk.studio.core.data.fake.FakeCatalog
+import com.illiamelnyk.studio.core.domain.track.Track
+import com.illiamelnyk.studio.core.presentation.playlist.PlaylistPickerViewModel
 import com.illiamelnyk.studio.feature.auth.presentation.onboarding.OnboardingViewModel
 import com.illiamelnyk.studio.feature.auth.presentation.welcome.WelcomeViewModel
-import com.illiamelnyk.studio.core.domain.track.Track
-import com.illiamelnyk.studio.core.data.fake.FakeCatalog
-import com.illiamelnyk.studio.core.presentation.playlist.PlaylistPickerViewModel
 import com.illiamelnyk.studio.feature.create.domain.Tool
 import com.illiamelnyk.studio.feature.create.presentation.CreateViewModel
 import com.illiamelnyk.studio.feature.create.presentation.tool.ToolViewModel

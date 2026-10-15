@@ -15,8 +15,17 @@ import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 fun CatalogSkeletonRow(modifier: Modifier = Modifier) {
     Carousel(listOf(0, 1, 2), modifier = modifier, key = { it }) {
         Column(verticalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.xs)) {
-            Box(Modifier.size(StudioTheme.dimens.size.cover.l).background(StudioTheme.colors.surface.level3, StudioTheme.shapes.m))
-            StudioLinearProgress(Modifier.size(width = StudioTheme.dimens.size.cover.l, height = StudioTheme.dimens.size.component.seekTrack))
+            Box(
+                Modifier.size(
+                    StudioTheme.dimens.size.cover.l,
+                ).background(StudioTheme.colors.surface.level3, StudioTheme.shapes.m),
+            )
+            StudioLinearProgress(
+                Modifier.size(
+                    width = StudioTheme.dimens.size.cover.l,
+                    height = StudioTheme.dimens.size.component.seekTrack,
+                ),
+            )
         }
     }
 }

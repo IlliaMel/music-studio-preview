@@ -97,7 +97,10 @@ class PlayerScreenTest {
         show(PlayerContent(track = track, upNext = queue, sheet = PlayerSheet.Queue))
         composeRule.onNodeWithText(string(R.string.player_clear)).performClick()
         composeRule.onNodeWithText(string(R.string.player_autoplay)).performClick()
-        assertEquals(listOf(PlayerIntent.ClearUpNextClicked, PlayerIntent.ComingSoonClicked(SoonFeature.Autoplay)), intents)
+        assertEquals(
+            listOf(PlayerIntent.ClearUpNextClicked, PlayerIntent.ComingSoonClicked(SoonFeature.Autoplay)),
+            intents,
+        )
     }
 
     private fun show(state: PlayerContent) {

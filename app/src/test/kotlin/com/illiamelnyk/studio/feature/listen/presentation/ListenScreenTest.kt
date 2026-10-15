@@ -19,9 +19,19 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class ListenScreenTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
+
     @Test fun stationAndSearchDispatchTheirIntents() {
         val intents = mutableListOf<ListenIntent>()
-        val state = ListenState(sections = persistentListOf(CatalogSectionUi(CatalogSectionKind.Stations, persistentListOf(CollectionUi("live", "Piano Room", UiText.Raw("Live"), "piano")), isLoading = false)))
+        val state =
+            ListenState(
+                sections = persistentListOf(
+                    CatalogSectionUi(
+                        CatalogSectionKind.Stations,
+                        persistentListOf(CollectionUi("live", "Piano Room", UiText.Raw("Live"), "piano")),
+                        isLoading = false,
+                    ),
+                ),
+            )
         compose.setContent { StudioTheme { ListenScreen(state, { intents += it }) } }
         compose.onNodeWithText("Piano Room").performClick()
         compose.onNodeWithContentDescription(compose.activity.getString(R.string.listen_search)).performClick()

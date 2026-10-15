@@ -84,6 +84,19 @@ private class SectionCatalog : CatalogRepository {
     override fun observeSection(kind: CatalogSectionKind): Flow<CatalogSection> = flow {
         if (failed) error("Demo error")
         if (kind == stalled) awaitCancellation()
-        emit(CatalogSection(kind, listOf(CatalogCollection(kind.name.lowercase(), kind.name, CoverSeed(kind.name), FakeCatalog.tracks.take(2), kind == CatalogSectionKind.Stations))))
+        emit(
+            CatalogSection(
+                kind,
+                listOf(
+                    CatalogCollection(
+                        kind.name.lowercase(),
+                        kind.name,
+                        CoverSeed(kind.name),
+                        FakeCatalog.tracks.take(2),
+                        kind == CatalogSectionKind.Stations,
+                    ),
+                ),
+            ),
+        )
     }
 }

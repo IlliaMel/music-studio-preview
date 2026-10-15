@@ -90,7 +90,13 @@ fun CollectionHeader(
 @Composable
 private fun CollectionHeaderPreview() {
     PreviewSurface {
-        CollectionHeader("Ambient", "Ambient Mix · 111 tracks · 6:00:39", "Ambient", artworkSize = StudioTheme.dimens.size.cover.l + StudioTheme.dimens.spacing.giant) {
+        CollectionHeader(
+            "Ambient",
+            "Ambient Mix · 111 tracks · 6:00:39",
+            "Ambient",
+            artworkSize =
+                StudioTheme.dimens.size.cover.l + StudioTheme.dimens.spacing.giant,
+        ) {
             StudioButton("Play", onClick = {}, style = StudioButtonStyle.Glass, icon = StudioIcons.PlayArrowFilled)
             StudioButton("Shuffle", onClick = {}, style = StudioButtonStyle.Glass, icon = StudioIcons.Shuffle)
         }

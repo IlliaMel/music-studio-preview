@@ -16,7 +16,9 @@ data class CatalogSectionUi(
 
 @Immutable
 data class ListenState(
-    val sections: ImmutableList<CatalogSectionUi> = CatalogSectionKind.entries.map { CatalogSectionUi(it) }.toImmutableList(),
+    val sections: ImmutableList<CatalogSectionUi> = CatalogSectionKind.entries.map {
+        CatalogSectionUi(it)
+    }.toImmutableList(),
     val searchVisible: Boolean = false,
 )
 

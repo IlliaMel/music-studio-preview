@@ -2,12 +2,12 @@ package com.illiamelnyk.studio.core.presentation.playlist
 
 import com.illiamelnyk.studio.core.data.fake.FakeCatalog
 import com.illiamelnyk.studio.core.data.fake.FakePlaylistRepository
-import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.AppError
+import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.playlist.PlaylistRepository
 import com.illiamelnyk.studio.core.domain.track.Track
-import com.illiamelnyk.studio.testing.MemoryTrackRepository
 import com.illiamelnyk.studio.testing.MainDispatcherRule
+import com.illiamelnyk.studio.testing.MemoryTrackRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -58,7 +58,8 @@ class PlaylistPickerViewModelTest {
         val repository = FakePlaylistRepository()
         val failing = object : PlaylistRepository by repository {
             var fail = true
-            override suspend fun addTrack(playlistId: String, track: Track): Outcome<Unit> = if (fail) Outcome.Failure(AppError.Network) else repository.addTrack(playlistId, track)
+            override suspend fun addTrack(playlistId: String, track: Track): Outcome<Unit> =
+                if (fail) Outcome.Failure(AppError.Network) else repository.addTrack(playlistId, track)
         }
         val vm = PlaylistPickerViewModel(FakeCatalog.tracks.first(), failing, MemoryTrackRepository())
         runCurrent()
@@ -108,6 +109,9 @@ class PlaylistPickerViewModelTest {
         runCurrent()
         vm.onIntent(PlaylistPickerIntent.TogglePlaylist(playlist.id))
         runCurrent()
-        assertEquals(listOf(FakeCatalog.tracks[1], FakeCatalog.tracks[0]), repository.observeAll().first().single().tracks)
+        assertEquals(
+            listOf(FakeCatalog.tracks[1], FakeCatalog.tracks[0]),
+            repository.observeAll().first().single().tracks,
+        )
     }
 }

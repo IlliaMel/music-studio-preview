@@ -11,7 +11,13 @@ import kotlinx.collections.immutable.persistentListOf
 enum class LibraryTab { Liked, Playlists }
 
 @Immutable
-data class PlaylistUi(val id: String, val name: String, val tracks: ImmutableList<TrackUi>, val subtitle: UiText = UiText.Raw(""), val coverSeed: String = name)
+data class PlaylistUi(
+    val id: String,
+    val name: String,
+    val tracks: ImmutableList<TrackUi>,
+    val subtitle: UiText = UiText.Raw(""),
+    val coverSeed: String = name,
+)
 
 @Immutable
 data class LibraryState(

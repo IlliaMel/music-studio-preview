@@ -31,13 +31,18 @@ fun GenreCard(collection: CollectionUi, onClick: () -> Unit, modifier: Modifier 
     val phase = rememberInfiniteTransition(label = "genre-art").animateFloat(
         initialValue = 0f,
         targetValue = (2 * PI).toFloat(),
-        animationSpec = infiniteRepeatable(tween(StudioTheme.motion.loop.progress, easing = StudioTheme.motion.loopEasing)),
+        animationSpec = infiniteRepeatable(
+            tween(StudioTheme.motion.loop.progress, easing = StudioTheme.motion.loopEasing),
+        ),
         label = "phase",
     )
     val line = StudioTheme.colors.overlay.onMediaPrimary
     val stroke = dimens.stroke.hairline
     val seed = collection.coverSeed.hashCode().mod(5) + 2
-    Column(modifier.width(dimens.size.cover.l).clickable(role = Role.Button, onClick = onClick), verticalArrangement = Arrangement.spacedBy(dimens.spacing.xs)) {
+    Column(
+        modifier.width(dimens.size.cover.l).clickable(role = Role.Button, onClick = onClick),
+        verticalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
+    ) {
         Box(Modifier.size(dimens.size.cover.l).clip(StudioTheme.shapes.m).coverArt(collection.coverSeed)) {
             Canvas(Modifier.matchParentSize()) {
                 repeat(8) { row ->
@@ -45,7 +50,16 @@ fun GenreCard(collection: CollectionUi, onClick: () -> Unit, modifier: Modifier 
                     repeat(41) { step ->
                         val x = step / 40f
                         val y = (row + 1) / 10f + sin(x * seed * PI.toFloat() + phase.value + row) * 0.045f
-                        if (step == 0) path.moveTo(x * size.width, y * size.height) else path.lineTo(x * size.width, y * size.height)
+                        if (step ==
+                            0
+                        ) {
+                            path.moveTo(x * size.width, y * size.height)
+                        } else {
+                            path.lineTo(
+                                x * size.width,
+                                y * size.height,
+                            )
+                        }
                     }
                     drawPath(path, line.copy(alpha = 0.7f), style = Stroke(stroke.toPx()))
                 }
