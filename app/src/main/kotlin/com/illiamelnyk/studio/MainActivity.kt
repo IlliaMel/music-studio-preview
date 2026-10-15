@@ -7,6 +7,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -15,6 +16,7 @@ import com.illiamelnyk.studio.core.domain.settings.ThemePreference
 import com.illiamelnyk.studio.core.presentation.AppFeedbackHost
 import com.illiamelnyk.studio.core.presentation.ToastHost
 import com.illiamelnyk.studio.core.ui.foundation.LocalWindowFeedback
+import com.illiamelnyk.studio.core.ui.foundation.WindowFeedbackRenderer
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.navigation.AppRoot
 import com.illiamelnyk.studio.navigation.AppViewModel
@@ -50,10 +52,17 @@ class MainActivity : ComponentActivity() {
                 onDispose {}
             }
             StudioTheme(darkTheme) {
-                CompositionLocalProvider(LocalWindowFeedback provides { priority -> ToastHost(priority = priority) }) {
+                CompositionLocalProvider(LocalWindowFeedback provides AppWindowFeedback) {
                     AppFeedbackHost { AppRoot(state) }
                 }
             }
         }
+    }
+}
+
+private object AppWindowFeedback : WindowFeedbackRenderer {
+    @Composable
+    override fun Render(depth: Int) {
+        ToastHost(priority = depth)
     }
 }

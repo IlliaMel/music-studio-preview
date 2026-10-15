@@ -20,6 +20,3 @@ compose_allowed_composition_locals = LocalStudioColors,LocalStudioTypography,Loc
 
 [*.{ts,json,yml,yaml,md}]
 indent_size = 2
-
-[app/src/main/kotlin/com/illiamelnyk/studio/core/ui/foundation/LocalWindowFeedback.kt]
-compose_allowed_composition_locals = LocalWindowFeedback,LocalFeedbackWindowDepth
