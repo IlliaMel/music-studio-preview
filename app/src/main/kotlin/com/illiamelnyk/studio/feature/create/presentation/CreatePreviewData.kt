@@ -7,6 +7,7 @@ import com.illiamelnyk.studio.core.domain.track.Quality
 import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.core.presentation.UiText
 import com.illiamelnyk.studio.core.presentation.track.TrackUi
+import com.illiamelnyk.studio.feature.create.domain.LyricsMode
 import com.illiamelnyk.studio.feature.create.domain.Prompt
 import com.illiamelnyk.studio.feature.create.presentation.common.toOptionUi
 import kotlin.time.Duration.Companion.minutes
@@ -95,7 +96,7 @@ class CreatePreviewData : PreviewParameterProvider<CreateState> {
 
         val settingsDraft = SettingsUi(
             model = MusicModel.V2_5,
-            instrumental = true,
+            lyricsMode = LyricsMode.Instrumental,
             duration = 3.minutes.toOptionUi(),
         )
 

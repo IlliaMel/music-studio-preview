@@ -119,6 +119,30 @@ class PlayerViewModelTest {
         }
 
     @Test
+    fun `server word timestamps arriving after playback update lyrics without changing tracks`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val song = sung.copy(audioUri = "https://example.test/audio")
+            val repository = InMemoryTrackRepository(mine = listOf(song))
+            val playback = playback()
+            playback.play(listOf(song))
+            val lyrics = com.illiamelnyk.studio.core.data.playback.LocalLyricsRepository(repository)
+            val viewModel = PlayerViewModel(playback, lyrics, repository)
+            runCurrent()
+            assertEquals(LyricsUi.None, viewModel.state.value.content.lyrics)
+            repository.replace(
+                song.copy(
+                    words = listOf(
+                        com.illiamelnyk.studio.core.domain.playback.LyricWord("Hello", 1000, 1500),
+                    ),
+                ),
+            )
+            runCurrent()
+            val synced = viewModel.state.value.content.lyrics as LyricsUi.Synced
+            assertEquals("Hello", synced.lines.single().words.single().text)
+            assertEquals(1000L, synced.lines.single().startMs)
+        }
+
+    @Test
     fun `a like shows at once and stays once the repository keeps it`() = runTest(mainDispatcherRule.testDispatcher) {
         val playback = playback()
         playback.play(listOf(sung), startIndex = 0)
@@ -241,6 +265,19 @@ class PlayerViewModelTest {
         }
 
     @Test
+    fun `queue move positions refer to upcoming tracks and keep playback position`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val playback = playback()
+            playback.play(listOf(sung, noLyrics, instrumental))
+            playback.seekTo(2500)
+            val viewModel = PlayerViewModel(playback, lyrics, tracks)
+            viewModel.onIntent(PlayerIntent.QueueItemMoved(1, 0))
+            assertEquals(listOf(sung, instrumental, noLyrics), playback.state.value.queue)
+            assertEquals(sung, playback.state.value.current)
+            assertEquals(2500L, playback.state.value.positionMs)
+        }
+
+    @Test
     fun `invalid up next positions leave playback untouched`() = runTest(mainDispatcherRule.testDispatcher) {
         val playback = playback()
         playback.play(listOf(sung, noLyrics), startIndex = 0)
@@ -280,7 +317,7 @@ class PlayerViewModelTest {
     }
 
     @Test
-    fun `sharing sends the title and the artist`() = runTest(mainDispatcherRule.testDispatcher) {
+    fun `sharing exports the playing audio track`() = runTest(mainDispatcherRule.testDispatcher) {
         val playback = playback()
         playback.play(listOf(sung), startIndex = 0)
         val viewModel = PlayerViewModel(playback, lyrics, tracks)
@@ -290,36 +327,57 @@ class PlayerViewModelTest {
             runCurrent()
 
             assertEquals(
-                PlayerEffect.Share(UiText.Resource(R.string.player_share_text, "Title sung", "Artist sung")),
+                PlayerEffect.ShareAudio(sung),
                 awaitItem(),
             )
         }
     }
 
     @Test
-    fun `wanting a coming-soon feature closes its sheet with thanks`() = runTest(mainDispatcherRule.testDispatcher) {
+    fun `remix sends the playing track to composer and collapses player`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val playback = playback()
+            playback.play(listOf(sung), startIndex = 0)
+            val drafts = com.illiamelnyk.studio.core.domain.track.ComposerDraftStore()
+            val viewModel = PlayerViewModel(playback, lyrics, tracks, drafts)
+            viewModel.effects.test {
+                viewModel.onIntent(PlayerIntent.ComingSoonClicked(SoonFeature.Remix))
+                runCurrent()
+                assertEquals(sung, drafts.pending.value)
+                assertEquals(PlayerEffect.Collapse, awaitItem())
+            }
+        }
+
+    @Test
+    fun `a remix cannot create another remix draft`() = runTest(mainDispatcherRule.testDispatcher) {
+        val remix = sung.copy(remixTrackId = "original")
         val playback = playback()
-        playback.play(listOf(sung), startIndex = 0)
-        val viewModel = PlayerViewModel(playback, lyrics, tracks)
-        viewModel.onIntent(PlayerIntent.ComingSoonClicked(SoonFeature.Remix))
-        assertEquals(PlayerSheet.ComingSoon(SoonFeature.Remix), viewModel.state.value.content.sheet)
-
+        playback.play(listOf(remix))
+        val drafts = com.illiamelnyk.studio.core.domain.track.ComposerDraftStore()
+        val viewModel = PlayerViewModel(playback, lyrics, tracks, drafts)
+        assertFalse(viewModel.state.value.content.canRemix)
         viewModel.effects.test {
-            viewModel.onIntent(PlayerIntent.WantItClicked)
+            viewModel.onIntent(PlayerIntent.ComingSoonClicked(SoonFeature.Remix))
             runCurrent()
-
-            assertNull(viewModel.state.value.content.sheet)
-            assertEquals(
-                PlayerEffect.ShowToast(
-                    PlayerToastUi(
-                        UiText.Resource(R.string.player_want_it_title),
-                        UiText.Resource(R.string.player_want_it_message),
-                    ),
-                ),
-                awaitItem(),
-            )
+            assertNull(drafts.pending.value)
+            expectNoEvents()
         }
     }
+
+    @Test
+    fun `download exports the playing track and autoplay enables queue repeat`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val playback = playback()
+            playback.play(listOf(sung), startIndex = 0)
+            val viewModel = PlayerViewModel(playback, lyrics, tracks)
+            viewModel.effects.test {
+                viewModel.onIntent(PlayerIntent.ComingSoonClicked(SoonFeature.Download))
+                runCurrent()
+                assertEquals(PlayerEffect.Download(sung), awaitItem())
+            }
+            viewModel.onIntent(PlayerIntent.ComingSoonClicked(SoonFeature.Autoplay))
+            assertEquals(RepeatMode.All, playback.state.value.repeat)
+        }
 
     @Test
     fun `the lyrics and the queue open and close`() = runTest(mainDispatcherRule.testDispatcher) {
@@ -337,6 +395,22 @@ class PlayerViewModelTest {
         assertFalse(viewModel.state.value.content.showLyrics)
         assertNull(viewModel.state.value.content.sheet)
     }
+
+    @Test
+    fun `queue toggles inline and lyrics switches directly from queue to lyrics`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val playback = playback()
+            playback.play(listOf(sung, noLyrics))
+            val viewModel = PlayerViewModel(playback, lyrics, tracks)
+            viewModel.onIntent(PlayerIntent.QueueClicked)
+            assertEquals(PlayerSheet.Queue, viewModel.state.value.content.sheet)
+            viewModel.onIntent(PlayerIntent.QueueClicked)
+            assertNull(viewModel.state.value.content.sheet)
+            viewModel.onIntent(PlayerIntent.QueueClicked)
+            viewModel.onIntent(PlayerIntent.LyricsClicked)
+            assertNull(viewModel.state.value.content.sheet)
+            assertTrue(viewModel.state.value.content.showLyrics)
+        }
 
     @Test
     fun `collapse asks the route to close the player`() = runTest(mainDispatcherRule.testDispatcher) {

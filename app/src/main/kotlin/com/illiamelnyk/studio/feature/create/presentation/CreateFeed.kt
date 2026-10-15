@@ -58,7 +58,7 @@ fun CreateFeed(
                 onMuseClick = { onIntent(CreateIntent.ComingSoonClicked(ComingSoonFeature.Muse)) },
                 onStylesClick = { onIntent(CreateIntent.StylesClicked) },
                 onSoundsClick = { onIntent(CreateIntent.ComingSoonClicked(ComingSoonFeature.Sounds)) },
-                onRecordClick = { onIntent(CreateIntent.ComingSoonClicked(ComingSoonFeature.Record)) },
+                onRecordClick = { onIntent(CreateIntent.ReferenceClicked) },
             )
         }
         item(key = "tools", contentType = "tools") {

@@ -155,6 +155,25 @@ class FakePlaybackController(private val scope: CoroutineScope, private val rand
         }
     }
 
+    override fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        synchronized(playbackLock) {
+            val state = mutableState.value
+            if (fromIndex !in state.queue.indices || toIndex !in state.queue.indices || fromIndex == toIndex) return
+            val currentOriginal = playOrder.getOrNull(state.currentIndex) ?: return
+            val order = playOrder.toMutableList().apply { add(toIndex, removeAt(fromIndex)) }
+            val currentIndex = order.indexOf(currentOriginal)
+            if (state.shuffle) {
+                playOrder = order
+            } else {
+                originalQueue = order.map(originalQueue::get)
+                playOrder = originalQueue.indices.toList()
+            }
+            mutableState.update {
+                it.copy(queue = playOrder.map(originalQueue::get), currentIndex = currentIndex)
+            }
+        }
+    }
+
     override fun clearUpNext() {
         synchronized(playbackLock) {
             val current = mutableState.value.current ?: return

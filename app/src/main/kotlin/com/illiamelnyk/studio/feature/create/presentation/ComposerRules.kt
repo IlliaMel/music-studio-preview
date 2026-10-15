@@ -12,6 +12,7 @@ fun ComposerUi.withSettings(settings: GenerationSettings): ComposerUi = copy(
     lyricsMode = settings.lyricsMode,
     duration = settings.duration?.toOptionUi(),
     variants = settings.variants,
+    customLyrics = settings.customLyrics,
 )
 
 /**
@@ -28,5 +29,9 @@ fun ComposerUi.checked(creditsLeft: Int?): ComposerUi {
         else -> null
     }
     val enoughCredits = creditsLeft != null && creditsLeft > 0
-    return copy(canSend = Prompt.isValid(prompt) && enoughCredits && !isSending, notice = notice)
+    return copy(
+        canSend = Prompt.isValid(prompt) && enoughCredits && !isSending &&
+            (lyricsMode != com.illiamelnyk.studio.feature.create.domain.LyricsMode.Custom || customLyrics.isNotBlank()),
+        notice = notice,
+    )
 }

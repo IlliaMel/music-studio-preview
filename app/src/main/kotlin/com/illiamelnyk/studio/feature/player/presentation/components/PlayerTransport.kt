@@ -32,6 +32,7 @@ fun PlayerTransport(
     onRepeatChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     hasNext: Boolean = true,
+    showModes: Boolean = true,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.s)) {
         if (isStation) {
@@ -44,6 +45,7 @@ fun PlayerTransport(
                 onPrevious = onPrevious,
                 onNext = onNext,
                 nextEnabled = hasNext,
+                showModes = showModes,
                 shuffle = shuffle,
                 onShuffleChange = onShuffleChange,
                 repeat = repeat,

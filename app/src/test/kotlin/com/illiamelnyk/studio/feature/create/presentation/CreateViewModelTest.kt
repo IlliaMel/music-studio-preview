@@ -222,7 +222,7 @@ class CreateViewModelTest {
         viewModel.onIntent(CreateIntent.SettingsInstrumentalChanged(true))
         viewModel.onIntent(CreateIntent.SettingsDurationSelected(3.minutes))
         val draft =
-            SettingsUi(MusicModel.V2, instrumental = true, duration = 3.minutes.toOptionUi())
+            SettingsUi(MusicModel.V2, lyricsMode = LyricsMode.Instrumental, duration = 3.minutes.toOptionUi())
         assertEquals(CreateSheet.Settings(draft), viewModel.state.value.sheet)
         assertNull(viewModel.state.value.composer.duration)
 
@@ -230,7 +230,7 @@ class CreateViewModelTest {
         viewModel.onIntent(CreateIntent.SheetDismissed)
         viewModel.onIntent(CreateIntent.SettingsClicked)
         val defaults =
-            SettingsUi(MusicModel.V2_5, instrumental = false, duration = null)
+            SettingsUi(MusicModel.V2_5, lyricsMode = LyricsMode.Auto, duration = null)
         assertEquals(CreateSheet.Settings(defaults), viewModel.state.value.sheet)
 
         viewModel.onIntent(CreateIntent.SettingsDurationSelected(3.minutes))
@@ -246,6 +246,36 @@ class CreateViewModelTest {
     }
 
     @Test
+    fun `custom lyrics settings apply only on confirmation and require lyrics`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val viewModel = viewModel()
+            viewModel.onIntent(CreateIntent.SettingsClicked)
+            viewModel.onIntent(CreateIntent.SettingsCustomLyricsSelected)
+            assertEquals(LyricsMode.Auto, viewModel.state.value.composer.lyricsMode)
+            assertEquals(LyricsMode.Custom, (viewModel.state.value.sheet as CreateSheet.Settings).draft.lyricsMode)
+            viewModel.onIntent(CreateIntent.SettingsApplied)
+            viewModel.onIntent(CreateIntent.PromptChanged("A warm acoustic song"))
+            assertEquals(LyricsMode.Custom, viewModel.state.value.composer.lyricsMode)
+            assertEquals(false, viewModel.state.value.composer.canSend)
+            viewModel.onIntent(CreateIntent.CustomLyricsChanged("Morning light"))
+            assertEquals(true, viewModel.state.value.composer.canSend)
+        }
+
+    @Test
+    fun `duration settings preserve custom lyrics`() = runTest(mainDispatcherRule.testDispatcher) {
+        val viewModel = viewModel()
+        viewModel.onIntent(CreateIntent.CustomLyricsClicked)
+        viewModel.onIntent(CreateIntent.CustomLyricsChanged("Morning light"))
+        viewModel.onIntent(CreateIntent.SettingsClicked)
+        viewModel.onIntent(CreateIntent.SettingsDurationSelected(3.minutes))
+        viewModel.onIntent(CreateIntent.SettingsApplied)
+
+        assertEquals(LyricsMode.Custom, viewModel.state.value.composer.lyricsMode)
+        assertEquals("Morning light", viewModel.state.value.composer.customLyrics)
+        assertEquals("3:00", viewModel.state.value.composer.duration?.label)
+    }
+
+    @Test
     fun `reset brings the settings back to the defaults`() = runTest(mainDispatcherRule.testDispatcher) {
         val viewModel = viewModel()
         viewModel.onIntent(CreateIntent.SettingsClicked)
@@ -256,7 +286,7 @@ class CreateViewModelTest {
         viewModel.onIntent(CreateIntent.SettingsReset)
 
         val defaults =
-            SettingsUi(MusicModel.V2_5, instrumental = false, duration = null)
+            SettingsUi(MusicModel.V2_5, lyricsMode = LyricsMode.Auto, duration = null)
         assertEquals(CreateSheet.Settings(defaults), viewModel.state.value.sheet)
         assertEquals("5:00", viewModel.state.value.composer.duration?.label)
     }
@@ -332,6 +362,7 @@ class CreateViewModelTest {
         viewModel.onIntent(CreateIntent.MenuActionClicked(TrackMenuAction.Rename))
         viewModel.onIntent(CreateIntent.RenameChanged("  New name  "))
         viewModel.onIntent(CreateIntent.RenameConfirmed)
+        runCurrent()
         assertEquals("New name", viewModel.state.value.track("seed-2").row.title)
         viewModel.onIntent(CreateIntent.MoreClicked(TrackId("seed-2")))
         viewModel.onIntent(CreateIntent.MenuActionClicked(TrackMenuAction.UsePrompt))
@@ -381,12 +412,12 @@ class CreateViewModelTest {
             viewModel.onIntent(CreateIntent.PromptChanged("Original idea"))
             viewModel.onIntent(CreateIntent.SendClicked)
             viewModel.onIntent(CreateIntent.SendClicked)
-            viewModel.onIntent(CreateIntent.PromptChanged("Next idea"))
+            viewModel.onIntent(CreateIntent.PromptChanged("Next track idea"))
             advanceTimeBy(NETWORK)
             runCurrent()
             assertEquals(7, viewModel.state.value.tracks.size)
             assertEquals("Original idea", viewModel.state.value.tracks.first().row.title)
-            assertEquals("Next idea", viewModel.state.value.composer.prompt)
+            assertEquals("Next track idea", viewModel.state.value.composer.prompt)
             assertEquals(true, viewModel.state.value.composer.canSend)
             assertEquals(7, credits.credits.first().remaining)
         }
@@ -453,8 +484,8 @@ class CreateViewModelTest {
             viewModel.onIntent(CreateIntent.MenuActionClicked(TrackMenuAction.Share))
 
             assertEquals(
-                CreateEffect.ShareTrack("Sunrise over the Carpathians", "Cinematic folk with violin and choir"),
-                awaitItem(),
+                "seed-2",
+                (awaitItem() as CreateEffect.ShareTrack).track?.id?.value,
             )
         }
     }
@@ -466,7 +497,9 @@ class CreateViewModelTest {
 
             viewModel.onIntent(CreateIntent.MoreClicked(TrackId("seed-2")))
             viewModel.onIntent(CreateIntent.MenuActionClicked(TrackMenuAction.Download))
-            assertEquals(CreateSheet.ComingSoon(ComingSoonFeature.Download), viewModel.state.value.sheet)
+            viewModel.effects.test {
+                assertEquals("seed-2", (awaitItem() as CreateEffect.DownloadAudio).track.id.value)
+            }
 
             viewModel.onIntent(CreateIntent.ComingSoonClicked(ComingSoonFeature.Muse))
             assertEquals(CreateSheet.ComingSoon(ComingSoonFeature.Muse), viewModel.state.value.sheet)

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <application>
+    <application android:networkSecurityConfig="@xml/debug_network_security">
         <!-- The design system catalog, debug builds only: a second launcher entry with its own task,
              so it doesn't stack on top of the app. -->
         <activity

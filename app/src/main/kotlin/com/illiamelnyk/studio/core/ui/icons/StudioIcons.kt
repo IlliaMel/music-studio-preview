@@ -13,6 +13,8 @@ import com.illiamelnyk.studio.R
  * direction in right-to-left layouts, as media controls do.
  */
 object StudioIcons {
+    @DrawableRes val AllInclusive = R.drawable.ic_all_inclusive
+
     @DrawableRes val Add = R.drawable.ic_add
 
     @DrawableRes val ArrowUpward = R.drawable.ic_arrow_upward
@@ -34,6 +36,8 @@ object StudioIcons {
     @DrawableRes val Close = R.drawable.ic_close
 
     @DrawableRes val Delete = R.drawable.ic_delete
+
+    @DrawableRes val DragHandle = R.drawable.ic_drag_handle
 
     @DrawableRes val Download = R.drawable.ic_download
 

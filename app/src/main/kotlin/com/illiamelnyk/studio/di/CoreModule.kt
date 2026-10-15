@@ -2,16 +2,17 @@ package com.illiamelnyk.studio.di
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
-import com.illiamelnyk.studio.core.data.fake.FakeCreditsRepository
-import com.illiamelnyk.studio.core.data.fake.FakeLyricsRepository
-import com.illiamelnyk.studio.core.data.fake.FakePlaybackController
-import com.illiamelnyk.studio.core.data.fake.FakePlaylistRepository
-import com.illiamelnyk.studio.core.data.fake.FakeSessionRepository
-import com.illiamelnyk.studio.core.data.fake.FakeTrackRepository
+import com.illiamelnyk.studio.core.data.local.DurableStudioRepository
+import com.illiamelnyk.studio.core.data.local.StudioApi
+import com.illiamelnyk.studio.core.data.local.StudioStore
 import com.illiamelnyk.studio.core.data.network.AndroidNetworkMonitor
+import com.illiamelnyk.studio.core.data.playback.AndroidAudioExporter
+import com.illiamelnyk.studio.core.data.playback.AndroidPlaybackController
+import com.illiamelnyk.studio.core.data.playback.LocalLyricsRepository
 import com.illiamelnyk.studio.core.data.settings.DataStoreThemePreferenceRepository
 import com.illiamelnyk.studio.core.domain.credits.CreditsRepository
 import com.illiamelnyk.studio.core.domain.network.NetworkMonitor
+import com.illiamelnyk.studio.core.domain.playback.AudioExporter
 import com.illiamelnyk.studio.core.domain.playback.LyricsRepository
 import com.illiamelnyk.studio.core.domain.playback.PlaybackController
 import com.illiamelnyk.studio.core.domain.playlist.PlaylistRepository
@@ -22,6 +23,7 @@ import com.illiamelnyk.studio.core.domain.settings.ThemePreferenceRepository
 import com.illiamelnyk.studio.core.domain.track.TrackRepository
 import com.illiamelnyk.studio.core.presentation.OfflineViewModel
 import com.illiamelnyk.studio.core.presentation.ToastController
+import com.illiamelnyk.studio.core.presentation.audio.AudioActions
 import kotlin.time.Clock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,23 +36,23 @@ import org.koin.core.qualifier.named
 import org.koin.dsl.bind
 import org.koin.dsl.module
 
-/**
- * What several features share: the session, tracks, credits, playback and settings. The fakes
- * stand in for the backend until it is wired up; each is bound to its domain interface, so
- * swapping one for the real implementation changes only this module.
- */
 val coreModule = module {
     // Work that outlives every screen, such as generations and the player's clock. A failure in one
     // job doesn't cancel the others.
     single(named(APP_SCOPE)) { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
     single<Clock> { Clock.System }
 
-    singleOf(::FakeSessionRepository) bind SessionRepository::class
-    singleOf(::FakeCreditsRepository) bind CreditsRepository::class
-    single { FakeTrackRepository(get(), get(), get(named(APP_SCOPE)), get()) } bind TrackRepository::class
-    single { FakePlaybackController(get(named(APP_SCOPE))) } bind PlaybackController::class
-    singleOf(::FakeLyricsRepository) bind LyricsRepository::class
-    singleOf(::FakePlaylistRepository) bind PlaylistRepository::class
+    single { StudioStore(androidContext()) }
+    single { StudioApi(androidContext()) }
+    single { DurableStudioRepository(androidContext(), get(), get(), get(named(APP_SCOPE))) }
+    single<SessionRepository> { get<DurableStudioRepository>() }
+    single<CreditsRepository> { get<DurableStudioRepository>() }
+    single<TrackRepository> { get<DurableStudioRepository>() }
+    single { AndroidPlaybackController(androidContext(), get(named(APP_SCOPE))) } bind PlaybackController::class
+    singleOf(::LocalLyricsRepository) bind LyricsRepository::class
+    single<AudioExporter> { AndroidAudioExporter(androidContext()) }
+    factoryOf(::AudioActions)
+    single<PlaylistRepository> { get<DurableStudioRepository>() }
     factoryOf(::SignOut)
     factoryOf(::DeleteAccount)
     single { ToastController(get(named(APP_SCOPE))) }

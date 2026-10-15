@@ -7,13 +7,13 @@ import com.illiamelnyk.studio.core.data.fake.FakeTrackRepository
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.Outcome
 import kotlin.time.Clock
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -37,18 +37,28 @@ class DeleteAccountTest {
     @Test
     fun `disposing the caller after deletion cannot interrupt local cleanup`() = runTest {
         val sessions = FakeSessionRepository()
+        sessions.signIn("demo", SignInMethod.Google, "Demo listener", useProviderProfile = true)
+        val sessionRemoved = CompletableDeferred<Unit>()
+        val returnFromIo = CompletableDeferred<Unit>()
         val deleting = object : SessionRepository by sessions {
             override suspend fun deleteAccount(): Outcome<Unit> {
-                // The app removes the settings ViewModel as soon as its session disappears.
-                currentCoroutineContext().cancel()
-                return Outcome.Success(Unit)
+                val result = sessions.deleteAccount()
+                sessionRemoved.complete(Unit)
+                returnFromIo.await()
+                return result
             }
         }
         val playback = FakePlaybackController(backgroundScope)
         val tracks = FakeTrackRepository(FakeCreditsRepository(), sessions, backgroundScope, Clock.System)
+        playback.play(tracks.observeMine().first())
         val job = launch { DeleteAccount(deleting, playback, tracks)() }
-        advanceUntilIdle()
+        sessionRemoved.await()
+        assertNull(sessions.session.first())
+        job.cancel()
+        returnFromIo.complete(Unit)
         job.join()
         assertTrue(tracks.observeMine().first().isEmpty())
+        assertTrue(playback.state.value.queue.isEmpty())
+        assertFalse(playback.state.value.isPlaying)
     }
 }

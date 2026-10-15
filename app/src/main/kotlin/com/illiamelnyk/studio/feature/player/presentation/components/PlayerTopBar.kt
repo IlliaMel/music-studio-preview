@@ -35,6 +35,7 @@ fun PlayerTopBar(
     onAddTo: () -> Unit,
     modifier: Modifier = Modifier,
     showActions: Boolean = true,
+    canRemix: Boolean = true,
 ) {
     val dimens = StudioTheme.dimens
     // The buttons' touch areas reach past their circles; the circles line up with the content.
@@ -64,7 +65,12 @@ fun PlayerTopBar(
                 )
                 Row {
                     PlayerAction(StudioIcons.IosShare, stringResource(R.string.player_share), onShare)
-                    PlayerMoreMenu(onShare = onShare, onComingSoon = onComingSoon, onAddTo = onAddTo)
+                    PlayerMoreMenu(
+                        onShare = onShare,
+                        onComingSoon = onComingSoon,
+                        onAddTo = onAddTo,
+                        canRemix = canRemix,
+                    )
                 }
             }
         }

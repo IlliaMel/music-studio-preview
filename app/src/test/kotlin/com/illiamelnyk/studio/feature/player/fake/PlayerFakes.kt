@@ -36,6 +36,10 @@ class InMemoryTrackRepository(mine: List<Track> = emptyList()) : TrackRepository
     /** The error the next [setLiked] fails with; cleared once used. */
     var nextLikeFailure: AppError? = null
 
+    fun replace(track: Track) {
+        tracks.update { list -> list.map { if (it.id == track.id) track else it } }
+    }
+
     override fun observeMine(): Flow<List<Track>> = tracks
 
     override fun observeById(id: TrackId): Flow<Track?> = tracks.map { list ->

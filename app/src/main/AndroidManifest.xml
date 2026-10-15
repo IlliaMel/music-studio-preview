@@ -11,6 +11,11 @@
          from Android 16 it is on for apps that target it. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <application
         android:name=".StudioApp"
         android:allowBackup="false"
@@ -33,5 +38,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service android:name=".core.data.playback.PlaybackService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.audio" android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/audio_paths" />
+        </provider>
     </application>
 </manifest>

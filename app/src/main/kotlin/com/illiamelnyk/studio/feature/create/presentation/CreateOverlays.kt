@@ -29,6 +29,7 @@ fun CreateOverlays(state: CreateState, onIntent: (CreateIntent) -> Unit) {
                 onQualitySelect = { onIntent(CreateIntent.SettingsQualitySelected(it)) },
                 onVariantsSelect = { onIntent(CreateIntent.SettingsVariantsSelected(it)) },
                 onInstrumentalChange = { onIntent(CreateIntent.SettingsInstrumentalChanged(it)) },
+                onCustomLyrics = { onIntent(CreateIntent.SettingsCustomLyricsSelected) },
                 onDurationSelect = { onIntent(CreateIntent.SettingsDurationSelected(it)) },
                 onReset = { onIntent(CreateIntent.SettingsReset) },
                 onApply = { onIntent(CreateIntent.SettingsApplied) },

@@ -73,7 +73,6 @@
     <string name="player_collapse">Minimize the player</string>
     <string name="player_share">Share</string>
     <string name="player_more">More options</string>
-    <string name="player_soon">Soon</string>
     <string name="player_remix">Remix</string>
     <string name="player_add_to">Add To</string>
     <string name="player_add_to_playlist">Add to playlist</string>
@@ -86,7 +85,6 @@
     <string name="player_time_left">−%1$s</string>
     <string name="player_like_failed">Couldn\'t save your like</string>
     <!-- What sharing a track sends: its title and artist -->
-    <string name="player_share_text">%1$s by %2$s, made with Studio</string>
     <string name="player_want_it">I want this</string>
     <string name="player_want_it_title">Thanks, noted</string>
     <string name="player_want_it_message">We\'ll let you know when it\'s here.</string>
@@ -168,10 +166,15 @@
     <string name="profile_delete_message">Your profile and generated tracks will be removed from this demo. This cannot be undone.</string>
     <string name="profile_cancel">Cancel</string>
     <string name="profile_backend_mode">Backend mode</string>
-    <string name="profile_backend_mock">Mock: built-in tracks and simulated generation. Live service is not connected.</string>
+    <string name="profile_backend_mock">Local demo: tracks, credits and playlists are saved on this device.</string>
     <string name="profile_about">About this prototype</string>
     <string name="profile_about_detail">Studio is an independent music creation prototype. Google sign-in and generation are simulated in this build.</string>
     <string name="network_offline">You are offline</string>
     <string name="network_offline_detail">Demo tracks still work. We will reconnect automatically.</string>
     <string name="network_retry">Retry</string>
+    <string name="player_download_saved">Audio saved</string>
+    <string name="player_download_location">Download/MusicStudio</string>
+    <string name="player_queue_reorder">Reorder %1$s</string>
+    <string name="player_queue_move_up">Move up</string>
+    <string name="player_queue_move_down">Move down</string>
 </resources>

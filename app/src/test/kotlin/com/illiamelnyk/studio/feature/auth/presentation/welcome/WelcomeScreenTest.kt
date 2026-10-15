@@ -18,7 +18,7 @@ class WelcomeScreenTest {
     fun `welcome offers Google and demo without extra onboarding choices`() {
         var intent: WelcomeIntent? = null
         compose.setContent { StudioTheme { WelcomeScreen(WelcomeState(), onIntent = { intent = it }) } }
-        compose.onNodeWithText("Continue with Google (demo)").performClick()
+        compose.onNodeWithText("Continue with local server").performClick()
         assertEquals(WelcomeIntent.ContinueWithGoogleClicked, intent)
         compose.onNodeWithText("Try the demo").performClick()
         assertEquals(WelcomeIntent.TryDemoClicked, intent)

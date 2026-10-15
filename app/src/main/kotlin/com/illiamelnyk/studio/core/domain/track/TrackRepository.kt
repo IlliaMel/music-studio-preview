@@ -34,6 +34,12 @@ interface TrackRepository {
     /** Generates a failed track again from the same request. */
     suspend fun retry(id: TrackId): Outcome<Track>
 
+    suspend fun saveRecording(localUri: String, title: String, duration: kotlin.time.Duration): Outcome<Track> =
+        Outcome.Failure(com.illiamelnyk.studio.core.domain.AppError.Unknown)
+
+    suspend fun rename(id: TrackId, title: String): Outcome<Unit> =
+        Outcome.Failure(com.illiamelnyk.studio.core.domain.AppError.Unknown)
+
     suspend fun delete(id: TrackId): Outcome<Unit>
 
     suspend fun setLiked(id: TrackId, liked: Boolean): Outcome<Unit>

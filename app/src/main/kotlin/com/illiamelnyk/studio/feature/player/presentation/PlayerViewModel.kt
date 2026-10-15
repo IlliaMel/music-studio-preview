@@ -6,6 +6,7 @@ import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.playback.LyricsRepository
 import com.illiamelnyk.studio.core.domain.playback.PlaybackController
 import com.illiamelnyk.studio.core.domain.playback.RepeatMode
+import com.illiamelnyk.studio.core.domain.track.ComposerDraftStore
 import com.illiamelnyk.studio.core.domain.track.Track
 import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.core.domain.track.TrackRepository
@@ -38,6 +39,7 @@ class PlayerViewModel(
     private val playback: PlaybackController,
     private val lyrics: LyricsRepository,
     private val tracks: TrackRepository,
+    private val drafts: ComposerDraftStore = ComposerDraftStore(),
 ) : MviViewModel<PlayerState, PlayerIntent, PlayerEffect>(
     // Built from what is playing right now, so the player never opens on an empty first frame.
     PlayerState(PlayerContent().withPlayback(playback.state.value), playback.state.value.toClock()),
@@ -64,7 +66,14 @@ class PlayerViewModel(
 
         val currentTrack = playback.state.map { it.current }.distinctUntilChanged { old, new -> old?.id == new?.id }
         // A new track cancels the lyrics request of the previous one.
-        viewModelScope.launch { currentTrack.collectLatest(::loadLyrics) }
+        viewModelScope.launch {
+            currentTrack.flatMapLatest { playing ->
+                if (playing == null) flowOf(null) else tracks.observeById(playing.id).map { it ?: playing }
+            }.distinctUntilChanged { old, new ->
+                old?.id == new?.id && old?.words == new?.words &&
+                    old?.customLyrics == new?.customLyrics && old?.instrumental == new?.instrumental
+            }.collectLatest(::loadLyrics)
+        }
         currentTrack
             .flatMapLatest(::likedFlow)
             .distinctUntilChanged()
@@ -72,26 +81,67 @@ class PlayerViewModel(
             .launchIn(viewModelScope)
     }
 
-    override fun onIntent(intent: PlayerIntent) = when (intent) {
-        PlayerIntent.CollapseClicked -> sendEffect(PlayerEffect.Collapse)
-        PlayerIntent.PlayPauseClicked -> playback.togglePlayPause()
-        PlayerIntent.StopClicked -> playback.stop()
-        PlayerIntent.NextClicked -> playback.next()
-        PlayerIntent.PreviousClicked -> playback.previous()
-        is PlayerIntent.ShuffleChanged -> playback.setShuffle(intent.enabled)
-        is PlayerIntent.RepeatChanged -> playback.setRepeat(if (intent.enabled) RepeatMode.All else RepeatMode.Off)
-        is PlayerIntent.SeekRequested -> seekTo(intent.fraction)
-        is PlayerIntent.LyricLineClicked -> playback.seekTo(intent.startMs)
-        PlayerIntent.LyricsClicked -> setContent { copy(showLyrics = !showLyrics) }
-        PlayerIntent.QueueClicked -> setContent { copy(sheet = PlayerSheet.Queue) }
-        is PlayerIntent.UpNextTrackClicked -> playUpNext(intent.position)
-        PlayerIntent.ClearUpNextClicked -> playback.clearUpNext()
-        PlayerIntent.SheetDismissed -> setContent { copy(sheet = null) }
-        PlayerIntent.AddToClicked -> openPlaylistPicker()
-        PlayerIntent.LikeClicked -> toggleLike()
-        PlayerIntent.ShareClicked -> share()
-        is PlayerIntent.ComingSoonClicked -> setContent { copy(sheet = PlayerSheet.ComingSoon(intent.feature)) }
-        PlayerIntent.WantItClicked -> wantIt()
+    override fun onIntent(intent: PlayerIntent) {
+        when (intent) {
+            PlayerIntent.CollapseClicked -> sendEffect(PlayerEffect.Collapse)
+
+            PlayerIntent.PlayPauseClicked -> playback.togglePlayPause()
+
+            PlayerIntent.StopClicked -> playback.stop()
+
+            PlayerIntent.NextClicked -> playback.next()
+
+            PlayerIntent.PreviousClicked -> playback.previous()
+
+            is PlayerIntent.ShuffleChanged -> playback.setShuffle(intent.enabled)
+
+            is PlayerIntent.RepeatChanged -> playback.setRepeat(if (intent.enabled) RepeatMode.All else RepeatMode.Off)
+
+            is PlayerIntent.SeekRequested -> seekTo(intent.fraction)
+
+            is PlayerIntent.LyricLineClicked -> playback.seekTo(intent.startMs)
+
+            PlayerIntent.LyricsClicked -> setContent {
+                copy(showLyrics = if (sheet == PlayerSheet.Queue) true else !showLyrics, sheet = null)
+            }
+
+            PlayerIntent.QueueClicked -> setContent {
+                val next = if (sheet == PlayerSheet.Queue) null else PlayerSheet.Queue
+                copy(sheet = next)
+            }
+
+            is PlayerIntent.UpNextTrackClicked -> playUpNext(intent.position)
+
+            is PlayerIntent.QueueItemMoved -> {
+                val playing = playback.state.value
+                if (!playing.isStation && intent.from >= 0 && intent.to >= 0) {
+                    playback.moveQueueItem(playing.currentIndex + 1 + intent.from, playing.currentIndex + 1 + intent.to)
+                }
+            }
+
+            PlayerIntent.ClearUpNextClicked -> playback.clearUpNext()
+
+            PlayerIntent.SheetDismissed -> setContent { copy(sheet = null) }
+
+            PlayerIntent.AddToClicked -> openPlaylistPicker()
+
+            PlayerIntent.LikeClicked -> toggleLike()
+
+            PlayerIntent.ShareClicked -> share()
+
+            is PlayerIntent.ComingSoonClicked -> when (intent.feature) {
+                SoonFeature.Download -> playback.state.value.current?.let { sendEffect(PlayerEffect.Download(it)) }
+
+                SoonFeature.Remix -> playback.state.value.current?.takeIf { it.remixTrackId == null }?.let {
+                    drafts.remix(it)
+                    sendEffect(PlayerEffect.Collapse)
+                }
+
+                SoonFeature.Autoplay -> playback.setRepeat(RepeatMode.All)
+            }
+
+            PlayerIntent.WantItClicked -> wantIt()
+        }
     }
 
     private fun setContent(reduce: PlayerContent.() -> PlayerContent) = setState { copy(content = content.reduce()) }
@@ -157,14 +207,9 @@ class PlayerViewModel(
         playback.play(playing.queue, index)
     }
 
-    /**
-     * Shares the title and the artist. Sharing the MP3 itself goes through the same effect with a
-     * FileProvider URI of the downloaded file; tracks have no file on the device yet, so the text
-     * goes alone.
-     */
     private fun share() {
-        val track = state.value.content.track ?: return
-        sendEffect(PlayerEffect.Share(UiText.Resource(R.string.player_share_text, track.title, track.subtitle)))
+        val track = playback.state.value.current ?: return
+        sendEffect(PlayerEffect.ShareAudio(track))
     }
 
     private fun wantIt() {

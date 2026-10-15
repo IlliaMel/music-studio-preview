@@ -44,6 +44,8 @@ data class ToolState(
     val canUse: Boolean = false,
     val hint: UiText? = UiText.Resource(R.string.tool_needs_recording),
     val isSubmitting: Boolean = false,
+    val recordingOpen: Boolean = false,
+    val referenceAudio: com.illiamelnyk.studio.feature.create.domain.RecordedAudio? = null,
 ) {
     constructor(tool: Tool) : this(
         tool = tool.toUi(),
@@ -88,6 +90,10 @@ sealed interface ToolIntent {
     data class DurationSelected(val duration: DurationOptionUi) : ToolIntent
 
     data object AddRecordingClicked : ToolIntent
+
+    data class RecordingSelected(val audio: com.illiamelnyk.studio.feature.create.domain.RecordedAudio) : ToolIntent
+
+    data object RecordingDismissed : ToolIntent
 
     /** "I want this" on the coming soon sheet. */
     data object WantClicked : ToolIntent

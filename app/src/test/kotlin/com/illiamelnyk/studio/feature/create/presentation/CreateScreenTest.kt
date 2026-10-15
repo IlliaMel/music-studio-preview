@@ -52,6 +52,7 @@ class CreateScreenTest {
         send.assertDoesNotExist()
 
         composeRule.onNode(hasSetTextAction()).performTextInput("Lo-fi beat")
+        composeRule.waitUntil { intents.lastOrNull() == CreateIntent.PromptChanged("Lo-fi beat") }
         assertEquals(CreateIntent.PromptChanged("Lo-fi beat"), intents.last())
 
         state = state.copy(composer = ComposerUi(prompt = "Lo-fi beat", canSend = true))
@@ -104,18 +105,16 @@ class CreateScreenTest {
     }
 
     @Test
-    fun `settings expose Custom lyrics and Styles as coming soon actions`() {
+    fun `settings select Custom lyrics while Styles remains coming soon`() {
         state = state.copy(
             sheet = CreateSheet.Settings(
-                SettingsUi(com.illiamelnyk.studio.core.domain.track.MusicModel.V2_5, false, null),
+                SettingsUi(com.illiamelnyk.studio.core.domain.track.MusicModel.V2_5, duration = null),
             ),
         )
         show()
         composeRule.onNodeWithText(string(R.string.create_lyrics_custom)).performScrollTo().performClick()
         assertEquals(
-            CreateIntent.ComingSoonClicked(
-                com.illiamelnyk.studio.feature.create.presentation.common.ComingSoonFeature.Lyrics,
-            ),
+            CreateIntent.SettingsCustomLyricsSelected,
             intents.last(),
         )
         composeRule.onNode(hasText(string(R.string.create_chip_styles)) and hasAnyAncestor(isDialog()))

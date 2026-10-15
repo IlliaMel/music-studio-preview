@@ -15,7 +15,7 @@ import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.feature.create.presentation.TrackMenuAction
 
 /**
- * The MVP menu of one of the user's tracks; saving audio is coming soon and Delete asks first.
+ * The MVP menu of one of the user's tracks; audio export is available and Delete asks first.
  */
 // The root is the menu's popup window; the modifier is for the menu inside it.
 @Suppress("ktlint:compose:modifier-not-used-at-root")
@@ -26,7 +26,6 @@ fun TrackMenu(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val soon = stringResource(R.string.ui_soon)
     StudioContextMenu(expanded = expanded, onDismissRequest = onDismissRequest, modifier = modifier) {
         ContextMenuItem(
             label = stringResource(R.string.create_menu_play_next),
@@ -42,7 +41,6 @@ fun TrackMenu(
             label = stringResource(R.string.create_menu_download),
             onClick = { onAction(TrackMenuAction.Download) },
             icon = StudioIcons.Download,
-            hint = soon,
         )
         ContextMenuItem(
             label = stringResource(R.string.create_menu_rename),

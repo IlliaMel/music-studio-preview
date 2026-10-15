@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.movableContentWithReceiverOf
@@ -34,6 +35,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
+import com.illiamelnyk.studio.core.ui.foundation.rememberStudioEditor
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.core.ui.theme.PreviewSurface
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
@@ -65,9 +67,11 @@ fun Composer(
     leadingActions: @Composable RowScope.() -> Unit = {},
     trailingActions: @Composable RowScope.() -> Unit = {},
     showSend: Boolean = true,
+    additionalEditor: (@Composable () -> Unit)? = null,
 ) {
     val leading = remember(leadingActions) { movableContentWithReceiverOf<RowScope> { leadingActions() } }
     val trailing = remember(trailingActions) { movableContentWithReceiverOf<RowScope> { trailingActions() } }
+    val editor = rememberStudioEditor(value, onValueChange)
     val colors = StudioTheme.colors
     val dimens = StudioTheme.dimens
     val motion = StudioTheme.motion
@@ -111,20 +115,21 @@ fun Composer(
                 verticalArrangement = Arrangement.spacedBy(dimens.spacing.s),
             ) {
                 BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
+                    state = editor,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = dimens.spacing.xxs),
                     textStyle = StudioTheme.typography.bodyLarge.copy(color = colors.content.primary),
-                    maxLines = if (expanded) ComposerDefaults.MAX_LINES else 1,
+                    lineLimits = TextFieldLineLimits.MultiLine(
+                        maxHeightInLines = if (expanded) ComposerDefaults.MAX_LINES else 1,
+                    ),
                     interactionSource = source,
                     cursorBrush = SolidColor(colors.content.primary),
-                    decorationBox = { innerTextField ->
+                    decorator = { innerTextField ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (!expanded) leading()
                             Box(Modifier.weight(1f)) {
-                                if (value.isEmpty()) {
+                                if (editor.text.isEmpty()) {
                                     StudioText(
                                         placeholder,
                                         StudioTheme.typography.bodyLarge,
@@ -137,6 +142,7 @@ fun Composer(
                         }
                     },
                 )
+                if (expanded) additionalEditor?.invoke()
                 if (expanded || showSend) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -157,7 +163,10 @@ fun Composer(
                             StudioIconButton(
                                 icon = StudioIcons.ArrowUpward,
                                 contentDescription = stringResource(R.string.ui_send),
-                                onClick = onSend,
+                                onClick = {
+                                    onValueChange(editor.text.toString())
+                                    onSend()
+                                },
                                 style = StudioIconButtonStyle.Primary,
                                 size = StudioIconButtonSize.Small,
                                 enabled = sendEnabled && !overLimit,

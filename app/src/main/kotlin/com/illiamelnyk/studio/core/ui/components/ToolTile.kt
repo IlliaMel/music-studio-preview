@@ -62,7 +62,7 @@ fun ToolTile(
                 text = name,
                 style = StudioTheme.typography.titleSmall,
                 color = if (comingSoon) colors.content.secondary else colors.content.primary,
-                maxLines = 1,
+                maxLines = 2,
             )
             if (comingSoon) StudioBadge(stringResource(R.string.ui_soon), style = StudioBadgeStyle.Soon)
         }

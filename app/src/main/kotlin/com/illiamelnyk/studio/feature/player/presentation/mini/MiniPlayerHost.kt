@@ -18,10 +18,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.illiamelnyk.studio.core.domain.playback.PlaybackController
+import com.illiamelnyk.studio.core.domain.track.ComposerDraftStore
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.player.presentation.host.PlayerHostScope
 import com.illiamelnyk.studio.feature.player.presentation.host.sharedPlayerCover
 import com.illiamelnyk.studio.feature.player.presentation.mini.components.MiniPlayerPill
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -44,6 +47,9 @@ fun MiniPlayerHost(
     modifier: Modifier = Modifier,
     viewModel: MiniPlayerViewModel = koinViewModel(),
 ) {
+    val drafts: ComposerDraftStore = koinInject()
+    val playback: PlaybackController = koinInject()
+    val playbackState by playback.state.collectAsStateWithLifecycle()
     val state = viewModel.state.collectAsStateWithLifecycle()
     val track by remember { derivedStateOf { state.value.track } }
     val isPlaying by remember { derivedStateOf { state.value.isPlaying } }
@@ -79,7 +85,11 @@ fun MiniPlayerHost(
                     onPlayPause = { viewModel.onIntent(MiniPlayerIntent.PlayPauseClicked) },
                     onNext = if (!isStation) ({ viewModel.onIntent(MiniPlayerIntent.NextClicked) }) else null,
                     nextEnabled = hasNext,
-                    onRemix = if (!isStation) ({ host.remixSoonVisible = true }) else null,
+                    onRemix = if (!isStation && playbackState.current?.remixTrackId == null) {
+                        { playback.state.value.current?.let(drafts::remix) }
+                    } else {
+                        null
+                    },
                     coverModifier = Modifier.sharedPlayerCover(host, this),
                     pillModifier = Modifier.draggable(
                         state = host.sheet.expandDrag,

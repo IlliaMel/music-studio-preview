@@ -7,22 +7,19 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
-/** Clears local fake tracks after account deletion succeeds and stops playback. */
+/** Finishes playback and local cleanup after account deletion succeeds. */
 class DeleteAccount(
     private val sessions: SessionRepository,
     private val playback: PlaybackController,
     private val tracks: TrackRepository,
 ) {
-    suspend operator fun invoke(): Outcome<Unit> {
+    suspend operator fun invoke(): Outcome<Unit> = withContext(NonCancellable) {
         val ids = tracks.observeMine().first().map { it.id }
         val result = sessions.deleteAccount()
         if (result is Outcome.Success) {
-            // Session removal disposes the settings ViewModel; finish local cleanup regardless.
-            withContext(NonCancellable) {
-                playback.stop()
-                ids.forEach { tracks.delete(it) }
-            }
+            playback.stop()
+            ids.forEach { tracks.delete(it) }
         }
-        return result
+        result
     }
 }

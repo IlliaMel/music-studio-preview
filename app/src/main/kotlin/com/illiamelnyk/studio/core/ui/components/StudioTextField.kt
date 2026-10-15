@@ -13,8 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.KeyboardActionHandler
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -29,6 +30,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
+import com.illiamelnyk.studio.core.ui.foundation.rememberStudioEditor
 import com.illiamelnyk.studio.core.ui.icons.StudioIcon
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.core.ui.theme.PreviewSurface
@@ -52,7 +54,7 @@ fun StudioTextField(
     enabled: Boolean = true,
     errorText: String? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    onKeyboardAction: KeyboardActionHandler? = null,
     interactionSource: MutableInteractionSource? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
@@ -66,7 +68,7 @@ fun StudioTextField(
         enabled = enabled,
         errorText = errorText,
         keyboardOptions = keyboardOptions,
-        keyboardActions = keyboardActions,
+        onKeyboardAction = onKeyboardAction,
         interactionSource = interactionSource,
         trailing = trailing,
     )
@@ -96,7 +98,7 @@ fun StudioSearchField(
         enabled = enabled,
         errorText = null,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { onSearch(query) }),
+        onKeyboardAction = { onSearch(query) },
         interactionSource = interactionSource,
         trailing = if (query.isNotEmpty()) {
             {
@@ -124,11 +126,12 @@ private fun StudioField(
     enabled: Boolean,
     errorText: String?,
     keyboardOptions: KeyboardOptions,
-    keyboardActions: KeyboardActions,
+    onKeyboardAction: KeyboardActionHandler?,
     interactionSource: MutableInteractionSource?,
     trailing: (@Composable () -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
+    val editor = rememberStudioEditor(value, onValueChange)
     val colors = StudioTheme.colors
     val dimens = StudioTheme.dimens
     val source = interactionSource ?: remember { MutableInteractionSource() }
@@ -140,8 +143,7 @@ private fun StudioField(
     }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(dimens.spacing.xxs)) {
         BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
+            state = editor,
             modifier = Modifier
                 .fillMaxWidth()
                 .semantics { if (errorText != null) error(errorText) },
@@ -150,11 +152,11 @@ private fun StudioField(
                 color = if (enabled) colors.content.primary else colors.content.disabled,
             ),
             keyboardOptions = keyboardOptions,
-            keyboardActions = keyboardActions,
-            singleLine = true,
+            onKeyboardAction = onKeyboardAction,
+            lineLimits = TextFieldLineLimits.SingleLine,
             interactionSource = source,
             cursorBrush = SolidColor(colors.content.primary),
-            decorationBox = { innerTextField ->
+            decorator = { innerTextField ->
                 Row(
                     modifier = Modifier
                         .heightIn(min = dimens.size.component.textField)
@@ -168,7 +170,7 @@ private fun StudioField(
                         StudioIcon(leadingIcon, contentDescription = null, tint = colors.content.secondary)
                     }
                     Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                        if (value.isEmpty() && placeholder != null) {
+                        if (editor.text.isEmpty() && placeholder != null) {
                             StudioText(
                                 text = placeholder,
                                 style = StudioTheme.typography.bodyLarge,

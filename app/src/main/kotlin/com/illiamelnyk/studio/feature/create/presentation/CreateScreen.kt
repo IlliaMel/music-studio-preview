@@ -15,14 +15,11 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
 import com.illiamelnyk.studio.core.presentation.withoutTop
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
-import com.illiamelnyk.studio.feature.create.presentation.common.ToastHost
-import com.illiamelnyk.studio.feature.create.presentation.common.ToastHostState
 import com.illiamelnyk.studio.feature.create.presentation.components.ComposerAwarePadding
 import com.illiamelnyk.studio.feature.create.presentation.components.ComposerLayout
-import com.illiamelnyk.studio.feature.create.presentation.components.onlyTop
 
 /**
- * The Create tab: the feed with the composer pinned under it, above the keyboard, and toasts and
+ * The Create tab: the feed with the composer pinned under it, above the keyboard, and
  * sheets over both. The parts map their sections' callbacks to intents.
  *
  * The screen consumes [contentPadding] (see the shell), so the composer's `imePadding()` adds only
@@ -35,7 +32,6 @@ fun CreateScreen(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
     listState: LazyListState = rememberLazyListState(),
-    toasts: ToastHostState = remember { ToastHostState() },
 ) {
     val gap = StudioTheme.dimens.spacing.xs
     Box(modifier.fillMaxSize()) {
@@ -53,7 +49,6 @@ fun CreateScreen(
                 },
             )
         }
-        ToastHost(toasts, Modifier.padding(contentPadding.onlyTop()))
         CreateOverlays(state, onIntent)
     }
 }

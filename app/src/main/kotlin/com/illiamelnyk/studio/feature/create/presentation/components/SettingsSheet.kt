@@ -30,6 +30,7 @@ import com.illiamelnyk.studio.core.ui.components.StudioSegmentedControl
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
+import com.illiamelnyk.studio.feature.create.domain.LyricsMode
 import com.illiamelnyk.studio.feature.create.presentation.CreatePreviewData
 import com.illiamelnyk.studio.feature.create.presentation.SettingsUi
 import com.illiamelnyk.studio.feature.create.presentation.common.ComingSoonFeature
@@ -48,6 +49,7 @@ class SettingsCallbacks(
     val onReset: () -> Unit,
     val onApply: () -> Unit,
     val onComingSoon: (ComingSoonFeature) -> Unit = {},
+    val onCustomLyrics: () -> Unit = {},
 )
 
 /**
@@ -103,15 +105,14 @@ private fun SettingsContent(
                     R.string.create_lyrics_custom,
                     R.string.create_settings_instrumental,
                 ),
-                selected =
-                    if (draft.instrumental) {
-                        R.string.create_settings_instrumental
-                    } else {
-                        R.string.create_quality_auto
-                    },
+                selected = when (draft.lyricsMode) {
+                    LyricsMode.Instrumental -> R.string.create_settings_instrumental
+                    LyricsMode.Custom -> R.string.create_lyrics_custom
+                    LyricsMode.Auto -> R.string.create_quality_auto
+                },
                 onSelect = { option ->
                     if (option == R.string.create_lyrics_custom) {
-                        callbacks.onComingSoon(ComingSoonFeature.Lyrics)
+                        callbacks.onCustomLyrics()
                     } else {
                         callbacks.onInstrumentalChange(option == R.string.create_settings_instrumental)
                     }

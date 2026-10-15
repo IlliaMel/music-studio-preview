@@ -89,6 +89,48 @@ class GenerateTracksTest {
         assertEquals(0, credits.credits.first().remaining)
     }
 
+    @Test
+    fun customLyricsAndReferencesReachDataContract() = runTest {
+        val tracks = FakeTrackRepository(credits, FakeSessionRepository(), backgroundScope, clock)
+        var captured: com.illiamelnyk.studio.core.domain.track.GenerationRequest? = null
+        val repository = object : com.illiamelnyk.studio.core.domain.track.TrackRepository by tracks {
+            override suspend fun create(
+                request: com.illiamelnyk.studio.core.domain.track.GenerationRequest,
+                variants: Int,
+            ): Outcome<List<com.illiamelnyk.studio.core.domain.track.Track>> {
+                captured = request
+                return tracks.create(request, variants)
+            }
+        }
+        val generate = GenerateTracks(repository, credits)
+        generate(
+            "Original acoustic melody",
+            GenerationSettings(
+                lyricsMode = LyricsMode.Custom,
+                customLyrics = "A new day\nA new song",
+                referenceAudioUri = "file:///reference.m4a",
+                remixTrackId = "source-track",
+            ),
+        )
+        assertEquals("A new day\nA new song", captured?.customLyrics)
+        assertEquals("file:///reference.m4a", captured?.referenceAudioUri)
+        assertEquals("source-track", captured?.remixTrackId)
+        assertEquals(false, captured?.instrumental)
+    }
+
+    @Test
+    fun invalidLyricsAndShortPromptSpendNothing() = runTest {
+        val (generate, tracks) = subject()
+        val before = tracks.observeMine().first()
+        assertEquals(
+            Outcome.Failure(AppError.InvalidPrompt(null)),
+            generate("A full music prompt", GenerationSettings(lyricsMode = LyricsMode.Custom)),
+        )
+        assertEquals(Outcome.Failure(AppError.InvalidPrompt(null)), generate("short", GenerationSettings()))
+        assertEquals(before, tracks.observeMine().first())
+        assertEquals(8, credits.credits.first().remaining)
+    }
+
     private fun TestScope.subject(): Pair<GenerateTracks, FakeTrackRepository> {
         val tracks = FakeTrackRepository(credits, FakeSessionRepository(), backgroundScope, clock)
         return GenerateTracks(tracks, credits) to tracks

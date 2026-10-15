@@ -43,6 +43,7 @@ data class PlayerContent(
     val hasNext: Boolean = false,
     val isStation: Boolean = false,
     val isLiked: Boolean = false,
+    val canRemix: Boolean = true,
     val shuffle: Boolean = false,
     val repeat: Boolean = false,
     val lyrics: LyricsUi = LyricsUi.Loading,
@@ -119,6 +120,8 @@ sealed interface PlayerIntent {
     /** "Clear" in the queue: only the current track stays. */
     data object ClearUpNextClicked : PlayerIntent
 
+    data class QueueItemMoved(val from: Int, val to: Int) : PlayerIntent
+
     data object SheetDismissed : PlayerIntent
 
     data object AddToClicked : PlayerIntent
@@ -142,6 +145,10 @@ sealed interface PlayerEffect {
      * one: a `content://` URI, such as a FileProvider gives for a downloaded file.
      */
     data class Share(val text: UiText, val audio: Uri? = null) : PlayerEffect
+
+    data class ShareAudio(val track: Track) : PlayerEffect
+
+    data class Download(val track: Track) : PlayerEffect
 
     data class OpenPlaylistPicker(val track: Track) : PlayerEffect
 

@@ -9,6 +9,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -21,8 +22,10 @@ import com.illiamelnyk.studio.core.domain.track.Track
 import com.illiamelnyk.studio.core.presentation.ObserveEffects
 import com.illiamelnyk.studio.core.presentation.ToastController
 import com.illiamelnyk.studio.core.presentation.asString
+import com.illiamelnyk.studio.core.presentation.audio.AudioActions
 import com.illiamelnyk.studio.core.presentation.playlist.PlaylistPickerRoute
 import com.illiamelnyk.studio.core.ui.components.StudioToastKind
+import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -49,10 +52,12 @@ fun PlayerRoute(
     val state = viewModel.state.collectAsStateWithLifecycle()
     val content by remember { derivedStateOf { state.value.content } }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val resources = LocalResources.current
     val shareTitle = stringResource(R.string.player_share)
     val collapse by rememberUpdatedState(onCollapse)
     val feedback: ToastController = koinInject()
+    val audioActions: AudioActions = koinInject()
     var playlistTrack by remember { mutableStateOf<Track?>(null) }
     ObserveEffects(viewModel.effects) { effect ->
         when (effect) {
@@ -68,6 +73,31 @@ fun PlayerRoute(
                         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
                 context.startActivity(Intent.createChooser(send, shareTitle))
+            }
+
+            is PlayerEffect.ShareAudio -> scope.launch {
+                runCatching { audioActions.share(context, effect.track) }.onFailure {
+                    feedback.show(
+                        com.illiamelnyk.studio.core.presentation.UiText.Resource(R.string.player_share),
+                        com.illiamelnyk.studio.core.presentation.UiText.Resource(R.string.error_server),
+                        isError = true,
+                    )
+                }
+            }
+
+            is PlayerEffect.Download -> scope.launch {
+                runCatching { audioActions.download(context, effect.track) }.onSuccess {
+                    feedback.show(
+                        com.illiamelnyk.studio.core.presentation.UiText.Resource(R.string.player_download_saved),
+                        com.illiamelnyk.studio.core.presentation.UiText.Resource(R.string.player_download_location),
+                    )
+                }.onFailure {
+                    feedback.show(
+                        com.illiamelnyk.studio.core.presentation.UiText.Resource(R.string.player_share),
+                        com.illiamelnyk.studio.core.presentation.UiText.Resource(R.string.error_server),
+                        isError = true,
+                    )
+                }
             }
 
             is PlayerEffect.OpenPlaylistPicker -> playlistTrack = effect.track

@@ -9,18 +9,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.tooling.preview.PreviewParameter
+import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.presentation.BackTopBar
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
+import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.create.presentation.common.ComingSoonSheet
-import com.illiamelnyk.studio.feature.create.presentation.common.ToastHost
-import com.illiamelnyk.studio.feature.create.presentation.common.ToastHostState
-import com.illiamelnyk.studio.feature.create.presentation.components.onlyTop
 import com.illiamelnyk.studio.feature.create.presentation.tool.components.AddRecordingRow
 import com.illiamelnyk.studio.feature.create.presentation.tool.components.SlotSheet
 import com.illiamelnyk.studio.feature.create.presentation.tool.components.ToolAction
@@ -35,7 +33,6 @@ fun ToolScreen(
     onIntent: (ToolIntent) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
-    toasts: ToastHostState = remember { ToastHostState() },
 ) {
     val dismiss = { onIntent(ToolIntent.SheetDismissed) }
     Box(modifier.fillMaxSize()) {
@@ -49,12 +46,18 @@ fun ToolScreen(
                 ToolPromptCard(state.tool, state.template, onSlotClick = { onIntent(ToolIntent.SlotClicked(it)) })
                 ToolLength(state.durations, state.duration, onSelect = { onIntent(ToolIntent.DurationSelected(it)) })
                 state.recording?.let { AddRecordingRow(it, onClick = { onIntent(ToolIntent.AddRecordingClicked) }) }
+                state.referenceAudio?.let {
+                    StudioText(
+                        stringResource(R.string.tool_reference_ready),
+                        StudioTheme.typography.bodySmall,
+                        Modifier.padding(horizontal = StudioTheme.dimens.layout.screenPadding),
+                    )
+                }
             }
             ToolAction(state.canUse, state.hint, state.isSubmitting, onUseClick = {
                 onIntent(ToolIntent.UseToolClicked)
             })
         }
-        ToastHost(toasts, Modifier.padding(contentPadding.onlyTop()))
         SlotSheet(state.slotSheet, onSelect = {
             onIntent(ToolIntent.SlotValueSelected(it))
         }, onDismissRequest = dismiss)

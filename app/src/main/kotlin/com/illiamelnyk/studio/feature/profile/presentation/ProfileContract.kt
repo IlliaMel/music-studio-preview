@@ -1,6 +1,7 @@
 package com.illiamelnyk.studio.feature.profile.presentation
 
 import androidx.compose.runtime.Immutable
+import com.illiamelnyk.studio.core.domain.session.SessionDataMode
 import com.illiamelnyk.studio.core.domain.settings.ThemePreference
 import com.illiamelnyk.studio.core.presentation.UiText
 
@@ -14,6 +15,7 @@ data class ProfileState(
     val user: ProfileUserUi? = null,
     val credits: UiText? = null,
     val theme: ThemePreference = ThemePreference.System,
+    val dataMode: SessionDataMode = SessionDataMode.LocalDemo,
     val isSigningOut: Boolean = false,
     val name: String = "",
     val nameEdited: Boolean = false,

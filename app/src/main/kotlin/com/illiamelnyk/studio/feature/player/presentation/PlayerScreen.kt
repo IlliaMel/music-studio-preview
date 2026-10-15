@@ -1,6 +1,12 @@
 package com.illiamelnyk.studio.feature.player.presentation
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -12,7 +18,7 @@ import com.illiamelnyk.studio.feature.player.presentation.components.PlayerArtwo
 import com.illiamelnyk.studio.feature.player.presentation.components.PlayerBackdrop
 import com.illiamelnyk.studio.feature.player.presentation.components.PlayerComingSoonSheet
 import com.illiamelnyk.studio.feature.player.presentation.components.PlayerLayout
-import com.illiamelnyk.studio.feature.player.presentation.components.PlayerQueueSheet
+import com.illiamelnyk.studio.feature.player.presentation.components.PlayerQueueContent
 import com.illiamelnyk.studio.feature.player.presentation.components.PlayerTopBar
 import com.illiamelnyk.studio.feature.player.presentation.components.PlayerTrackInfo
 import com.illiamelnyk.studio.feature.player.presentation.components.PlayerTransport
@@ -43,6 +49,7 @@ fun PlayerScreen(
             topBar = {
                 PlayerTopBar(
                     showActions = !state.isStation,
+                    canRemix = state.canRemix,
                     onCollapse = { onIntent(PlayerIntent.CollapseClicked) },
                     onShare = { onIntent(PlayerIntent.ShareClicked) },
                     onAddTo = { onIntent(PlayerIntent.AddToClicked) },
@@ -50,34 +57,28 @@ fun PlayerScreen(
                 )
             },
             artwork = { artworkModifier ->
-                PlayerArtwork(
-                    coverSeed = track.coverSeed,
-                    trackKey = track.id.value,
-                    showLyrics = state.showLyrics && state.hasLyrics && !state.isStation,
-                    lyrics = state.lyrics,
-                    positionMs = { clock().positionMs },
-                    onLyricLineClick = { onIntent(PlayerIntent.LyricLineClicked(it)) },
-                    modifier = artworkModifier,
-                    coverModifier = coverModifier,
-                )
+                Artwork(state, clock, onIntent, artworkModifier, coverModifier)
             },
         ) {
-            PlayerTrackInfo(
-                track = track,
-                showLyrics = state.showLyrics && state.hasLyrics && !state.isStation,
-                onLyricsClick = if (state.hasLyrics &&
-                    !state.isStation
-                ) {
-                    ({ onIntent(PlayerIntent.LyricsClicked) })
-                } else {
-                    null
-                },
-                onQueueClick = if (!state.isStation) ({ onIntent(PlayerIntent.QueueClicked) }) else null,
-            )
+            if (state.sheet != PlayerSheet.Queue) {
+                PlayerTrackInfo(
+                    track = track,
+                    showLyrics = state.showLyrics && state.hasLyrics && !state.isStation,
+                    onLyricsClick = if (state.hasLyrics &&
+                        !state.isStation
+                    ) {
+                        ({ onIntent(PlayerIntent.LyricsClicked) })
+                    } else {
+                        null
+                    },
+                    onQueueClick = if (!state.isStation) ({ onIntent(PlayerIntent.QueueClicked) }) else null,
+                )
+            }
             Transport(state, clock, onIntent)
             if (!state.isStation) {
                 PlayerActions(
                     isLiked = state.isLiked,
+                    canRemix = state.canRemix,
                     onRemixClick = { onIntent(PlayerIntent.ComingSoonClicked(SoonFeature.Remix)) },
                     onAddToClick = { onIntent(PlayerIntent.AddToClicked) },
                     onLikeClick = { onIntent(PlayerIntent.LikeClicked) },
@@ -88,6 +89,52 @@ fun PlayerScreen(
     }
 }
 
+@Composable
+private fun Artwork(
+    state: PlayerContent,
+    clock: () -> PlaybackClock,
+    onIntent: (PlayerIntent) -> Unit,
+    modifier: Modifier = Modifier,
+    coverModifier: Modifier = Modifier,
+) {
+    val track = state.track ?: return
+    val motion = StudioTheme.motion
+    AnimatedContent(
+        targetState = state.sheet == PlayerSheet.Queue,
+        modifier = modifier,
+        transitionSpec = {
+            fadeIn(tween(motion.duration.medium)) togetherWith fadeOut(tween(motion.duration.short))
+        },
+        label = "playerQueue",
+    ) { queueShown ->
+        if (queueShown) {
+            PlayerQueueContent(
+                track = track, upNext = state.upNext, shuffle = state.shuffle, repeat = state.repeat,
+                onShuffle = { onIntent(PlayerIntent.ShuffleChanged(!state.shuffle)) },
+                onRepeat = { onIntent(PlayerIntent.RepeatChanged(!state.repeat)) },
+                onAutoplay = { onIntent(PlayerIntent.ComingSoonClicked(SoonFeature.Autoplay)) },
+                onClear = { onIntent(PlayerIntent.ClearUpNextClicked) },
+                onTrackClick = { onIntent(PlayerIntent.UpNextTrackClicked(it)) },
+                onMove = { from, to -> onIntent(PlayerIntent.QueueItemMoved(from, to)) },
+                onClose = { onIntent(PlayerIntent.QueueClicked) },
+                onLyrics = if (state.hasLyrics) ({ onIntent(PlayerIntent.LyricsClicked) }) else null,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            PlayerArtwork(
+                coverSeed = track.coverSeed,
+                trackKey = track.id.value,
+                showLyrics = state.showLyrics && state.hasLyrics && !state.isStation,
+                lyrics = state.lyrics,
+                positionMs = { clock().positionMs },
+                onLyricLineClick = { onIntent(PlayerIntent.LyricLineClicked(it)) },
+                modifier = Modifier.fillMaxSize(),
+                coverModifier = coverModifier,
+            )
+        }
+    }
+}
+
 /** The seek bar and the transport, with their callbacks as intents. */
 @Composable
 private fun Transport(state: PlayerContent, clock: () -> PlaybackClock, onIntent: (PlayerIntent) -> Unit) {
@@ -95,6 +142,7 @@ private fun Transport(state: PlayerContent, clock: () -> PlaybackClock, onIntent
         isStation = state.isStation,
         isPlaying = state.isPlaying,
         hasNext = state.hasNext,
+        showModes = state.sheet != PlayerSheet.Queue,
         shuffle = state.shuffle,
         repeat = state.repeat,
         clock = clock,
@@ -112,18 +160,6 @@ private fun Transport(state: PlayerContent, clock: () -> PlaybackClock, onIntent
 @Composable
 private fun Sheets(state: PlayerContent, onIntent: (PlayerIntent) -> Unit) {
     val onDismiss = { onIntent(PlayerIntent.SheetDismissed) }
-    PlayerQueueSheet(
-        visible = state.sheet == PlayerSheet.Queue,
-        upNext = state.upNext,
-        shuffle = state.shuffle,
-        repeat = state.repeat,
-        onShuffle = { onIntent(PlayerIntent.ShuffleChanged(!state.shuffle)) },
-        onRepeat = { onIntent(PlayerIntent.RepeatChanged(!state.repeat)) },
-        onAutoplay = { onIntent(PlayerIntent.ComingSoonClicked(SoonFeature.Autoplay)) },
-        onClear = { onIntent(PlayerIntent.ClearUpNextClicked) },
-        onTrackClick = { onIntent(PlayerIntent.UpNextTrackClicked(it)) },
-        onDismissRequest = onDismiss,
-    )
     PlayerComingSoonSheet(
         feature = (state.sheet as? PlayerSheet.ComingSoon)?.feature,
         onWantIt = { onIntent(PlayerIntent.WantItClicked) },

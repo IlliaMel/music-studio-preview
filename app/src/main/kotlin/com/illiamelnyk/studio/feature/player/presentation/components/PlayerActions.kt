@@ -36,6 +36,7 @@ fun PlayerActions(
     onAddToClick: () -> Unit,
     onLikeClick: () -> Unit,
     modifier: Modifier = Modifier,
+    canRemix: Boolean = true,
 ) {
     val motion = StudioTheme.motion
     val likeScale = remember { Animatable(1f) }
@@ -54,12 +55,14 @@ fun PlayerActions(
         verticalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.xs),
         horizontalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.xs, Alignment.CenterHorizontally),
     ) {
-        StudioButton(
-            text = stringResource(R.string.player_remix),
-            onClick = onRemixClick,
-            style = StudioButtonStyle.Glass,
-            icon = StudioIcons.AutoFixHigh,
-        )
+        if (canRemix) {
+            StudioButton(
+                text = stringResource(R.string.player_remix),
+                onClick = onRemixClick,
+                style = StudioButtonStyle.Glass,
+                icon = StudioIcons.AutoFixHigh,
+            )
+        }
         StudioButton(
             text = stringResource(R.string.player_add_to),
             onClick = onAddToClick,

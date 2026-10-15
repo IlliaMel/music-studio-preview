@@ -7,6 +7,7 @@ import com.illiamelnyk.studio.core.domain.credits.CreditsRepository
 import com.illiamelnyk.studio.core.domain.session.DeleteAccount
 import com.illiamelnyk.studio.core.domain.session.DisplayName
 import com.illiamelnyk.studio.core.domain.session.ProfileUpdate
+import com.illiamelnyk.studio.core.domain.session.SessionDataMode
 import com.illiamelnyk.studio.core.domain.session.SessionRepository
 import com.illiamelnyk.studio.core.domain.session.SignOut
 import com.illiamelnyk.studio.core.domain.settings.ThemePreference
@@ -51,6 +52,7 @@ class ProfileViewModel(
                             credits.dailyLimit,
                         ),
                         theme = theme,
+                        dataMode = session?.dataMode ?: SessionDataMode.LocalDemo,
                     )
                 }
             }

@@ -171,7 +171,7 @@
     <string name="tool_add_sample">Add your sample</string>
     <string name="tool_add_sample_text">Record or upload a short loop for this tool to build on.</string>
     <string name="tool_use">Use tool</string>
-    <string name="tool_needs_recording">This tool works on your own recording, which is coming soon.</string>
+    <string name="tool_needs_recording">Add your recording to use this tool.</string>
     <string name="tool_fill_slots">Tap the underlined words to fill them in.</string>
     <string name="create_mode_create">Create</string>
     <string name="create_lyrics_custom">Custom</string>

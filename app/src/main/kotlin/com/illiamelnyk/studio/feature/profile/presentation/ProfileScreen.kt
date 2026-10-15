@@ -53,7 +53,7 @@ fun ProfileScreen(
         ) {
             state.user?.let { ProfileHeader(user = it, credits = state.credits) }
             ThemeSection(theme = state.theme, onThemeSelect = { onIntent(ProfileIntent.ThemeSelected(it)) })
-            ProfileAbout()
+            ProfileAbout(dataMode = state.dataMode)
             debugSettings?.invoke()
             ProfileAccountActions(
                 busy = state.isSigningOut || state.isDeleting || state.isSaving,

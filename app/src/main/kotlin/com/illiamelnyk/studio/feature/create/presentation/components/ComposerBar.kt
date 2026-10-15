@@ -36,9 +36,11 @@ import com.illiamelnyk.studio.core.ui.components.StudioIconButton
 import com.illiamelnyk.studio.core.ui.components.StudioIconButtonSize
 import com.illiamelnyk.studio.core.ui.components.StudioIconButtonStyle
 import com.illiamelnyk.studio.core.ui.components.StudioSegmentedControl
+import com.illiamelnyk.studio.core.ui.components.StudioTextArea
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
+import com.illiamelnyk.studio.feature.create.domain.LyricsMode
 import com.illiamelnyk.studio.feature.create.domain.Prompt
 import com.illiamelnyk.studio.feature.create.presentation.ComposerUi
 import com.illiamelnyk.studio.feature.create.presentation.CreatePreviewData
@@ -63,12 +65,13 @@ fun ComposerBar(
     onMuseClick: () -> Unit,
     onNoticeClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLyricsChange: (String) -> Unit = {},
     options: @Composable () -> Unit = {},
 ) {
     val dimens = StudioTheme.dimens
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
-    val expanded = focused || composer.prompt.isNotEmpty()
+    val expanded = focused || composer.prompt.isNotEmpty() || composer.lyricsMode == LyricsMode.Custom
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -109,6 +112,19 @@ fun ComposerBar(
             characterLimit = null,
             interactionSource = interactionSource,
             options = options,
+            additionalEditor = if (composer.lyricsMode == LyricsMode.Custom) {
+                {
+                    StudioTextArea(
+                        composer.customLyrics,
+                        onLyricsChange,
+                        placeholder = stringResource(R.string.create_custom_lyrics_hint),
+                        minLines = 2,
+                        maxLines = 4,
+                    )
+                }
+            } else {
+                null
+            },
             leadingActions = {
                 ComposerAction(
                     StudioIcons.Add,

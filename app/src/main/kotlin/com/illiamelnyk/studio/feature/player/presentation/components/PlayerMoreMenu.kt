@@ -28,9 +28,9 @@ fun PlayerMoreMenu(
     onComingSoon: (SoonFeature) -> Unit,
     onAddTo: () -> Unit,
     modifier: Modifier = Modifier,
+    canRemix: Boolean = true,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val soon = stringResource(R.string.player_soon)
 
     // Every item closes the menu before it does what it says.
     fun pick(action: () -> Unit) {
@@ -45,12 +45,13 @@ fun PlayerMoreMenu(
             style = StudioIconButtonStyle.OnGlass,
         )
         StudioContextMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            ContextMenuItem(
-                label = stringResource(R.string.player_remix),
-                onClick = { pick { onComingSoon(SoonFeature.Remix) } },
-                icon = StudioIcons.AutoFixHigh,
-                hint = soon,
-            )
+            if (canRemix) {
+                ContextMenuItem(
+                    label = stringResource(R.string.player_remix),
+                    onClick = { pick { onComingSoon(SoonFeature.Remix) } },
+                    icon = StudioIcons.AutoFixHigh,
+                )
+            }
             ContextMenuItem(
                 label = stringResource(R.string.player_add_to_playlist),
                 onClick = { pick(onAddTo) },
@@ -65,7 +66,6 @@ fun PlayerMoreMenu(
                 label = stringResource(R.string.player_download),
                 onClick = { pick { onComingSoon(SoonFeature.Download) } },
                 icon = StudioIcons.Download,
-                hint = soon,
             )
         }
     }

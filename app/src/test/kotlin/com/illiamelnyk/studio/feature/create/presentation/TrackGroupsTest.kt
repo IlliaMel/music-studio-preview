@@ -58,6 +58,22 @@ class TrackGroupsTest {
         )
     }
 
+    @Test
+    fun batchIdKeepsVariantOrderAndIndependentSendsSeparate() {
+        val base = track("source", "2026-10-15T09:00:00Z")
+        val rows = listOf(
+            base.copy(id = TrackId("second"), generationId = "batch", variantIndex = 1, variants = 2),
+            base.copy(id = TrackId("first"), generationId = "batch", variantIndex = 0, variants = 2),
+        ).toGroupedCreateUi(today, zone)
+        assertEquals(listOf("first", "second"), rows.map { it.row.id.value })
+        assertEquals(listOf(1, 2), rows.map { it.variation })
+        val separate = listOf(
+            base.copy(generationId = "one"),
+            base.copy(id = TrackId("other"), generationId = "two"),
+        ).toGroupedCreateUi(today, zone)
+        assertEquals(listOf(null, null), separate.map { it.variation })
+    }
+
     private fun track(id: String, created: String, prompt: String = "Lo-fi") = Track(
         TrackId(id), "Title", "Artist", prompt, null, 36.seconds, MusicModel.V2_5,
         false, CoverSeed(id), TrackStatus.Ready, Instant.parse(created), false,

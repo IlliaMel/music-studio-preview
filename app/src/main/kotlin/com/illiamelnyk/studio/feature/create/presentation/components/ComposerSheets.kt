@@ -16,7 +16,6 @@ import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.create.domain.LyricsMode
 import com.illiamelnyk.studio.feature.create.presentation.CreateIntent
 import com.illiamelnyk.studio.feature.create.presentation.CreateSheet
-import com.illiamelnyk.studio.feature.create.presentation.common.ComingSoonFeature
 import com.illiamelnyk.studio.feature.create.presentation.common.OverlaySheet
 import com.illiamelnyk.studio.feature.create.presentation.common.rememberLatest
 
@@ -35,8 +34,8 @@ fun ComposerSheets(sheet: CreateSheet?, lyricsMode: LyricsMode, onIntent: (Creat
             )
             ContextMenuItem(
                 stringResource(R.string.create_lyrics_custom),
-                { onIntent(CreateIntent.ComingSoonClicked(ComingSoonFeature.Lyrics)) },
-                hint = stringResource(R.string.ui_soon),
+                { onIntent(CreateIntent.CustomLyricsClicked) },
+                icon = if (lyricsMode == LyricsMode.Custom) StudioIcons.CheckCircleFilled else null,
             )
             ContextMenuItem(
                 stringResource(R.string.create_quality_auto),

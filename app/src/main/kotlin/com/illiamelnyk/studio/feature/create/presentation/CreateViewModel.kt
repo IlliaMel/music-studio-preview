@@ -6,6 +6,7 @@ import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.credits.CreditsRepository
 import com.illiamelnyk.studio.core.domain.playback.PlaybackController
+import com.illiamelnyk.studio.core.domain.track.ComposerDraftStore
 import com.illiamelnyk.studio.core.domain.track.Track
 import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.core.domain.track.TrackRepository
@@ -28,6 +29,7 @@ import com.illiamelnyk.studio.feature.create.presentation.common.ToastUi
 import com.illiamelnyk.studio.feature.create.presentation.common.toOptionUi
 import java.time.ZoneId
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
@@ -43,6 +45,7 @@ class CreateViewModel(
     private val clock: Clock,
     private val notificationChoice: NotificationChoice,
     private val renames: TrackRenames,
+    private val drafts: ComposerDraftStore = ComposerDraftStore(),
 ) : MviViewModel<CreateState, CreateIntent, CreateEffect>(CreateState()) {
 
     /** The tracks as the repository last sent them: to play, to share, and to see generations end. */
@@ -57,6 +60,13 @@ class CreateViewModel(
 
     init {
         tracks.observeMine().onEach(::showTracks).launchIn(viewModelScope)
+        drafts.pending.onEach { track ->
+            if (track != null) {
+                changeSettings { copy(remixTrackId = track.id.value) }
+                updateComposer { copy(prompt = track.prompt, referenceLabel = track.title) }
+                drafts.clear()
+            }
+        }.launchIn(viewModelScope)
         playback.state.map { it.current?.id }
             .distinctUntilChanged()
             .onEach { id -> setState { copy(playingTrackId = id) } }
@@ -70,88 +80,122 @@ class CreateViewModel(
         }.launchIn(viewModelScope)
     }
 
-    override fun onIntent(intent: CreateIntent) = when (intent) {
-        is CreateIntent.ComingSoonClicked -> setState { copy(sheet = CreateSheet.ComingSoon(intent.feature)) }
+    override fun onIntent(intent: CreateIntent) {
+        when (intent) {
+            is CreateIntent.ComingSoonClicked -> setState { copy(sheet = CreateSheet.ComingSoon(intent.feature)) }
 
-        CreateIntent.StylesClicked -> openComingSoon(ComingSoonFeature.Styles)
+            CreateIntent.StylesClicked -> openComingSoon(ComingSoonFeature.Styles)
 
-        CreateIntent.ToolsClicked -> sendEffect(CreateEffect.OpenTools)
+            CreateIntent.ToolsClicked -> sendEffect(CreateEffect.OpenTools)
 
-        is CreateIntent.ToolClicked -> sendEffect(CreateEffect.OpenTool(intent.tool))
+            is CreateIntent.ToolClicked -> sendEffect(CreateEffect.OpenTool(intent.tool))
 
-        is CreateIntent.FilterSelected -> setState { copy(filter = intent.filter) }
+            is CreateIntent.FilterSelected -> setState { copy(filter = intent.filter) }
 
-        is CreateIntent.IdeaClicked -> updateComposer { copy(prompt = intent.prompt) }
+            is CreateIntent.IdeaClicked -> updateComposer { copy(prompt = intent.prompt) }
 
-        is CreateIntent.TrackClicked -> play(intent.id)
+            is CreateIntent.TrackClicked -> play(intent.id)
 
-        is CreateIntent.RetryClicked -> retry(intent.id)
+            is CreateIntent.RetryClicked -> retry(intent.id)
 
-        is CreateIntent.FixClicked -> useFix(intent.id)
+            is CreateIntent.FixClicked -> useFix(intent.id)
 
-        is CreateIntent.DeleteClicked -> askToDelete(intent.id)
+            is CreateIntent.DeleteClicked -> askToDelete(intent.id)
 
-        is CreateIntent.MoreClicked -> setState { copy(menuTrackId = intent.id) }
+            is CreateIntent.MoreClicked -> setState { copy(menuTrackId = intent.id) }
 
-        CreateIntent.MenuDismissed -> setState { copy(menuTrackId = null) }
+            CreateIntent.MenuDismissed -> setState { copy(menuTrackId = null) }
 
-        is CreateIntent.MenuActionClicked -> onMenuAction(intent.action)
+            is CreateIntent.MenuActionClicked -> onMenuAction(intent.action)
 
-        CreateIntent.DeleteConfirmed -> delete()
+            CreateIntent.DeleteConfirmed -> delete()
 
-        CreateIntent.DeleteDismissed -> setState { copy(deleting = null) }
+            CreateIntent.DeleteDismissed -> setState { copy(deleting = null) }
 
-        is CreateIntent.PromptChanged -> updateComposer { copy(prompt = intent.text) }
+            is CreateIntent.PromptChanged -> updateComposer { copy(prompt = intent.text) }
 
-        CreateIntent.SendClicked -> send()
+            CreateIntent.SendClicked -> send()
 
-        CreateIntent.QuotaClicked -> openQuota()
+            CreateIntent.QuotaClicked -> openQuota()
 
-        is CreateIntent.NotificationAnswered -> answerNotifications(intent.notify)
+            is CreateIntent.NotificationAnswered -> answerNotifications(intent.notify)
 
-        is CreateIntent.QualitySelected -> changeSettings { copy(quality = intent.quality) }
+            is CreateIntent.QualitySelected -> changeSettings { copy(quality = intent.quality) }
 
-        CreateIntent.InstrumentalRemoved -> changeSettings { copy(lyricsMode = LyricsMode.Auto) }
+            CreateIntent.InstrumentalRemoved -> changeSettings { copy(lyricsMode = LyricsMode.Auto) }
 
-        CreateIntent.LyricsClicked -> setState { copy(sheet = CreateSheet.Lyrics) }
+            CreateIntent.LyricsClicked -> setState { copy(sheet = CreateSheet.Lyrics) }
 
-        is CreateIntent.LyricsSelected -> {
-            setState { copy(sheet = null) }
-            changeSettings { copy(lyricsMode = if (intent.instrumental) LyricsMode.Instrumental else LyricsMode.Auto) }
+            CreateIntent.CustomLyricsClicked -> {
+                changeSettings { copy(lyricsMode = LyricsMode.Custom) }
+                setState { copy(sheet = null) }
+            }
+
+            is CreateIntent.CustomLyricsChanged -> changeSettings { copy(customLyrics = intent.text.take(5_000)) }
+
+            CreateIntent.ReferenceClicked -> setState { copy(sheet = CreateSheet.Reference) }
+
+            is CreateIntent.ReferenceSelected -> {
+                changeSettings { copy(referenceAudioUri = intent.uri) }
+                updateComposer { copy(referenceLabel = intent.title) }
+                setState { copy(sheet = null) }
+            }
+
+            CreateIntent.ReferenceRemoved -> {
+                changeSettings { copy(referenceAudioUri = null, remixTrackId = null) }
+                updateComposer { copy(referenceLabel = null) }
+            }
+
+            is CreateIntent.RecordingSaved -> viewModelScope.launch {
+                when (val result = tracks.saveRecording(intent.uri, intent.title, intent.durationMs.milliseconds)) {
+                    is Outcome.Success -> setState { copy(sheet = null) }
+                    is Outcome.Failure -> showError(result.error)
+                }
+            }
+
+            is CreateIntent.LyricsSelected -> {
+                setState { copy(sheet = null) }
+                val mode = if (intent.instrumental) LyricsMode.Instrumental else LyricsMode.Auto
+                changeSettings { copy(lyricsMode = mode) }
+            }
+
+            is CreateIntent.DurationSelected -> changeSettings { copy(duration = intent.duration) }
+
+            is CreateIntent.RenameChanged -> setState {
+                val open = sheet as? CreateSheet.Rename ?: return@setState this
+                copy(sheet = open.copy(title = intent.title))
+            }
+
+            CreateIntent.RenameConfirmed -> rename()
+
+            CreateIntent.VariantsClicked -> changeSettings {
+                copy(variants = if (variants == 1) GenerationSettings.MAX_VARIANTS else 1)
+            }
+
+            CreateIntent.SettingsClicked -> openSettings()
+
+            is CreateIntent.SettingsQualitySelected -> editDraft { copy(quality = intent.quality) }
+
+            is CreateIntent.SettingsVariantsSelected -> editDraft { copy(variants = intent.variants) }
+
+            is CreateIntent.SettingsModelSelected -> editDraft { copy(model = intent.model) }
+
+            is CreateIntent.SettingsInstrumentalChanged -> editDraft {
+                copy(lyricsMode = if (intent.instrumental) LyricsMode.Instrumental else LyricsMode.Auto)
+            }
+
+            CreateIntent.SettingsCustomLyricsSelected -> editDraft { copy(lyricsMode = LyricsMode.Custom) }
+
+            is CreateIntent.SettingsDurationSelected -> editDraft { copy(duration = intent.duration?.toOptionUi()) }
+
+            CreateIntent.SettingsReset -> editDraft { GenerationSettings().toSettingsUi() }
+
+            CreateIntent.SettingsApplied -> applySettings()
+
+            CreateIntent.WantClicked -> want()
+
+            CreateIntent.SheetDismissed -> setState { copy(sheet = null) }
         }
-
-        is CreateIntent.DurationSelected -> changeSettings { copy(duration = intent.duration) }
-
-        is CreateIntent.RenameChanged -> setState {
-            val open = sheet as? CreateSheet.Rename ?: return@setState this
-            copy(sheet = open.copy(title = intent.title))
-        }
-
-        CreateIntent.RenameConfirmed -> rename()
-
-        CreateIntent.VariantsClicked -> changeSettings {
-            copy(variants = if (variants == 1) GenerationSettings.MAX_VARIANTS else 1)
-        }
-
-        CreateIntent.SettingsClicked -> openSettings()
-
-        is CreateIntent.SettingsQualitySelected -> editDraft { copy(quality = intent.quality) }
-
-        is CreateIntent.SettingsVariantsSelected -> editDraft { copy(variants = intent.variants) }
-
-        is CreateIntent.SettingsModelSelected -> editDraft { copy(model = intent.model) }
-
-        is CreateIntent.SettingsInstrumentalChanged -> editDraft { copy(instrumental = intent.instrumental) }
-
-        is CreateIntent.SettingsDurationSelected -> editDraft { copy(duration = intent.duration?.toOptionUi()) }
-
-        CreateIntent.SettingsReset -> editDraft { GenerationSettings().toSettingsUi() }
-
-        CreateIntent.SettingsApplied -> applySettings()
-
-        CreateIntent.WantClicked -> want()
-
-        CreateIntent.SheetDismissed -> setState { copy(sheet = null) }
     }
 
     private fun showTracks(list: List<Track>) {
@@ -209,9 +253,9 @@ class CreateViewModel(
 
             TrackMenuAction.UsePrompt -> updateComposer { copy(prompt = track.prompt) }
 
-            TrackMenuAction.Share -> sendEffect(CreateEffect.ShareTrack(track.title, track.prompt))
+            TrackMenuAction.Share -> sendEffect(CreateEffect.ShareTrack(track.title, track.prompt, track))
 
-            TrackMenuAction.Download -> openComingSoon(ComingSoonFeature.Download)
+            TrackMenuAction.Download -> sendEffect(CreateEffect.DownloadAudio(track))
 
             TrackMenuAction.Delete -> askToDelete(id)
         }
@@ -247,14 +291,23 @@ class CreateViewModel(
             return
         }
         if (!composer.canSend) return
+        val submittedSettings = settings
         updateComposer { copy(isSending = true) }
         viewModelScope.launch {
-            val result = generateTracks(composer.prompt, settings)
+            val result = generateTracks(composer.prompt, submittedSettings)
             // Text typed while the request was on its way stays.
             val clear = result is Outcome.Success && state.value.composer.prompt == composer.prompt
-            updateComposer { copy(prompt = if (clear) "" else prompt, isSending = false) }
+            val clearReference = clear && settings == submittedSettings
+            updateComposer {
+                copy(
+                    prompt = if (clear) "" else prompt,
+                    isSending = false,
+                    referenceLabel = if (clearReference) null else referenceLabel,
+                )
+            }
             when (result) {
                 is Outcome.Success -> {
+                    if (clearReference) changeSettings { copy(referenceAudioUri = null, remixTrackId = null) }
                     setState { copy(filter = TracksFilter.Drafts) }
                     sendEffect(CreateEffect.TracksStarted)
                     if (!notificationChoice.hasAnswered() && state.value.sheet !is CreateSheet.Quota) {
@@ -271,9 +324,17 @@ class CreateViewModel(
         val draft = state.value.sheet as? CreateSheet.Rename ?: return
         val title = draft.title.trim()
         if (title.isBlank()) return
-        renames.rename(draft.id, title)
-        setState { copy(sheet = null) }
-        showTracks(myTracks)
+        viewModelScope.launch {
+            when (val result = tracks.rename(draft.id, title)) {
+                is Outcome.Success -> {
+                    renames.rename(draft.id, title)
+                    setState { copy(sheet = null) }
+                    showTracks(myTracks)
+                }
+
+                is Outcome.Failure -> showError(result.error)
+            }
+        }
     }
 
     private fun openSettings() {
@@ -295,7 +356,7 @@ class CreateViewModel(
                 model = draft.model,
                 quality = draft.quality,
                 variants = draft.variants,
-                lyricsMode = if (draft.instrumental) LyricsMode.Instrumental else LyricsMode.Auto,
+                lyricsMode = draft.lyricsMode,
                 duration = draft.duration?.duration,
             )
         }

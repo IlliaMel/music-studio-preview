@@ -101,6 +101,8 @@ data class ComposerUi(
     val lyricsMode: LyricsMode = LyricsMode.Auto,
     val duration: DurationOptionUi? = null,
     val variants: Int = 1,
+    val customLyrics: String = "",
+    val referenceLabel: String? = null,
     val canSend: Boolean = false,
     val notice: UiText? = null,
     val isSending: Boolean = false,
@@ -110,7 +112,7 @@ data class ComposerUi(
 @Immutable
 data class SettingsUi(
     val model: MusicModel,
-    val instrumental: Boolean,
+    val lyricsMode: LyricsMode = LyricsMode.Auto,
     val duration: DurationOptionUi?,
     val quality: Quality = Quality.Auto,
     val variants: Int = 1,
@@ -118,7 +120,7 @@ data class SettingsUi(
 
 fun GenerationSettings.toSettingsUi(): SettingsUi = SettingsUi(
     model = model,
-    instrumental = lyricsMode == LyricsMode.Instrumental,
+    lyricsMode = lyricsMode,
     duration = duration?.toOptionUi(),
     quality = quality,
     variants = variants,

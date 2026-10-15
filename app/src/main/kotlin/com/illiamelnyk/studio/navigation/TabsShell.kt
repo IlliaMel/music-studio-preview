@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -24,10 +25,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.Layout
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.illiamelnyk.studio.core.domain.track.ComposerDraftStore
 import com.illiamelnyk.studio.core.ui.foundation.ProvideGlassBackdrop
 import com.illiamelnyk.studio.core.ui.foundation.glassBackdrop
 import com.illiamelnyk.studio.core.ui.foundation.rememberGlassBackdrop
@@ -38,6 +41,7 @@ import com.illiamelnyk.studio.feature.player.presentation.host.PlayerHostScope
 import com.illiamelnyk.studio.feature.player.presentation.mini.MiniPlayerHost
 import com.illiamelnyk.studio.feature.profile.presentation.ProfileOverlay
 import kotlinx.collections.immutable.toImmutableList
+import org.koin.compose.koinInject
 
 /**
  * The signed-in app: the screens of the selected tab with the shell's bars around them, laid out
@@ -61,6 +65,11 @@ fun TabsShell(
     var profileOpen by rememberSaveable { mutableStateOf(false) }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     val navigator = rememberTabNavigator(variant.tabs)
+    val drafts: ComposerDraftStore = koinInject()
+    val draftRevision by drafts.revision.collectAsStateWithLifecycle()
+    LaunchedEffect(draftRevision) {
+        if (draftRevision > 0) navigator.select(TopLevelTab.Create)
+    }
     val atTabRoot = navigator.isAtTabRoot
     val bottomChrome = remember { BottomChrome() }
     val padding = rememberShellPadding(bottomChrome)

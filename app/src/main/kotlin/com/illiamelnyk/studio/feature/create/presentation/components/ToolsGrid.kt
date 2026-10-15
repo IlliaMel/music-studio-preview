@@ -14,6 +14,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewLightDark
+import androidx.compose.ui.unit.Constraints
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
 import com.illiamelnyk.studio.core.ui.components.SectionHeader
@@ -26,10 +27,9 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 
 /**
- * "Start from a Tool" and the tools two by two. A tool that needs the user's recording is marked
- * as coming soon, and still opens to explain itself.
+ * "Start from a Tool" and the tools two by two.
  *
- * A tile shows its name on one line, so when the longest name doesn't fit half the width, such as
+ * A tile shows its name on up to two lines, so when the longest name doesn't fit half the width, such as
  * with a large font, the tools stack one per row instead of being cut off.
  */
 @Composable
@@ -53,8 +53,16 @@ fun ToolsGrid(
             // A tile's name gets what its picture, the gap after it and the end padding leave.
             val halfTileText = (maxWidth - dimens.layout.itemGap) / COLUMNS - dimens.size.cover.m - dimens.spacing.s * 2
             val columns = remember(names, nameStyle, density, halfTileText) {
-                val longest = names.maxOfOrNull { measurer.measure(it, nameStyle).size.width } ?: 0
-                if (longest <= with(density) { halfTileText.roundToPx() }) COLUMNS else 1
+                val width = with(density) { halfTileText.roundToPx() }.coerceAtLeast(1)
+                val fits = names.all {
+                    !measurer.measure(
+                        it,
+                        nameStyle,
+                        maxLines = 2,
+                        constraints = Constraints(maxWidth = width),
+                    ).hasVisualOverflow
+                }
+                if (fits) COLUMNS else 1
             }
             Column(verticalArrangement = Arrangement.spacedBy(dimens.layout.itemGap)) {
                 tools.zip(names).chunked(columns).forEach { row ->
@@ -65,7 +73,7 @@ fun ToolsGrid(
                                 imageSeed = tool.coverSeed,
                                 onClick = { onToolClick(tool.tool) },
                                 modifier = Modifier.weight(1f),
-                                comingSoon = tool.needsRecording,
+                                comingSoon = false,
                             )
                         }
                         // A last row with fewer tools keeps the tiles at their width.

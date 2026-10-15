@@ -2,12 +2,10 @@ package com.illiamelnyk.studio.debug
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -35,14 +33,10 @@ private fun ShellVariantSetting(modifier: Modifier = Modifier, store: DebugShell
     val dimens = StudioTheme.dimens
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(dimens.spacing.s)) {
         StudioBadge(stringResource(R.string.debug_settings), style = StudioBadgeStyle.Demo)
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(dimens.layout.inlineGap),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(dimens.layout.inlineGap)) {
             StudioText(
                 stringResource(R.string.debug_shell_variant),
                 StudioTheme.typography.titleMedium,
-                Modifier.weight(1f),
             )
             variant?.let { selected ->
                 StudioSegmentedControl(

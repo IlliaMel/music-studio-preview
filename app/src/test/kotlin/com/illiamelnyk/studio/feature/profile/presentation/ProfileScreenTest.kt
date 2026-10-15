@@ -28,6 +28,7 @@ class ProfileScreenTest {
             }
         }
         compose.onNode(hasSetTextAction()).performTextReplacement("New name")
+        compose.waitUntil { intent == ProfileIntent.NameChanged("New name") }
         assertEquals(ProfileIntent.NameChanged("New name"), intent)
         compose.onNodeWithText("Save").performClick()
         assertEquals(ProfileIntent.SaveClicked, intent)

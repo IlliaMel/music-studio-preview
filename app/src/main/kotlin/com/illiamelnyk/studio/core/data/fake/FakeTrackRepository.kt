@@ -83,6 +83,8 @@ class FakeTrackRepository(
                 status = TrackStatus.Generating(progress = 0f),
                 createdAt = createdAt,
                 isLiked = false,
+                customLyrics = request.customLyrics,
+                quality = request.quality,
             )
         }
         tracks.update { batch + it }
@@ -101,6 +103,14 @@ class FakeTrackRepository(
         replace(generating)
         startGeneration(id, request)
         return Outcome.Success(generating)
+    }
+
+    override suspend fun rename(id: TrackId, title: String): Outcome<Unit> {
+        val trimmed = title.trim()
+        if (trimmed.length !in 1..80) return Outcome.Failure(AppError.InvalidPrompt(null))
+        if (tracks.value.none { it.id == id }) return Outcome.Failure(AppError.Unknown)
+        tracks.update { list -> list.map { if (it.id == id) it.copy(title = trimmed) else it } }
+        return Outcome.Success(Unit)
     }
 
     override suspend fun delete(id: TrackId): Outcome<Unit> {

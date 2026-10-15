@@ -21,6 +21,8 @@ class FailingTrackRepository(private val delegate: TrackRepository) : TrackRepos
 
     override suspend fun retry(id: TrackId): Outcome<Track> = failure() ?: delegate.retry(id)
 
+    override suspend fun rename(id: TrackId, title: String): Outcome<Unit> = failure() ?: delegate.rename(id, title)
+
     override suspend fun delete(id: TrackId): Outcome<Unit> = failure() ?: delegate.delete(id)
 
     override suspend fun setLiked(id: TrackId, liked: Boolean): Outcome<Unit> =

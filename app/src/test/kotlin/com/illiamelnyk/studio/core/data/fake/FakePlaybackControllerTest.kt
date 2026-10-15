@@ -207,6 +207,25 @@ class FakePlaybackControllerTest {
         assertTrue(player.state.value.isPlaying)
     }
 
+    @Test
+    fun `reordering paused queue retains current track position and manual order`() = runTest {
+        val player = player()
+        player.play(listOf(a, b, c), startIndex = 1)
+        player.seekTo(750)
+        player.togglePlayPause()
+        player.moveQueueItem(0, 2)
+        assertEquals(listOf(b, c, a), player.state.value.queue)
+        assertEquals(b, player.state.value.current)
+        assertEquals(750L, player.state.value.positionMs)
+        assertFalse(player.state.value.isPlaying)
+        player.setShuffle(true)
+        player.moveQueueItem(1, 2)
+        player.setShuffle(false)
+        assertEquals(listOf(b, c, a), player.state.value.queue)
+        player.moveQueueItem(-1, 10)
+        assertEquals(listOf(b, c, a), player.state.value.queue)
+    }
+
     private fun TestScope.player() = FakePlaybackController(backgroundScope, Random(seed = 7))
 
     private fun TestScope.advance(time: Duration) {

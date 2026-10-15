@@ -3,12 +3,17 @@ package com.illiamelnyk.studio.feature.player.presentation
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.core.presentation.UiText
@@ -20,6 +25,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 class PlayerScreenTest {
@@ -78,12 +84,18 @@ class PlayerScreenTest {
     }
 
     @Test
-    fun `the queue sheet plays the track tapped in it`() {
+    @Config(qualifiers = "w320dp-h470dp")
+    fun `inline queue keeps playback controls available while selecting an upcoming track`() {
         show(PlayerContent(track = track, isPlaying = true, upNext = queue, sheet = PlayerSheet.Queue))
 
-        composeRule.onNodeWithText("Paper Moons").performClick()
+        composeRule.onNodeWithTag("playerQueue").performScrollToNode(hasText("Paper Moons"))
+        composeRule.onNodeWithText("Paper Moons").assertIsDisplayed().performClick()
+        composeRule.onNodeWithContentDescription(string(R.string.ui_pause)).performClick()
 
-        assertEquals(listOf<PlayerIntent>(PlayerIntent.UpNextTrackClicked(position = 0)), intents)
+        assertEquals(
+            listOf(PlayerIntent.UpNextTrackClicked(position = 0), PlayerIntent.PlayPauseClicked),
+            intents,
+        )
     }
 
     @Test
@@ -93,14 +105,29 @@ class PlayerScreenTest {
     }
 
     @Test
+    @Config(qualifiers = "w320dp-h470dp")
     fun `queue clear and autoplay dispatch their intents`() {
         show(PlayerContent(track = track, upNext = queue, sheet = PlayerSheet.Queue))
-        composeRule.onNodeWithText(string(R.string.player_clear)).performClick()
-        composeRule.onNodeWithText(string(R.string.player_autoplay)).performClick()
+        composeRule.onNodeWithTag("playerQueue").performScrollToNode(hasText(string(R.string.player_clear)))
+        composeRule.onNodeWithText(string(R.string.player_clear)).assertIsDisplayed().performClick()
+        composeRule.onNodeWithTag("playerQueue").performScrollToNode(
+            hasContentDescription(string(R.string.player_autoplay)),
+        )
+        composeRule.onNodeWithContentDescription(string(R.string.player_autoplay)).assertIsDisplayed().performClick()
         assertEquals(
             listOf(PlayerIntent.ClearUpNextClicked, PlayerIntent.ComingSoonClicked(SoonFeature.Autoplay)),
             intents,
         )
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h800dp")
+    fun `normal phone queue shows header first track clear and transport together`() {
+        show(PlayerContent(track = track, isPlaying = true, upNext = queue, sheet = PlayerSheet.Queue))
+        composeRule.onNodeWithText("Glass Harbor").assertIsDisplayed()
+        composeRule.onNodeWithText("Paper Moons").assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.player_clear)).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(string(R.string.ui_pause)).assertIsDisplayed()
     }
 
     private fun show(state: PlayerContent) {

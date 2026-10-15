@@ -11,12 +11,12 @@ import kotlin.time.Duration.Companion.minutes
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 
-/**
- * Until a backend batch id exists, two adjacent tracks with the same nonblank prompt made within
- * one minute on the same local day form a variation pair. Never combine three independent sends.
- */
 fun List<Track>.toGroupedCreateUi(today: LocalDate, zone: ZoneId): ImmutableList<CreateTrackUi> {
-    val sorted = sortedByDescending { it.createdAt }
+    val sorted = sortedWith(
+        compareByDescending<Track> { it.createdAt }
+            .thenBy { it.generationId.orEmpty() }
+            .thenBy { it.variantIndex },
+    )
     val days = sorted.map {
         java.time.Instant.ofEpochMilli(it.createdAt.toEpochMilliseconds()).atZone(zone).toLocalDate()
     }
@@ -33,11 +33,13 @@ fun List<Track>.toGroupedCreateUi(today: LocalDate, zone: ZoneId): ImmutableList
             null
         }
         val next = sorted.getOrNull(index + 1)
-        val first = index > pairedThrough && next != null && track.prompt.isNotBlank() &&
+        val first = track.generationId == null && next?.generationId == null &&
+            index > pairedThrough && next != null && track.prompt.isNotBlank() &&
             track.prompt == next.prompt && day == days[index + 1] &&
             track.createdAt - next.createdAt <= 1.minutes
         if (first) pairedThrough = index + 1
         val variation = when {
+            track.generationId != null && track.variants > 1 -> track.variantIndex + 1
             first -> 1
             index == pairedThrough -> 2
             else -> null

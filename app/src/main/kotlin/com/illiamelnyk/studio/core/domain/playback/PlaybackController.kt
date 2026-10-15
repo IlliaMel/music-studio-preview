@@ -37,6 +37,8 @@ interface PlaybackController {
 
     fun setRepeat(mode: RepeatMode)
 
+    fun moveQueueItem(fromIndex: Int, toIndex: Int) = Unit
+
     /** Keeps the current track playing and drops the rest of the queue. */
     fun clearUpNext()
 

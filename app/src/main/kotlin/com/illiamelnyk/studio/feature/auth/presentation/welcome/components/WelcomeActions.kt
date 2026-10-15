@@ -45,7 +45,18 @@ fun WelcomeActions(
             textAlign = TextAlign.Center,
         )
         StudioButton(
-            text = stringResource(R.string.welcome_continue_with_google),
+            text = stringResource(
+                if ((
+                        androidx.compose.ui.platform.LocalContext.current.applicationInfo.flags and
+                            android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE
+                        ) !=
+                    0
+                ) {
+                    R.string.auth_local_server
+                } else {
+                    R.string.welcome_continue_with_google
+                },
+            ),
             onClick = onContinueWithGoogleClick,
             modifier = Modifier
                 .fillMaxWidth()

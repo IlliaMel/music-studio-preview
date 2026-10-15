@@ -19,8 +19,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.presentation.ObserveEffects
 import com.illiamelnyk.studio.core.presentation.ToastController
+import com.illiamelnyk.studio.core.presentation.UiText
+import com.illiamelnyk.studio.core.presentation.audio.AudioActions
 import com.illiamelnyk.studio.core.ui.components.StudioToastKind
 import com.illiamelnyk.studio.feature.create.domain.Tool
+import com.illiamelnyk.studio.feature.create.presentation.recording.AudioReferencePicker
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -43,6 +46,7 @@ fun CreateRoute(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val feedback: ToastController = koinInject()
+    val audioActions: AudioActions = koinInject()
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
@@ -66,7 +70,46 @@ fun CreateRoute(
                     effect.toast.kind == StudioToastKind.Error,
             )
 
-            is CreateEffect.ShareTrack -> context.shareTrack(effect.title, effect.prompt)
+            is CreateEffect.ShareTrack -> scope.launch {
+                try {
+                    if (effect.track != null) {
+                        audioActions.share(context, effect.track)
+                    } else {
+                        context.shareTrack(effect.title, effect.prompt)
+                    }
+                } catch (
+                    cancelled: kotlinx.coroutines.CancellationException,
+                ) {
+                    throw cancelled
+                } catch (
+                    _: Exception,
+                ) {
+                    feedback.show(
+                        UiText.Resource(R.string.create_toast_error),
+                        UiText.Resource(R.string.error_network),
+                        isError = true,
+                    )
+                }
+            }
+
+            is CreateEffect.DownloadAudio -> scope.launch {
+                try {
+                    audioActions.download(context, effect.track)
+                    feedback.show(UiText.Resource(R.string.player_download_saved), UiText.Raw(effect.track.title))
+                } catch (
+                    cancelled: kotlinx.coroutines.CancellationException,
+                ) {
+                    throw cancelled
+                } catch (
+                    _: Exception,
+                ) {
+                    feedback.show(
+                        UiText.Resource(R.string.create_toast_error),
+                        UiText.Resource(R.string.error_network),
+                        isError = true,
+                    )
+                }
+            }
 
             CreateEffect.TracksStarted -> {
                 // The keyboard goes, and the list shows where the new tracks are.
@@ -75,6 +118,12 @@ fun CreateRoute(
             }
         }
     }
+    AudioReferencePicker(
+        visible = state.sheet == CreateSheet.Reference,
+        onSelect = { viewModel.onIntent(CreateIntent.ReferenceSelected(it.uri, it.title)) },
+        onSave = { viewModel.onIntent(CreateIntent.RecordingSaved(it.uri, it.title, it.durationMs)) },
+        onDismiss = { viewModel.onIntent(CreateIntent.SheetDismissed) },
+    )
     CreateScreen(
         state = state,
         onIntent = viewModel::onIntent,
@@ -84,9 +133,11 @@ fun CreateRoute(
     )
 }
 
-/** Scrolls up to "Your tracks" when the list is past it, where new tracks would be out of sight. */
+/** Reveals new tracks even when the expanded composer leaves only a short feed viewport. */
 private suspend fun LazyListState.revealTracks() {
-    if (firstVisibleItemIndex > CreateFeedItems.TRACKS_HEADER) animateScrollToItem(CreateFeedItems.TRACKS_HEADER)
+    if (firstVisibleItemIndex != CreateFeedItems.TRACKS_HEADER || firstVisibleItemScrollOffset != 0) {
+        animateScrollToItem(CreateFeedItems.TRACKS_HEADER)
+    }
 }
 
 private fun Context.shareTrack(title: String, prompt: String) {

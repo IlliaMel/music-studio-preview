@@ -9,11 +9,11 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
@@ -32,7 +32,6 @@ import com.illiamelnyk.studio.core.ui.icons.StudioIcon
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.core.ui.theme.PreviewSurface
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
-import com.illiamelnyk.studio.core.ui.theme.darkStudioColors
 
 /**
  * The player's transport on cover color: shuffle, previous, the 64 dp play/pause button, next and
@@ -53,17 +52,26 @@ fun PlayerControls(
     onRepeatChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     nextEnabled: Boolean = true,
+    showModes: Boolean = true,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        MediaToggle(StudioIcons.Shuffle, stringResource(R.string.ui_shuffle), shuffle, onShuffleChange)
+        if (showModes) {
+            MediaToggle(StudioIcons.Shuffle, stringResource(R.string.ui_shuffle), shuffle, onShuffleChange)
+        } else {
+            Spacer(Modifier.size(StudioTheme.dimens.size.component.iconButton))
+        }
         MediaButton(StudioIcons.SkipPreviousFilled, stringResource(R.string.ui_previous), onPrevious)
         PlayButton(isPlaying, onPlayPause)
         MediaButton(StudioIcons.SkipNextFilled, stringResource(R.string.ui_next), onNext, enabled = nextEnabled)
-        MediaToggle(StudioIcons.Repeat, stringResource(R.string.ui_repeat), repeat, onRepeatChange)
+        if (showModes) {
+            MediaToggle(StudioIcons.Repeat, stringResource(R.string.ui_repeat), repeat, onRepeatChange)
+        } else {
+            Spacer(Modifier.size(StudioTheme.dimens.size.component.iconButton))
+        }
     }
 }
 
@@ -77,8 +85,7 @@ private fun PlayButton(isPlaying: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .clickable(role = Role.Button, onClick = onClick)
             .semantics { contentDescription = description }
-            .size(dimens.size.component.playButton)
-            .background(colors.overlay.onMediaPrimary, StudioTheme.shapes.full),
+            .size(dimens.size.component.playButton),
         contentAlignment = Alignment.Center,
     ) {
         AnimatedContent(
@@ -93,8 +100,8 @@ private fun PlayButton(isPlaying: Boolean, onClick: () -> Unit) {
             StudioIcon(
                 icon = if (playing) StudioIcons.PauseFilled else StudioIcons.PlayArrowFilled,
                 contentDescription = null,
-                tint = OnMediaInverse,
-                size = dimens.size.icon.xl,
+                tint = colors.overlay.onMediaPrimary,
+                size = dimens.size.component.playButton,
             )
         }
     }
@@ -145,11 +152,6 @@ private fun MediaToggle(@DrawableRes icon: Int, description: String, on: Boolean
         StudioIcon(icon, contentDescription = null, tint = tint)
     }
 }
-
-// The play button is the white of `overlay.onMediaPrimary` in both schemes, like all colors on media,
-// so its icon is dark in both too; tokens.json has no "on media, inverse" role, so it is the dark
-// scheme's `inverse.content`.
-private val OnMediaInverse = darkStudioColors().inverse.content
 
 @PreviewLightDark
 @Composable

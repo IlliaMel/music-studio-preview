@@ -28,4 +28,8 @@ data class GenerationRequest(
     val quality: Quality = Quality.Auto,
     val instrumental: Boolean = false,
     val style: Style? = null,
+    val customLyrics: String? = null,
+    val referenceUploadId: String? = null,
+    val remixTrackId: String? = null,
+    val referenceAudioUri: String? = null,
 )

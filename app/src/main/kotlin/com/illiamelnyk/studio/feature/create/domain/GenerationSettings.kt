@@ -27,10 +27,10 @@ object Prompt {
     const val MAX_LENGTH = 2_000
 
     /** Whether [text] can be sent: something besides spaces, and not over the limit. */
-    fun isValid(text: String): Boolean = text.isNotBlank() && text.length <= MAX_LENGTH
+    fun isValid(text: String): Boolean = text.trim().length in 10..MAX_LENGTH
 }
 
-enum class LyricsMode { Auto, Instrumental }
+enum class LyricsMode { Auto, Instrumental, Custom }
 
 /**
  * How the composer generates: the options row and the settings sheet change these, and every track
@@ -45,6 +45,9 @@ data class GenerationSettings(
     val lyricsMode: LyricsMode = LyricsMode.Auto,
     val duration: Duration? = null,
     val variants: Int = 1,
+    val customLyrics: String = "",
+    val referenceAudioUri: String? = null,
+    val remixTrackId: String? = null,
 ) {
     init {
         require(duration == null || duration in TrackLengths.all) { "$duration is not one of the track lengths" }

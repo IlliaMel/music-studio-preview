@@ -9,6 +9,7 @@ import com.illiamelnyk.studio.core.presentation.ObserveEffects
 import com.illiamelnyk.studio.core.presentation.ToastController
 import com.illiamelnyk.studio.core.ui.components.StudioToastKind
 import com.illiamelnyk.studio.feature.create.domain.Tool
+import com.illiamelnyk.studio.feature.create.presentation.recording.AudioReferencePicker
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -41,6 +42,11 @@ fun ToolRoute(
             )
         }
     }
+    AudioReferencePicker(
+        visible = state.recordingOpen,
+        onSelect = { viewModel.onIntent(ToolIntent.RecordingSelected(it)) },
+        onDismiss = { viewModel.onIntent(ToolIntent.RecordingDismissed) },
+    )
     ToolScreen(
         state = state,
         onIntent = viewModel::onIntent,

@@ -18,8 +18,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
-import com.illiamelnyk.studio.core.ui.components.StudioBadge
-import com.illiamelnyk.studio.core.ui.components.StudioBadgeStyle
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.foundation.studioIndication
 import com.illiamelnyk.studio.core.ui.icons.StudioIcon
@@ -74,7 +72,6 @@ fun AddRecordingRow(recording: RecordingUi, onClick: () -> Unit, modifier: Modif
                     StudioTheme.typography.titleSmall,
                     Modifier.weight(1f, false),
                 )
-                StudioBadge(stringResource(R.string.ui_soon), style = StudioBadgeStyle.Soon)
             }
             StudioText(
                 stringResource(recording.message),

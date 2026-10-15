@@ -48,6 +48,8 @@ sealed interface CreateSheet {
 
     data object Lyrics : CreateSheet
 
+    data object Reference : CreateSheet
+
     data class Rename(val id: TrackId, val title: String) : CreateSheet
 
     /** The settings, with the choices made in the sheet so far. */
@@ -108,6 +110,18 @@ sealed interface CreateIntent {
 
     data object LyricsClicked : CreateIntent
 
+    data object CustomLyricsClicked : CreateIntent
+
+    data class CustomLyricsChanged(val text: String) : CreateIntent
+
+    data object ReferenceClicked : CreateIntent
+
+    data class ReferenceSelected(val uri: String, val title: String) : CreateIntent
+
+    data object ReferenceRemoved : CreateIntent
+
+    data class RecordingSaved(val uri: String, val title: String, val durationMs: Long) : CreateIntent
+
     data class LyricsSelected(val instrumental: Boolean) : CreateIntent
 
     data class DurationSelected(val duration: Duration?) : CreateIntent
@@ -126,6 +140,8 @@ sealed interface CreateIntent {
     data class SettingsVariantsSelected(val variants: Int) : CreateIntent
 
     data class SettingsModelSelected(val model: MusicModel) : CreateIntent
+
+    data object SettingsCustomLyricsSelected : CreateIntent
 
     data class SettingsInstrumentalChanged(val instrumental: Boolean) : CreateIntent
 
@@ -153,8 +169,14 @@ sealed interface CreateEffect {
     data class ShowToast(val toast: ToastUi) : CreateEffect
 
     /** Shares a track as text, until there are audio files to share. */
-    data class ShareTrack(val title: String, val prompt: String) : CreateEffect
+    data class ShareTrack(
+        val title: String,
+        val prompt: String,
+        val track: com.illiamelnyk.studio.core.domain.track.Track? = null,
+    ) : CreateEffect
 
     /** New tracks were started: they are at the top of the list, and the composer is done. */
+    data class DownloadAudio(val track: com.illiamelnyk.studio.core.domain.track.Track) : CreateEffect
+
     data object TracksStarted : CreateEffect
 }

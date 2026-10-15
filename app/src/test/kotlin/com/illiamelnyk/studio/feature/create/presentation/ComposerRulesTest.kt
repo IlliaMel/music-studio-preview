@@ -17,7 +17,7 @@ class ComposerRulesTest {
 
     @Test
     fun `an empty, blank or too long prompt can't be sent`() {
-        listOf("", "  \n ", "a".repeat(Prompt.MAX_LENGTH + 1)).forEach { prompt ->
+        listOf("", "short", "  \n ", "a".repeat(Prompt.MAX_LENGTH + 1)).forEach { prompt ->
             assertEquals(prompt, false, ComposerUi(prompt = prompt).checked(creditsLeft = 8).canSend)
         }
         assertEquals(true, ComposerUi(prompt = "a".repeat(Prompt.MAX_LENGTH)).checked(creditsLeft = 8).canSend)
@@ -44,26 +44,26 @@ class ComposerRulesTest {
             ComposerUi().checked(creditsLeft = 0),
         )
         assertEquals(
-            ComposerUi(prompt = "Lo-fi", notice = UiText.Resource(R.string.error_quota_exceeded)),
-            ComposerUi(prompt = "Lo-fi").checked(creditsLeft = 0),
+            ComposerUi(prompt = "Lo-fi beat", notice = UiText.Resource(R.string.error_quota_exceeded)),
+            ComposerUi(prompt = "Lo-fi beat").checked(creditsLeft = 0),
         )
     }
 
     @Test
     fun `two variants are allowed with the last credit`() {
-        val composer = ComposerUi(prompt = "Lo-fi", variants = 2).checked(creditsLeft = 1)
+        val composer = ComposerUi(prompt = "Lo-fi beat", variants = 2).checked(creditsLeft = 1)
 
         assertEquals(
-            ComposerUi(prompt = "Lo-fi", variants = 2, canSend = true),
+            ComposerUi(prompt = "Lo-fi beat", variants = 2, canSend = true),
             composer,
         )
     }
 
     @Test
     fun `a notice goes once there are credits again`() {
-        val composer = ComposerUi(prompt = "Lo-fi", notice = UiText.Resource(R.string.error_quota_exceeded))
+        val composer = ComposerUi(prompt = "Lo-fi beat", notice = UiText.Resource(R.string.error_quota_exceeded))
             .checked(creditsLeft = 8)
 
-        assertEquals(ComposerUi(prompt = "Lo-fi", canSend = true), composer)
+        assertEquals(ComposerUi(prompt = "Lo-fi beat", canSend = true), composer)
     }
 }
