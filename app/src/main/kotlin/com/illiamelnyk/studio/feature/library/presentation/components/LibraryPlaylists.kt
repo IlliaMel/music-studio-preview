@@ -65,10 +65,10 @@ fun LibraryPlaylists(
             ) {
                 StudioButton(stringResource(R.string.collection_play), onClick = {
                     onPlay(false)
-                }, enabled = selected.tracks.isNotEmpty(), style = StudioButtonStyle.Secondary)
+                }, icon = StudioIcons.PlayArrowFilled, enabled = selected.tracks.isNotEmpty(), style = StudioButtonStyle.Secondary)
                 StudioButton(stringResource(R.string.collection_shuffle), onClick = {
                     onPlay(true)
-                }, enabled = selected.tracks.isNotEmpty(), style = StudioButtonStyle.Secondary)
+                }, icon = StudioIcons.Shuffle, enabled = selected.tracks.isNotEmpty(), style = StudioButtonStyle.Secondary)
                 StudioButton(stringResource(R.string.listen_close), onClick = {
                     onSelect(null)
                 }, style = StudioButtonStyle.Text)
