@@ -50,7 +50,9 @@ export const libraryRoutes = (service: LibraryService, publicBaseUrl?: string) =
       if (!collection) throw new ApiError(404, 'COLLECTION_NOT_FOUND', 'No such collection')
       return c.json({
         ...collection,
-        tracks: catalogTracks.filter((track) => collection.trackIds.includes(track.id)),
+        tracks: collection.trackIds.flatMap(
+          (id) => catalogTracks.find((track) => track.id === id) ?? [],
+        ),
       })
     })
     .get('/stations/:id', (c) => {
@@ -58,7 +60,9 @@ export const libraryRoutes = (service: LibraryService, publicBaseUrl?: string) =
       if (!station) throw new ApiError(404, 'STATION_NOT_FOUND', 'No such station')
       return c.json({
         ...station,
-        tracks: catalogTracks.filter((track) => station.trackIds.includes(track.id)),
+        tracks: station.trackIds.flatMap(
+          (id) => catalogTracks.find((track) => track.id === id) ?? [],
+        ),
       })
     })
 

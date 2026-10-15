@@ -167,6 +167,25 @@ describe('library', () => {
     const collection = await (await request(`/collections/${catalog.collections[0].id}`)).json()
     expect(collection.tracks[0].id).toBe(catalog.collections[0].trackIds[0])
     expect((await request(`/stations/${catalog.stations[0].id}`)).status).toBe(200)
+    const rotatedCollection = await (await request('/collections/new-1')).json()
+    const expectedCollection = catalog.collections.find((item) => item.id === 'new-1')
+    expect(rotatedCollection.tracks.map((track) => track.id)).toEqual(expectedCollection?.trackIds)
+    expect(rotatedCollection.tracks[0].id).toBe('paper-moons')
+    const rotatedStation = await (await request('/stations/stations-1')).json()
+    expect(rotatedStation.tracks.map((track) => track.id)).toEqual([
+      'night-drive',
+      'paper-moons',
+      'cold-brew',
+      'signal-fire',
+      'copper-sky',
+      'lanterns',
+      'static-bloom',
+      'afterglow',
+      'slow-tide',
+      'kinetic',
+      'low-orbit',
+      'glass-harbor',
+    ])
   })
   it('persists likes idempotently and isolates users', async () => {
     for (let i = 0; i < 2; i++)
