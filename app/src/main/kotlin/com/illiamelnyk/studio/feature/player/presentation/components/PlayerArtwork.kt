@@ -55,7 +55,7 @@ fun PlayerArtwork(
 
 @Composable
 private fun PlayerCover(seed: String, modifier: Modifier = Modifier, coverModifier: Modifier = Modifier) {
-    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+    BoxWithConstraints(modifier, contentAlignment = Alignment.BottomCenter) {
         val shape = playerCoverShape()
         Cover(
             seed = seed,

@@ -20,7 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.player.presentation.host.PlayerHostScope
-import com.illiamelnyk.studio.feature.player.presentation.host.rememberSharedCover
+import com.illiamelnyk.studio.feature.player.presentation.host.sharedPlayerCover
 import com.illiamelnyk.studio.feature.player.presentation.mini.components.MiniPlayerPill
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -80,7 +80,7 @@ fun MiniPlayerHost(
                     onNext = if (!isStation) ({ viewModel.onIntent(MiniPlayerIntent.NextClicked) }) else null,
                     nextEnabled = hasNext,
                     onRemix = if (!isStation) ({ host.remixSoonVisible = true }) else null,
-                    coverModifier = host.rememberSharedCover(this),
+                    coverModifier = Modifier.sharedPlayerCover(host, this),
                     pillModifier = Modifier.draggable(
                         state = host.sheet.expandDrag,
                         orientation = Orientation.Vertical,

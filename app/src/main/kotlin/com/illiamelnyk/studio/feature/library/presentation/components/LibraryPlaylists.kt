@@ -3,9 +3,9 @@ package com.illiamelnyk.studio.feature.library.presentation.components
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -60,15 +60,28 @@ fun LibraryPlaylists(
         }
         stickyHeader(key = "actions") {
             Row(
-                Modifier.fillMaxWidth().background(StudioTheme.colors.surface.level1).padding(StudioTheme.dimens.spacing.s),
-                horizontalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.xs, Alignment.CenterHorizontally),
+                Modifier.fillMaxWidth().background(
+                    StudioTheme.colors.surface.level1,
+                ).padding(StudioTheme.dimens.spacing.s),
+                horizontalArrangement = Arrangement.spacedBy(
+                    StudioTheme.dimens.spacing.xs,
+                    Alignment.CenterHorizontally,
+                ),
             ) {
-                StudioButton(stringResource(R.string.collection_play), onClick = {
-                    onPlay(false)
-                }, icon = StudioIcons.PlayArrowFilled, enabled = selected.tracks.isNotEmpty(), style = StudioButtonStyle.Secondary)
-                StudioButton(stringResource(R.string.collection_shuffle), onClick = {
-                    onPlay(true)
-                }, icon = StudioIcons.Shuffle, enabled = selected.tracks.isNotEmpty(), style = StudioButtonStyle.Secondary)
+                StudioButton(
+                    stringResource(R.string.collection_play),
+                    onClick = { onPlay(false) },
+                    icon = StudioIcons.PlayArrowFilled,
+                    enabled = selected.tracks.isNotEmpty(),
+                    style = StudioButtonStyle.Secondary,
+                )
+                StudioButton(
+                    stringResource(R.string.collection_shuffle),
+                    onClick = { onPlay(true) },
+                    icon = StudioIcons.Shuffle,
+                    enabled = selected.tracks.isNotEmpty(),
+                    style = StudioButtonStyle.Secondary,
+                )
                 StudioButton(stringResource(R.string.listen_close), onClick = {
                     onSelect(null)
                 }, style = StudioButtonStyle.Text)

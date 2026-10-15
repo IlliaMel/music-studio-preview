@@ -19,8 +19,8 @@ import androidx.compose.ui.tooling.preview.PreviewLightDark
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
 import com.illiamelnyk.studio.core.ui.components.ComingSoonSheetContent
-import com.illiamelnyk.studio.core.ui.components.StudioBottomSheet
 import com.illiamelnyk.studio.core.ui.components.CreditsCounter
+import com.illiamelnyk.studio.core.ui.components.StudioBottomSheet
 import com.illiamelnyk.studio.core.ui.components.StudioIconButton
 import com.illiamelnyk.studio.core.ui.components.StudioNavigationBar
 import com.illiamelnyk.studio.core.ui.components.StudioNavigationItem

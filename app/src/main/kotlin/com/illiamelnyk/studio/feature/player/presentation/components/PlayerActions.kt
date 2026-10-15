@@ -5,7 +5,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,8 +49,9 @@ fun PlayerActions(
             likeScale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
         }
     }
-    Row(
+    FlowRow(
         modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.xs),
         horizontalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.xs, Alignment.CenterHorizontally),
     ) {
         StudioButton(

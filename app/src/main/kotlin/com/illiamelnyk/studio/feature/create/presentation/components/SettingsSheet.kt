@@ -9,8 +9,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -28,8 +28,8 @@ import com.illiamelnyk.studio.core.ui.components.StudioButtonStyle
 import com.illiamelnyk.studio.core.ui.components.StudioIconButton
 import com.illiamelnyk.studio.core.ui.components.StudioSegmentedControl
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
-import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
+import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.create.presentation.CreatePreviewData
 import com.illiamelnyk.studio.feature.create.presentation.SettingsUi
 import com.illiamelnyk.studio.feature.create.presentation.common.ComingSoonFeature
@@ -103,7 +103,12 @@ private fun SettingsContent(
                     R.string.create_lyrics_custom,
                     R.string.create_settings_instrumental,
                 ),
-                selected = if (draft.instrumental) R.string.create_settings_instrumental else R.string.create_quality_auto,
+                selected =
+                    if (draft.instrumental) {
+                        R.string.create_settings_instrumental
+                    } else {
+                        R.string.create_quality_auto
+                    },
                 onSelect = { option ->
                     if (option == R.string.create_lyrics_custom) {
                         callbacks.onComingSoon(ComingSoonFeature.Lyrics)

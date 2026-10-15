@@ -73,6 +73,8 @@ class PlayerHostScope internal constructor(
  * hang off one seekable transition, and the bars under the player stay put instead of re-laying out
  * the screens on every frame of the animation.
  */
+// collapseWithBack collects the predictive Back flow and handles cancellation in PlayerSheetState.
+@Suppress("NoCollectCallFound")
 @Composable
 fun PlayerHost(modifier: Modifier = Modifier, content: @Composable (PlayerHostScope) -> Unit) {
     val sheet = rememberPlayerSheetState()
@@ -119,7 +121,7 @@ private fun FullPlayer(host: PlayerHostScope) {
             PlayerRoute(
                 onCollapse = sheet::collapse,
                 contentPadding = WindowInsets.systemBars.union(WindowInsets.displayCutout).asPaddingValues(),
-                coverModifier = host.rememberSharedCover(this@AnimatedVisibility),
+                coverModifier = Modifier.sharedPlayerCover(host, this@AnimatedVisibility),
                 bodyModifier = Modifier.draggable(
                     state = sheet.collapseDrag,
                     orientation = Orientation.Vertical,
@@ -136,12 +138,13 @@ private fun FullPlayer(host: PlayerHostScope) {
  * the transition is linear; see [PlayerSheetState].
  */
 @Composable
-internal fun PlayerHostScope.rememberSharedCover(visibilityScope: AnimatedVisibilityScope): Modifier {
-    val state = sharedTransitionScope.rememberSharedContentState(PLAYER_COVER_KEY)
+internal fun Modifier.sharedPlayerCover(host: PlayerHostScope, visibilityScope: AnimatedVisibilityScope): Modifier {
+    val state = host.sharedTransitionScope.rememberSharedContentState(PLAYER_COVER_KEY)
     val duration = StudioTheme.motion.duration.long
-    return remember(state, visibilityScope, duration) {
+    val base = this
+    return remember(base, state, visibilityScope, duration) {
         val bounds = BoundsTransform { _, _ -> tween(duration, easing = LinearEasing) }
-        with(sharedTransitionScope) { Modifier.sharedElement(state, visibilityScope, boundsTransform = bounds) }
+        with(host.sharedTransitionScope) { base.sharedElement(state, visibilityScope, boundsTransform = bounds) }
     }
 }
 

@@ -13,6 +13,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.domain.track.Track
@@ -47,6 +49,8 @@ fun PlayerRoute(
     val state = viewModel.state.collectAsStateWithLifecycle()
     val content by remember { derivedStateOf { state.value.content } }
     val context = LocalContext.current
+    val resources = LocalResources.current
+    val shareTitle = stringResource(R.string.player_share)
     val collapse by rememberUpdatedState(onCollapse)
     val feedback: ToastController = koinInject()
     var playlistTrack by remember { mutableStateOf<Track?>(null) }
@@ -57,13 +61,13 @@ fun PlayerRoute(
             is PlayerEffect.Share -> {
                 val send = Intent(Intent.ACTION_SEND)
                     .setType("text/plain")
-                    .putExtra(Intent.EXTRA_TEXT, effect.text.asString(context.resources))
+                    .putExtra(Intent.EXTRA_TEXT, effect.text.asString(resources))
                 effect.audio?.let { audio ->
                     send.setType("audio/mpeg")
                         .putExtra(Intent.EXTRA_STREAM, audio)
                         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-                context.startActivity(Intent.createChooser(send, context.getString(R.string.player_share)))
+                context.startActivity(Intent.createChooser(send, shareTitle))
             }
 
             is PlayerEffect.OpenPlaylistPicker -> playlistTrack = effect.track

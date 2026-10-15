@@ -53,7 +53,7 @@ fun PlayerLayout(
                 Row(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(horizontal = dimens.layout.screenPadding)
+                        .padding(horizontal = dimens.spacing.huge)
                         .padding(bottom = dimens.spacing.m),
                     horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xl),
                 ) {
@@ -68,11 +68,12 @@ fun PlayerLayout(
                     Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .padding(horizontal = dimens.layout.screenPadding, vertical = dimens.spacing.m),
+                        .padding(horizontal = dimens.spacing.huge, vertical = dimens.spacing.m)
+                        .padding(bottom = dimens.spacing.m),
                 )
                 Column(
                     modifier = Modifier
-                        .padding(horizontal = dimens.layout.screenPadding)
+                        .padding(horizontal = dimens.spacing.huge)
                         .padding(bottom = dimens.spacing.m),
                     verticalArrangement = detailsArrangement,
                 ) { movableDetails() }

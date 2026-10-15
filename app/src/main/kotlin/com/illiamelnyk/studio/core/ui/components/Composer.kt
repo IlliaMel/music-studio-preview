@@ -23,8 +23,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.movableContentWithReceiverOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -85,72 +85,88 @@ fun Composer(
                     fadeOut(tween(motion.duration.short, easing = motion.easing.standard)),
             ) { options() }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs), verticalAlignment = Alignment.CenterVertically) {
-        Column(
-            modifier = Modifier.weight(1f)
-                // The box grows line by line as the text wraps.
-                .animateContentSize(tween(motion.duration.medium, easing = motion.easing.standard))
-                .fillMaxWidth()
-                .heightIn(min = if (expanded) dimens.size.component.composerMin else dimens.size.touchTarget)
-                .background(colors.surface.level2, shape)
-                .border(
-                    dimens.stroke.hairline,
-                    if (focused) colors.outline.strong else colors.outline.subtle,
-                    shape,
-                )
-                .padding(if (expanded) dimens.spacing.s else dimens.spacing.xxs),
-            verticalArrangement = Arrangement.spacedBy(dimens.spacing.s),
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier
+            Column(
+                modifier = Modifier.weight(1f)
+                    // The box grows line by line as the text wraps.
+                    .animateContentSize(
+                        animationSpec = tween(motion.duration.medium, easing = motion.easing.standard),
+                        alignment = Alignment.BottomStart,
+                    )
                     .fillMaxWidth()
-                    .padding(horizontal = dimens.spacing.xxs),
-                textStyle = StudioTheme.typography.bodyLarge.copy(color = colors.content.primary),
-                maxLines = if (expanded) ComposerDefaults.MAX_LINES else 1,
-                interactionSource = source,
-                cursorBrush = SolidColor(colors.content.primary),
-                decorationBox = { innerTextField ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (!expanded) leading()
-                        Box(Modifier.weight(1f)) {
-                        if (value.isEmpty()) {
-                            StudioText(placeholder, StudioTheme.typography.bodyLarge, color = colors.content.tertiary, maxLines = if (expanded) ComposerDefaults.MAX_LINES else 1)
+                    .heightIn(min = if (expanded) dimens.size.component.composerMin else dimens.size.touchTarget)
+                    .background(colors.surface.level2, shape)
+                    .border(
+                        dimens.stroke.hairline,
+                        if (focused) colors.outline.strong else colors.outline.subtle,
+                        shape,
+                    )
+                    .padding(
+                        horizontal = if (expanded) dimens.spacing.s else dimens.spacing.xxs,
+                        vertical = if (expanded) dimens.spacing.s else dimens.spacing.none,
+                    ),
+                verticalArrangement = Arrangement.spacedBy(dimens.spacing.s),
+            ) {
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = dimens.spacing.xxs),
+                    textStyle = StudioTheme.typography.bodyLarge.copy(color = colors.content.primary),
+                    maxLines = if (expanded) ComposerDefaults.MAX_LINES else 1,
+                    interactionSource = source,
+                    cursorBrush = SolidColor(colors.content.primary),
+                    decorationBox = { innerTextField ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (!expanded) leading()
+                            Box(Modifier.weight(1f)) {
+                                if (value.isEmpty()) {
+                                    StudioText(
+                                        placeholder,
+                                        StudioTheme.typography.bodyLarge,
+                                        color = colors.content.tertiary,
+                                        maxLines = if (expanded) ComposerDefaults.MAX_LINES else 1,
+                                    )
+                                }
+                                innerTextField()
+                            }
                         }
-                        innerTextField()
+                    },
+                )
+                if (expanded || showSend) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (expanded) leading()
+                        Spacer(Modifier.weight(1f))
+                        if (characterLimit != null) {
+                            StudioText(
+                                text = stringResource(R.string.ui_character_count, value.length, characterLimit),
+                                style = StudioTheme.typography.bodySmall,
+                                color = if (overLimit) colors.error.content else colors.content.tertiary,
+                            )
+                        }
+                        if (expanded) trailing()
+                        if (showSend) {
+                            StudioIconButton(
+                                icon = StudioIcons.ArrowUpward,
+                                contentDescription = stringResource(R.string.ui_send),
+                                onClick = onSend,
+                                style = StudioIconButtonStyle.Primary,
+                                size = StudioIconButtonSize.Small,
+                                enabled = sendEnabled && !overLimit,
+                            )
                         }
                     }
-                },
-            )
-            if (expanded || showSend) Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (expanded) leading()
-                Spacer(Modifier.weight(1f))
-                if (characterLimit != null) {
-                    StudioText(
-                        text = stringResource(R.string.ui_character_count, value.length, characterLimit),
-                        style = StudioTheme.typography.bodySmall,
-                        color = if (overLimit) colors.error.content else colors.content.tertiary,
-                    )
-                }
-                if (expanded) trailing()
-                if (showSend) {
-                    StudioIconButton(
-                        icon = StudioIcons.ArrowUpward,
-                        contentDescription = stringResource(R.string.ui_send),
-                        onClick = onSend,
-                        style = StudioIconButtonStyle.Primary,
-                        size = StudioIconButtonSize.Small,
-                        enabled = sendEnabled && !overLimit,
-                    )
                 }
             }
-        }
-        if (!expanded) Row(verticalAlignment = Alignment.CenterVertically, content = trailing)
+            if (!expanded) Row(verticalAlignment = Alignment.CenterVertically, content = trailing)
         }
     }
 }

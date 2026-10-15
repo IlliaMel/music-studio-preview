@@ -41,7 +41,7 @@ fun OverlaySheet(
         onDismissRequest = onDismissRequest,
         // The sheet handles the back gesture and taps on its scrim itself.
         properties = DialogProperties(
-            dismissOnBackPress = false,
+            dismissOnBackPress = true,
             dismissOnClickOutside = false,
             usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false,

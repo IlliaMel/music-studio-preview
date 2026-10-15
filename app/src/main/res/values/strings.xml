@@ -54,13 +54,6 @@
     <!-- Welcome and onboarding -->
     <string name="welcome_title">The studio for people who make music</string>
     <string name="welcome_continue_with_google">Continue with Google (demo)</string>
-    <string name="onboarding_name_title">What\'s your name?</string>
-    <string name="onboarding_name_hint">This is your public name on Studio.</string>
-    <string name="onboarding_marketing">I want to receive updates from Studio</string>
-    <string name="onboarding_age">I confirm that I am 18 years of age or older</string>
-    <string name="onboarding_terms">I accept the Terms of Service</string>
-    <string name="onboarding_continue">Continue</string>
-    <string name="onboarding_sign_out">Use another account</string>
 
     <!-- Listen -->
     <string name="listen_demo_catalog">Demo catalog</string>
@@ -89,7 +82,6 @@
     <string name="player_lyrics">Lyrics</string>
     <string name="player_queue">Queue</string>
     <string name="player_stop">Stop</string>
-    <string name="player_next">Next</string>
     <!-- The time left in the track, with a minus sign: "−1:48" -->
     <string name="player_time_left">−%1$s</string>
     <string name="player_like_failed">Couldn\'t save your like</string>
@@ -151,7 +143,6 @@
     <string name="library_playlist_name">Playlist name</string>
     <string name="library_create">Create</string>
     <string name="library_explore">Explore Music</string>
-    <string name="library_add_to">Add To</string>
     <string name="library_remove">Remove</string>
     <string name="library_add">Add</string>
     <string name="library_playlist_error">Could not update the playlist. Try again.</string>

@@ -1,5 +1,6 @@
 package com.illiamelnyk.studio.di
 
+import android.content.Context
 import com.illiamelnyk.studio.core.data.fake.FakeCatalog
 import com.illiamelnyk.studio.core.domain.track.Track
 import com.illiamelnyk.studio.core.presentation.OfflineViewModel
@@ -39,6 +40,8 @@ class KoinGraphTest {
         // One module that includes them all: verified one by one, a feature module would miss the
         // repositories that coreModule provides.
         module { includes(studioModules) }.verify(
+            // androidContext installs this platform dependency when the app starts.
+            extraTypes = listOf(Context::class),
             injections = injectedParameters(
                 definition<ToolViewModel>(Tool::class),
                 definition<CollectionViewModel>(String::class),

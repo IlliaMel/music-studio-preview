@@ -43,7 +43,7 @@ fun PlayerTopBar(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = dimens.size.component.topBar)
-            .padding(horizontal = dimens.layout.screenPadding - touchMargin),
+            .padding(horizontal = dimens.spacing.xxl - touchMargin),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         GlassIconButton(
