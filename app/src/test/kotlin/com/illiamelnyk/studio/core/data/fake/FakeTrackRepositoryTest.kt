@@ -196,7 +196,9 @@ class FakeTrackRepositoryTest {
         val before = repository.observeMine().first()
 
         for (variants in listOf(0, 3)) {
-            val failure = runCatching { repository.create(GenerationRequest("Invalid batch"), variants) }.exceptionOrNull()
+            val failure = runCatching {
+                repository.create(GenerationRequest("Invalid batch"), variants)
+            }.exceptionOrNull()
             assertTrue(failure is IllegalArgumentException)
         }
 

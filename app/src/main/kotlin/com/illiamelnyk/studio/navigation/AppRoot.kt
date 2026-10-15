@@ -10,14 +10,13 @@ import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
 /**
  * The whole app: the flow the session allows, cross-fading when it changes. Signing in leads to
- * onboarding or straight to the tabs, signing out back to the welcome screen.
+ * straight to the tabs, signing out back to the welcome screen.
  */
 @Composable
 fun AppRoot(state: AppState, modifier: Modifier = Modifier) {
     val content = when (state.gate) {
         SessionGate.Loading -> RootContent.Loading
         SessionGate.SignedOut -> RootContent.SignedOut
-        SessionGate.Onboarding -> RootContent.Onboarding
         SessionGate.SignedIn -> RootContent.Tabs
     }
     val transitions = rememberShellTransitions()
@@ -35,8 +34,6 @@ fun AppRoot(state: AppState, modifier: Modifier = Modifier) {
 
             RootContent.SignedOut -> SignedOutFlow()
 
-            RootContent.Onboarding -> OnboardingFlow()
-
             RootContent.Tabs -> TabsShell(
                 variant = state.shellVariant,
                 avatarSeed = state.avatarSeed,
@@ -51,8 +48,6 @@ private sealed interface RootContent {
     data object Loading : RootContent
 
     data object SignedOut : RootContent
-
-    data object Onboarding : RootContent
 
     data object Tabs : RootContent
 }

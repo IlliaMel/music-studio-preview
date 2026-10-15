@@ -15,9 +15,13 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.Layout
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -25,7 +29,9 @@ import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
+import com.illiamelnyk.studio.debug.debugSettings
 import com.illiamelnyk.studio.feature.player.presentation.mini.MiniPlayerHost
+import com.illiamelnyk.studio.feature.profile.presentation.ProfileOverlay
 import kotlinx.collections.immutable.toImmutableList
 
 /**
@@ -45,6 +51,7 @@ fun TabsShell(
     hasPlayback: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    var profileOpen by rememberSaveable { mutableStateOf(false) }
     val navigator = rememberTabNavigator(variant.tabs)
     val atTabRoot = navigator.isAtTabRoot
     val bottomChrome = remember { BottomChrome() }
@@ -89,7 +96,7 @@ fun TabsShell(
                         avatarSeed = avatarSeed,
                         creditsLeft = creditsLeft,
                         onTabSelect = navigator::select,
-                        onProfileClick = { navigator.navigate(Destination.Profile) },
+                        onProfileClick = { profileOpen = true },
                         onLibraryClick = { navigator.navigate(Destination.Library) },
                     )
                 }
@@ -120,6 +127,9 @@ fun TabsShell(
             top.forEach { it.place(0, 0) }
             bottom.forEach { it.place(0, constraints.maxHeight - bottomHeight) }
         }
+    }
+    if (profileOpen) {
+        ProfileOverlay(onClose = { profileOpen = false }, debugSettings = debugSettings)
     }
 }
 

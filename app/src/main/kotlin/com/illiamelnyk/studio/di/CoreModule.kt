@@ -7,14 +7,19 @@ import com.illiamelnyk.studio.core.data.fake.FakeLyricsRepository
 import com.illiamelnyk.studio.core.data.fake.FakePlaybackController
 import com.illiamelnyk.studio.core.data.fake.FakeSessionRepository
 import com.illiamelnyk.studio.core.data.fake.FakeTrackRepository
+import com.illiamelnyk.studio.core.data.network.AndroidNetworkMonitor
 import com.illiamelnyk.studio.core.data.settings.DataStoreThemePreferenceRepository
 import com.illiamelnyk.studio.core.domain.credits.CreditsRepository
+import com.illiamelnyk.studio.core.domain.network.NetworkMonitor
 import com.illiamelnyk.studio.core.domain.playback.LyricsRepository
 import com.illiamelnyk.studio.core.domain.playback.PlaybackController
+import com.illiamelnyk.studio.core.domain.session.DeleteAccount
 import com.illiamelnyk.studio.core.domain.session.SessionRepository
 import com.illiamelnyk.studio.core.domain.session.SignOut
 import com.illiamelnyk.studio.core.domain.settings.ThemePreferenceRepository
 import com.illiamelnyk.studio.core.domain.track.TrackRepository
+import com.illiamelnyk.studio.core.presentation.OfflineViewModel
+import com.illiamelnyk.studio.core.presentation.ToastController
 import kotlin.time.Clock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +27,7 @@ import kotlinx.coroutines.SupervisorJob
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.singleOf
+import org.koin.core.module.dsl.viewModelOf
 import org.koin.core.qualifier.named
 import org.koin.dsl.bind
 import org.koin.dsl.module
@@ -43,6 +49,10 @@ val coreModule = module {
     single { FakePlaybackController(get(named(APP_SCOPE))) } bind PlaybackController::class
     singleOf(::FakeLyricsRepository) bind LyricsRepository::class
     factoryOf(::SignOut)
+    factoryOf(::DeleteAccount)
+    single { ToastController(get(named(APP_SCOPE))) }
+    single { AndroidNetworkMonitor(androidContext()) } bind NetworkMonitor::class
+    viewModelOf(::OfflineViewModel)
 
     single(named(SETTINGS)) {
         PreferenceDataStoreFactory.create { androidContext().preferencesDataStoreFile(SETTINGS) }

@@ -9,4 +9,7 @@ import com.illiamelnyk.studio.core.domain.Outcome
 interface AuthRepository {
     /** Signs in with the Google account on the device. */
     suspend fun signInWithGoogle(): Outcome<Unit>
+
+    /** Uses built-in data without Firebase or a server. */
+    suspend fun signInDemo(): Outcome<Unit> = signInWithGoogle()
 }

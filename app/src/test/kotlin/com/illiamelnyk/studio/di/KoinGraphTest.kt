@@ -1,6 +1,7 @@
 package com.illiamelnyk.studio.di
 
-import com.illiamelnyk.studio.feature.auth.presentation.onboarding.OnboardingViewModel
+import com.illiamelnyk.studio.core.presentation.OfflineViewModel
+import com.illiamelnyk.studio.core.presentation.ToastController
 import com.illiamelnyk.studio.feature.auth.presentation.welcome.WelcomeViewModel
 import com.illiamelnyk.studio.feature.create.domain.Tool
 import com.illiamelnyk.studio.feature.create.presentation.CreateViewModel
@@ -52,8 +53,9 @@ class KoinGraphTest {
         // parameter of the wrong type or a definition that throws, and each of these fails here. The
         // ViewModels need every repository, so the whole graph is built.
         koin.get<AppViewModel>()
+        koin.get<OfflineViewModel>()
+        koin.get<ToastController>()
         koin.get<WelcomeViewModel>()
-        koin.get<OnboardingViewModel>()
         koin.get<CreateViewModel>()
         koin.get<ToolViewModel> { parametersOf(Tool.Genreshift) }
         koin.get<ListenViewModel>()

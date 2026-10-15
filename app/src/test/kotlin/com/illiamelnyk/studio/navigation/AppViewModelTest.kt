@@ -36,12 +36,12 @@ class AppViewModelTest {
             assertEquals(SessionGate.SignedOut, awaitItem())
 
             sessions.signIn("illia", SignInMethod.Google, suggestedDisplayName = "Illia Melnyk")
-            assertEquals(SessionGate.Onboarding, awaitItem())
+            assertEquals(SessionGate.SignedIn, awaitItem())
 
-            // A partly filled profile isn't enough.
+            // Legacy missing steps must not block entry.
             sessions.updateProfile(ProfileUpdate(displayName = name("Illia"), confirmAge = true))
             sessions.updateProfile(ProfileUpdate(acceptedTermsVersion = "2026-10-14"))
-            assertEquals(SessionGate.SignedIn, awaitItem())
+            expectNoEvents()
 
             sessions.signOut()
             assertEquals(SessionGate.SignedOut, awaitItem())
@@ -77,7 +77,7 @@ class AppViewModelTest {
             assertEquals(AppState(), awaitItem())
             assertEquals(
                 AppState(
-                    gate = SessionGate.Onboarding,
+                    gate = SessionGate.SignedIn,
                     theme = ThemePreference.Light,
                     shellVariant = ShellVariant.TopSwitch,
                     avatarSeed = "dev-illia",

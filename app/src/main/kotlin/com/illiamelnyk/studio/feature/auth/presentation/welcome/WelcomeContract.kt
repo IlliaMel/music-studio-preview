@@ -14,4 +14,6 @@ data class WelcomeState(val isSigningIn: Boolean = false, val notice: UiText? = 
 
 sealed interface WelcomeIntent {
     data object ContinueWithGoogleClicked : WelcomeIntent
+
+    data object TryDemoClicked : WelcomeIntent
 }
