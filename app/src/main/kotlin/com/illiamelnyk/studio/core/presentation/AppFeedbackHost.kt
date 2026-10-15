@@ -33,7 +33,7 @@ fun AppFeedbackHost(
         if (!online) OfflineBanner(onRetry = viewModel::retry)
         Box(Modifier.weight(1f)) { content() }
     }
-    LocalWindowFeedback.current(0)
+    LocalWindowFeedback.current.Render(0)
 }
 
 @Composable
