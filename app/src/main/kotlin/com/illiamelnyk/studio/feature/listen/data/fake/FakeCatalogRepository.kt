@@ -49,7 +49,7 @@ class FakeCatalogRepository : CatalogRepository {
         names.mapIndexed { index, name ->
             val catalog = FakeCatalog.tracks
             val offset = (kind.ordinal + index) % catalog.size
-            val tracks = (catalog.drop(offset) + catalog.take(offset)).take(6)
+            val tracks = (catalog.drop(offset) + catalog.take(offset)).take(12)
             CatalogCollection(
                 id = "${kind.name.lowercase()}-$index",
                 title = name,
