@@ -2,6 +2,9 @@ package com.illiamelnyk.studio.di
 
 import com.illiamelnyk.studio.feature.auth.presentation.onboarding.OnboardingViewModel
 import com.illiamelnyk.studio.feature.auth.presentation.welcome.WelcomeViewModel
+import com.illiamelnyk.studio.core.domain.track.Track
+import com.illiamelnyk.studio.core.data.fake.FakeCatalog
+import com.illiamelnyk.studio.core.presentation.playlist.PlaylistPickerViewModel
 import com.illiamelnyk.studio.feature.create.domain.Tool
 import com.illiamelnyk.studio.feature.create.presentation.CreateViewModel
 import com.illiamelnyk.studio.feature.create.presentation.tool.ToolViewModel
@@ -38,6 +41,7 @@ class KoinGraphTest {
             injections = injectedParameters(
                 definition<ToolViewModel>(Tool::class),
                 definition<CollectionViewModel>(String::class),
+                definition<PlaylistPickerViewModel>(Track::class),
             ),
         )
     }
@@ -61,6 +65,7 @@ class KoinGraphTest {
         koin.get<ListenViewModel>()
         koin.get<CollectionViewModel> { parametersOf("trending") }
         koin.get<LibraryViewModel>()
+        koin.get<PlaylistPickerViewModel> { parametersOf(FakeCatalog.tracks.first()) }
         koin.get<PlayerViewModel>()
         koin.get<MiniPlayerViewModel>()
         koin.get<ProfileViewModel>()

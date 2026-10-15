@@ -20,8 +20,10 @@ class CollectionPreviewData : PreviewParameterProvider<CollectionState> {
             ),
             tracks = persistentListOf(track("glass-harbor", "Glass Harbor", "Mira Vale · 3:12")),
             playingTrackId = TrackId("glass-harbor"),
+            isLoading = false,
         ),
         CollectionState(),
+        CollectionState(isLoading = false, failed = true),
     )
 
     private fun track(id: String, title: String, subtitle: String) = TrackUi(

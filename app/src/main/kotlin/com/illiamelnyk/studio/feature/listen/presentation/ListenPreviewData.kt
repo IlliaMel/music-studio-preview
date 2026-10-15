@@ -1,27 +1,18 @@
 package com.illiamelnyk.studio.feature.listen.presentation
 
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
-import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.presentation.UiText
+import com.illiamelnyk.studio.feature.listen.domain.CatalogSectionKind
 import kotlinx.collections.immutable.persistentListOf
 
-/** Listen with the catalog, and before it arrives. */
 class ListenPreviewData : PreviewParameterProvider<ListenState> {
     override val values = sequenceOf(
-        ListenState(
-            collections = persistentListOf(
-                collection("trending", "Trending Now", 6, "19:20"),
-                collection("new", "New This Week", 6, "19:41"),
-                collection("vocals", "Sing Along", 7, "23:22"),
-            ),
-        ),
+        ListenState(sections = persistentListOf(
+            CatalogSectionUi(CatalogSectionKind.Stations, persistentListOf(CollectionUi("live", "Piano Room", UiText.Raw("Live"), "Piano Room")), isLoading = false),
+            CatalogSectionUi(CatalogSectionKind.New, persistentListOf(CollectionUi("new", "New This Week", UiText.Raw("6 tracks · 19:20"), "New This Week")), isLoading = false),
+        )),
         ListenState(),
-    )
-
-    private fun collection(id: String, title: String, count: Int, duration: String) = CollectionUi(
-        id = id,
-        title = title,
-        subtitle = UiText.Plural(R.plurals.listen_collection_summary, count, count, duration),
-        coverSeed = title,
+        ListenState(sections = persistentListOf(CatalogSectionUi(CatalogSectionKind.New, isLoading = false, failed = true))),
+        ListenState(searchVisible = true),
     )
 }

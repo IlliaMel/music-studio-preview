@@ -19,6 +19,8 @@ import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
 import com.illiamelnyk.studio.core.presentation.track.TrackUi
 import com.illiamelnyk.studio.core.presentation.track.TrackUiRow
 import com.illiamelnyk.studio.core.ui.components.EmptyState
+import com.illiamelnyk.studio.core.ui.components.StudioButton
+import com.illiamelnyk.studio.core.ui.components.StudioLinearProgress
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
@@ -33,6 +35,8 @@ fun LikedTracks(
     playingTrackId: TrackId?,
     onTrackClick: (TrackId) -> Unit,
     modifier: Modifier = Modifier,
+    onTrackMore: (TrackId) -> Unit = {},
+    onExplore: () -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(),
 ) {
     val dimens = StudioTheme.dimens
@@ -43,6 +47,7 @@ fun LikedTracks(
                 title = stringResource(R.string.library_empty_title),
                 message = stringResource(R.string.library_empty_message),
                 modifier = Modifier.padding(dimens.spacing.xxl),
+                action = { StudioButton(stringResource(R.string.library_explore), onClick = onExplore) },
             )
         }
         return
@@ -58,6 +63,7 @@ fun LikedTracks(
                 modifier = Modifier.padding(horizontal = dimens.layout.screenPadding, vertical = dimens.spacing.xs),
             )
         }
+        if (isLoading) item(key = "loading") { StudioLinearProgress() }
         items(tracks, key = { it.id.value }, contentType = { "track" }) { track ->
             TrackUiRow(
                 track = track,
@@ -66,6 +72,7 @@ fun LikedTracks(
                     .animateItem()
                     .padding(horizontal = dimens.layout.screenPadding),
                 isPlaying = track.id == playingTrackId,
+                onMore = { onTrackMore(track.id) },
             )
         }
     }

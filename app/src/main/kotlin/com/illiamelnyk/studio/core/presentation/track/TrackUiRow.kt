@@ -1,5 +1,6 @@
 package com.illiamelnyk.studio.core.presentation.track
 
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.illiamelnyk.studio.core.presentation.asString
@@ -20,6 +21,7 @@ fun TrackUiRow(
     isPlaying: Boolean = false,
     onMore: (() -> Unit)? = null,
     onRetry: (() -> Unit)? = null,
+    badges: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val status = track.status
     TrackRow(
@@ -35,5 +37,6 @@ fun TrackUiRow(
         },
         onMore = onMore,
         onRetry = onRetry,
+        badges = badges,
     )
 }

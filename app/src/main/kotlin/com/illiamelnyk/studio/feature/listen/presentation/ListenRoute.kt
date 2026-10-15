@@ -18,6 +18,7 @@ import org.koin.compose.viewmodel.koinViewModel
 fun ListenRoute(
     onOpenCollection: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onOpenPlayer: () -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(),
     viewModel: ListenViewModel = koinViewModel(),
 ) {
@@ -25,6 +26,7 @@ fun ListenRoute(
     ObserveEffects(viewModel.effects) { effect ->
         when (effect) {
             is ListenEffect.OpenCollection -> onOpenCollection(effect.id)
+            ListenEffect.OpenPlayer -> onOpenPlayer()
         }
     }
     ListenScreen(state = state, onIntent = viewModel::onIntent, modifier = modifier, contentPadding = contentPadding)

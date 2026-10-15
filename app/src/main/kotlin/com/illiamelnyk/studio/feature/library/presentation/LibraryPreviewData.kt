@@ -19,6 +19,8 @@ class LibraryPreviewData : PreviewParameterProvider<LibraryState> {
         ),
         LibraryState(isLoading = false),
         LibraryState(isLoading = true),
+        LibraryState(tab = LibraryTab.Playlists, isLoading = false),
+        LibraryState(tab = LibraryTab.Playlists, playlists = persistentListOf(PlaylistUi("mix", "Night drive", persistentListOf(track("1", "Rainy window lo-fi", "Studio · 2:00")))), isLoading = false),
     )
 
     private fun track(id: String, title: String, subtitle: String) = TrackUi(

@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.PreviewLightDark
+import androidx.compose.ui.unit.Dp
 import com.illiamelnyk.studio.core.ui.foundation.ProvideGlassBackdrop
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.foundation.glassBackdrop
@@ -32,6 +33,7 @@ fun CollectionHeader(
     meta: String,
     coverSeed: String,
     modifier: Modifier = Modifier,
+    artworkSize: Dp = StudioTheme.dimens.size.cover.l,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     val colors = StudioTheme.colors
@@ -59,7 +61,7 @@ fun CollectionHeader(
         ) {
             Cover(
                 seed = coverSeed,
-                size = dimens.size.cover.l,
+                size = artworkSize,
                 modifier = Modifier.dropShadow(
                     StudioTheme.shapes.m,
                     StudioTheme.effects.elevation.artwork.toShadow(),
@@ -88,7 +90,7 @@ fun CollectionHeader(
 @Composable
 private fun CollectionHeaderPreview() {
     PreviewSurface {
-        CollectionHeader("Ambient", "Ambient Mix · 111 tracks · 6:00:39", "Ambient") {
+        CollectionHeader("Ambient", "Ambient Mix · 111 tracks · 6:00:39", "Ambient", artworkSize = StudioTheme.dimens.size.cover.l + StudioTheme.dimens.spacing.giant) {
             StudioButton("Play", onClick = {}, style = StudioButtonStyle.Glass, icon = StudioIcons.PlayArrowFilled)
             StudioButton("Shuffle", onClick = {}, style = StudioButtonStyle.Glass, icon = StudioIcons.Shuffle)
         }
