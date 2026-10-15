@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.shape.ZeroCornerSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -49,6 +48,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.IntOffset
 import com.illiamelnyk.studio.R
+import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.core.ui.theme.PreviewSurface
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import kotlin.math.roundToInt
@@ -73,6 +73,7 @@ fun StudioBottomSheet(
     visible: Boolean,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    showCloseButton: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val motion = StudioTheme.motion
@@ -130,6 +131,7 @@ fun StudioBottomSheet(
             state = state,
             backProgress = { backProgress.value },
             onDismissRequest = onDismissRequest,
+            showCloseButton = showCloseButton,
             content = content,
         )
     }
@@ -161,18 +163,19 @@ private fun BoxScope.SheetSurface(
     state: AnchoredDraggableState<SheetValue>,
     backProgress: () -> Float,
     onDismissRequest: () -> Unit,
+    showCloseButton: Boolean,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = StudioTheme.colors
     val dimens = StudioTheme.dimens
     val motion = StudioTheme.motion
-    // Rounded at the top only: the bottom edge runs off the screen.
-    val shape = StudioTheme.shapes.xxl.copy(bottomStart = ZeroCornerSize, bottomEnd = ZeroCornerSize)
-    Column(
+    val shape = StudioTheme.shapes.xxl
+    Box(
         modifier = Modifier
             .align(Alignment.BottomCenter)
             // Never under the status bar, however tall the content is.
             .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(horizontal = dimens.spacing.xs, vertical = dimens.spacing.xxs)
             .fillMaxWidth()
             .onSizeChanged { size ->
                 state.updateAnchors(
@@ -215,15 +218,28 @@ private fun BoxScope.SheetSurface(
                 top = dimens.spacing.xs,
                 bottom = dimens.spacing.m,
             ),
-        verticalArrangement = Arrangement.spacedBy(dimens.spacing.s),
     ) {
-        Box(
-            Modifier
-                .align(Alignment.CenterHorizontally)
-                .size(dimens.size.component.sheetHandleWidth, dimens.size.component.sheetHandleHeight)
-                .background(colors.outline.strong, StudioTheme.shapes.full),
-        )
-        content()
+        Column(
+            Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(dimens.spacing.s),
+        ) {
+            Box(
+                Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .size(dimens.size.component.sheetHandleWidth, dimens.size.component.sheetHandleHeight)
+                    .background(colors.outline.strong, StudioTheme.shapes.full),
+            )
+            content()
+        }
+        if (showCloseButton) {
+            StudioIconButton(
+                StudioIcons.Close,
+                stringResource(R.string.ui_close),
+                onDismissRequest,
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = dimens.spacing.xs),
+                style = StudioIconButtonStyle.Surface,
+            )
+        }
     }
 }
 

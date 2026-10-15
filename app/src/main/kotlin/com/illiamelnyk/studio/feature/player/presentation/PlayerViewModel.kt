@@ -137,7 +137,7 @@ class PlayerViewModel(
                     sendEffect(PlayerEffect.Collapse)
                 }
 
-                SoonFeature.Autoplay -> playback.setRepeat(RepeatMode.All)
+                SoonFeature.Autoplay -> setContent { copy(sheet = PlayerSheet.ComingSoon(SoonFeature.Autoplay)) }
             }
 
             PlayerIntent.WantItClicked -> wantIt()

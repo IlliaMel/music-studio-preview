@@ -2,6 +2,7 @@ package com.illiamelnyk.studio.di
 
 import android.content.Context
 import com.illiamelnyk.studio.core.data.fake.FakeCatalog
+import com.illiamelnyk.studio.core.data.playback.AndroidPlaybackController
 import com.illiamelnyk.studio.core.domain.track.Track
 import com.illiamelnyk.studio.core.presentation.OfflineViewModel
 import com.illiamelnyk.studio.core.presentation.ToastController
@@ -43,6 +44,7 @@ class KoinGraphTest {
             // androidContext installs this platform dependency when the app starts.
             extraTypes = listOf(Context::class),
             injections = injectedParameters(
+                definition<AndroidPlaybackController>(Function0::class),
                 definition<ToolViewModel>(Tool::class),
                 definition<CollectionViewModel>(String::class),
                 definition<PlaylistPickerViewModel>(Track::class),

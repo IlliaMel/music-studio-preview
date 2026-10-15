@@ -19,25 +19,36 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import com.illiamelnyk.studio.core.ui.artwork.ArtworkTile
+import com.illiamelnyk.studio.core.ui.artwork.rememberArtwork
 import com.illiamelnyk.studio.core.ui.theme.ArtPalette
 import com.illiamelnyk.studio.core.ui.theme.CoverGradient
 import com.illiamelnyk.studio.core.ui.theme.PreviewSurface
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
- * Cover art drawn by the app: one of the palette's gradients, picked by [seed] (a track's title or
- * id) together with its direction, so a track always gets the same cover.
+ * Bundled original cover artwork selected deterministically by [seed], with a generated gradient
+ * while the shared atlas loads or if it cannot be decoded.
  *
  * @param size one of `StudioTheme.dimens.size.cover`, or an avatar size.
  * @param shape by default the radius tokens.json gives covers of this size.
- * @param generating makes the cover "living": the gradient drifts while the track is being composed.
+ * @param generating animates a light sweep while the track is being composed.
  * @param muted greys the art out, for something that isn't available yet.
  */
 @Composable
@@ -80,45 +91,86 @@ object CoverDefaults {
  *   three times the size of the cover and pans across it, as `.living` does in the kit.
  * @param muted the kit's `grayscale(.6) brightness(.8)` for unavailable items.
  */
-internal fun Modifier.coverArt(seed: String, drift: (() -> Float)? = null, muted: Boolean = false): Modifier =
-    drawWithCache {
+@Composable
+internal fun Modifier.coverArt(seed: String, drift: (() -> Float)? = null, muted: Boolean = false): Modifier {
+    val artwork = rememberArtwork(seed)
+    return drawWithCache {
         val hash = seed.hashCode()
         val picked = coverGradientFor(hash)
         val gradient = if (muted) picked.muted() else picked
-        // Turning the gradient by a quarter, picked by other bits of the hash, gives four covers per gradient.
         val angle = gradient.angle + QUARTER_TURN * Math.floorMod(hash / ArtPalette.coverGradients.size, 4)
         val still = gradient.brush(angle, Rect(Offset.Zero, size))
+        val filter = if (muted) {
+            ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(1f - MUTE_GRAYSCALE) })
+        } else {
+            null
+        }
         onDrawBehind {
-            val brush = if (drift == null) {
-                still
+            if (artwork != null) {
+                drawArtwork(artwork, filter)
+                if (muted) drawRect(Color.Black.copy(alpha = 1f - MUTE_BRIGHTNESS))
+                if (drift != null) {
+                    val left = size.width * (drift() * 2f - 1f)
+                    drawRect(
+                        Brush.linearGradient(
+                            listOf(Color.Transparent, Color.White.copy(alpha = 0.18f), Color.Transparent),
+                            start = Offset(left, 0f),
+                            end = Offset(left + size.width, size.height),
+                        ),
+                    )
+                }
             } else {
-                val position = drift()
-                val width = size.width * LIVING_SCALE
-                val height = size.height * LIVING_SCALE
-                // background-position moves from 0 % 40 % to 100 % 60 %.
-                val left = (size.width - width) * position
-                val top = (size.height - height) * (LIVING_TOP_FROM + (LIVING_TOP_TO - LIVING_TOP_FROM) * position)
-                gradient.brush(angle, Rect(left, top, left + width, top + height))
+                val brush = if (drift == null) {
+                    still
+                } else {
+                    val position = drift()
+                    val width = size.width * LIVING_SCALE
+                    val height = size.height * LIVING_SCALE
+                    val left = (size.width - width) * position
+                    val top = (size.height - height) * (LIVING_TOP_FROM + (LIVING_TOP_TO - LIVING_TOP_FROM) * position)
+                    gradient.brush(angle, Rect(left, top, left + width, top + height))
+                }
+                drawRect(brush)
             }
-            drawRect(brush)
         }
     }
+}
+
+private fun DrawScope.drawArtwork(artwork: ArtworkTile, filter: ColorFilter?) {
+    val side = ceil(maxOf(size.width, size.height)).toInt().coerceAtLeast(1)
+    clipRect {
+        drawImage(
+            image = artwork.image,
+            srcOffset = artwork.offset,
+            srcSize = artwork.size,
+            dstOffset = IntOffset(((size.width - side) / 2).roundToInt(), ((size.height - side) / 2).roundToInt()),
+            dstSize = IntSize(side, side),
+            colorFilter = filter,
+            filterQuality = FilterQuality.Medium,
+        )
+    }
+}
 
 /**
  * Paints a dark version of the cover art for [seed], for the background of a header or the player:
  * the cover's colors shaded towards black, so white text on it stays readable.
  */
-internal fun Modifier.coverBackdrop(seed: String): Modifier = drawWithCache {
-    val cover = coverGradientFor(seed.hashCode())
-    val backdrop = CoverGradient(
-        angle = BACKDROP_ANGLE,
-        start = lerp(cover.start, Color.Black, BACKDROP_SHADE_START),
-        middle = lerp(cover.middle, Color.Black, BACKDROP_SHADE_MIDDLE),
-        middleStop = cover.middleStop,
-        end = lerp(cover.end, Color.Black, BACKDROP_SHADE_END),
-    )
-    val brush = backdrop.brush(backdrop.angle, Rect(Offset.Zero, size))
-    onDrawBehind { drawRect(brush) }
+@Composable
+internal fun Modifier.coverBackdrop(seed: String): Modifier {
+    val artwork = rememberArtwork(seed)
+    return drawWithCache {
+        val cover = artwork?.palette?.let { CoverGradient(BACKDROP_ANGLE, it[0], it[1], 0.6f, it[2]) }
+            ?: coverGradientFor(seed.hashCode())
+        val backdrop = CoverGradient(
+            angle = BACKDROP_ANGLE,
+            start = lerp(cover.start, Color.Black, BACKDROP_SHADE_START),
+            middle = lerp(cover.middle, Color.Black, BACKDROP_SHADE_MIDDLE),
+            middleStop = cover.middleStop,
+            end = lerp(cover.end, Color.Black, BACKDROP_SHADE_END),
+        )
+        val brush = backdrop.brush(backdrop.angle, Rect(Offset.Zero, size))
+        onDrawBehind { drawRect(brush) }
+    }
 }
 
 private fun coverGradientFor(hash: Int): CoverGradient =

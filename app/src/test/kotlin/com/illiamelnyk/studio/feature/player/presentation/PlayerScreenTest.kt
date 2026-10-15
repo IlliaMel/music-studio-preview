@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.domain.track.TrackId
@@ -48,12 +49,20 @@ class PlayerScreenTest {
             ),
         )
 
-        composeRule.onNodeWithText(string(R.string.player_like)).performClick()
-        composeRule.onNodeWithContentDescription(string(R.string.player_lyrics)).assertIsOff().performClick()
-        composeRule.onNodeWithContentDescription(string(R.string.ui_pause)).performClick()
-        composeRule.onNodeWithContentDescription(string(R.string.player_queue)).performClick()
-        composeRule.onNodeWithText(string(R.string.player_remix)).performClick()
-        composeRule.onNodeWithContentDescription(string(R.string.player_collapse)).performClick()
+        composeRule.onNodeWithText(string(R.string.player_like)).performScrollTo().assertIsDisplayed().performClick()
+        composeRule.onNodeWithContentDescription(
+            string(R.string.player_lyrics),
+        ).performScrollTo().assertIsOff().performClick()
+        composeRule.onNodeWithContentDescription(
+            string(R.string.ui_pause),
+        ).performScrollTo().assertIsDisplayed().performClick()
+        composeRule.onNodeWithContentDescription(
+            string(R.string.player_queue),
+        ).performScrollTo().assertIsDisplayed().performClick()
+        composeRule.onNodeWithText(string(R.string.player_remix)).performScrollTo().assertIsDisplayed().performClick()
+        composeRule.onNodeWithContentDescription(
+            string(R.string.player_collapse),
+        ).performScrollTo().assertIsDisplayed().performClick()
 
         assertEquals(
             listOf(
@@ -128,6 +137,17 @@ class PlayerScreenTest {
         composeRule.onNodeWithText("Paper Moons").assertIsDisplayed()
         composeRule.onNodeWithText(string(R.string.player_clear)).assertIsDisplayed()
         composeRule.onNodeWithContentDescription(string(R.string.ui_pause)).assertIsDisplayed()
+    }
+
+    @Test
+    @Config(qualifiers = "w320dp-h400dp")
+    fun `compact player keeps long title actions reachable`() {
+        show(PlayerContent(track = track.copy(title = "A very long track title across two lines"), isPlaying = true))
+        composeRule.onNodeWithText(string(R.string.player_like)).performScrollTo().assertIsDisplayed().performClick()
+        composeRule.onNodeWithContentDescription(
+            string(R.string.ui_pause),
+        ).performScrollTo().assertIsDisplayed().performClick()
+        assertEquals(listOf(PlayerIntent.LikeClicked, PlayerIntent.PlayPauseClicked), intents)
     }
 
     private fun show(state: PlayerContent) {

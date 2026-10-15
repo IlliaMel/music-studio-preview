@@ -6,13 +6,19 @@ import com.illiamelnyk.studio.R
 /**
  * Icons of the design system, drawn with [StudioIcon].
  *
- * They are Material Symbols Rounded by Google (Apache License 2.0,
+ * Most are Material Symbols Rounded by Google (Apache License 2.0,
  * https://github.com/google/material-design-icons), at optical size 24: outlined icons at weight
  * 300 and `*Filled` icons at fill 1, weight 400, as in ui-kit.html. The SVG paths are converted to
  * vector drawables unchanged, with a white fill that [StudioIcon] tints. Playback icons keep their
- * direction in right-to-left layouts, as media controls do.
+ * direction in right-to-left layouts, as media controls do. Several navigation, audio and utility symbols use locally drawn rounded paths.
  */
 object StudioIcons {
+    @DrawableRes val Queue = R.drawable.ic_queue
+
+    @DrawableRes val Lyrics = R.drawable.ic_lyrics
+
+    @DrawableRes val Waveform = R.drawable.ic_waveform
+
     @DrawableRes val AllInclusive = R.drawable.ic_all_inclusive
 
     @DrawableRes val Add = R.drawable.ic_add

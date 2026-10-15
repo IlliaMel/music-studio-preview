@@ -12,7 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-internal class ApiFailure(val error: AppError) : IOException()
+internal class ApiFailure(val error: AppError, val serverCode: String? = null) : IOException()
 
 open class StudioApi(private val context: Context) {
     open val isAvailable: Boolean = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
@@ -115,6 +115,7 @@ open class StudioApi(private val context: Context) {
 
                     else -> apiError(error.optString("code"), error.stringOrNull("promptSuggestion"))
                 },
+                serverCode = error.stringOrNull("code"),
             )
         }
         return json

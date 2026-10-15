@@ -27,14 +27,17 @@ import com.illiamelnyk.studio.feature.create.domain.endedGenerations
 import com.illiamelnyk.studio.feature.create.presentation.common.ComingSoonFeature
 import com.illiamelnyk.studio.feature.create.presentation.common.ToastUi
 import com.illiamelnyk.studio.feature.create.presentation.common.toOptionUi
+import java.io.IOException
 import java.time.ZoneId
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class CreateViewModel(
     private val tracks: TrackRepository,
@@ -57,6 +60,7 @@ class CreateViewModel(
     /** `null` until the credits are known. */
     private var creditsLeft: Int? = null
     private var dailyLimit = 0
+    private var isAnsweringNotifications = false
 
     init {
         tracks.observeMine().onEach(::showTracks).launchIn(viewModelScope)
@@ -278,8 +282,14 @@ class CreateViewModel(
 
     private fun deleteTrack(id: TrackId) {
         viewModelScope.launch {
-            val result = tracks.delete(id)
-            if (result is Outcome.Success) renames.remove(id)
+            val result = withContext(NonCancellable) {
+                tracks.delete(id).also { outcome ->
+                    if (outcome is Outcome.Success) {
+                        playback.removeTrack(id)
+                        renames.remove(id)
+                    }
+                }
+            }
             if (result is Outcome.Failure) showError(result.error)
         }
     }
@@ -310,8 +320,12 @@ class CreateViewModel(
                     if (clearReference) changeSettings { copy(referenceAudioUri = null, remixTrackId = null) }
                     setState { copy(filter = TracksFilter.Drafts) }
                     sendEffect(CreateEffect.TracksStarted)
-                    if (!notificationChoice.hasAnswered() && state.value.sheet !is CreateSheet.Quota) {
-                        setState { copy(sheet = CreateSheet.Notify) }
+                    try {
+                        if (!notificationChoice.hasAnswered() && state.value.sheet !is CreateSheet.Quota) {
+                            setState { copy(sheet = CreateSheet.Notify) }
+                        }
+                    } catch (_: IOException) {
+                        showPreferenceError()
                     }
                 }
 
@@ -386,13 +400,26 @@ class CreateViewModel(
     private fun openQuota() = setState { copy(sheet = CreateSheet.Quota(dailyLimit)) }
 
     private fun answerNotifications(notify: Boolean) {
-        if (state.value.sheet != CreateSheet.Notify) return
-        setState { copy(sheet = null) }
+        if (state.value.sheet != CreateSheet.Notify || isAnsweringNotifications) return
+        isAnsweringNotifications = true
         viewModelScope.launch {
-            notificationChoice.answer()
-            if (notify) sendEffect(CreateEffect.RequestNotifications)
+            try {
+                notificationChoice.answer()
+                setState { if (sheet == CreateSheet.Notify) copy(sheet = null) else this }
+                if (notify) sendEffect(CreateEffect.RequestNotifications)
+            } catch (_: IOException) {
+                showPreferenceError()
+            } finally {
+                isAnsweringNotifications = false
+            }
         }
     }
+
+    private fun showPreferenceError() = toast(
+        UiText.Resource(R.string.create_toast_error),
+        UiText.Resource(R.string.error_preferences),
+        StudioToastKind.Error,
+    )
 
     private fun showError(error: AppError) {
         if (error == AppError.QuotaExceeded) {

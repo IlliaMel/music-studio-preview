@@ -54,19 +54,25 @@ class DurableStudioRepository(
     CreditsRepository {
     private val mutex = Mutex()
     private val recordings = RecordingFiles(context)
+    private val deletions = AccountDeletions(store, api, recordings)
 
     @Volatile private var deletingAccountId: String? = null
     private var lastSyncMillis = 0L
+    private var lastDeletionRetryMillis = 0L
     private val state = MutableStateFlow(loadActive())
+    val activeAccountId: String?
+        get() = state.value?.session?.user?.id?.value?.takeUnless { it == deletingAccountId }
     override val session: Flow<Session?> = state.map { it?.session }.distinctUntilChanged()
     override val credits: Flow<Credits> = state.map { it?.credits ?: Credits(25, 25) }.distinctUntilChanged()
 
     init {
         scope.launch(dispatcher) {
+            guarded { mutex.withLock { resumeDeletions() } }
             while (true) {
                 delay(2_000)
                 guarded {
                     mutex.withLock {
+                        if (System.currentTimeMillis() - lastDeletionRetryMillis >= 30_000) resumeDeletions()
                         val account = state.value
                         val pending = account?.tracks.orEmpty().any {
                             it.status == TrackStatus.Queued || it.status is TrackStatus.Generating
@@ -83,6 +89,7 @@ class DurableStudioRepository(
 
     suspend fun signInDemo(): Outcome<Unit> = operation {
         val id = "local-demo"
+        if (store.read().has("deletion-" + id)) throw ApiFailure(AppError.Unauthorized)
         val account = loadAccount(id) ?: AccountSnapshot(
             Session(
                 User(
@@ -109,6 +116,7 @@ class DurableStudioRepository(
         val token = "dev:illia"
         val profile = api.request("GET", "/v1/me", token)
         var remote = profile.toSession()
+        if (store.read().has("deletion-" + remote.user.id.value)) throw ApiFailure(AppError.Unauthorized)
         if (remote.user.displayName == null) {
             remote = api.request(
                 "PATCH",
@@ -121,6 +129,7 @@ class DurableStudioRepository(
             ).toSession()
         }
         remote = api.request("PATCH", "/v1/me", token, JSONObject().put("acceptedTermsVersion", TERMS)).toSession()
+        if (store.read().has("deletion-" + remote.user.id.value)) throw ApiFailure(AppError.Unauthorized)
         val cached = loadAccount(remote.user.id.value)
         save((cached ?: AccountSnapshot(remote, token)).copy(session = remote, token = token))
         guarded { refresh() }
@@ -279,7 +288,15 @@ class DurableStudioRepository(
     override suspend fun retry(id: TrackId): Outcome<Track> = operation {
         val account = requireAccount()
         val track = account.tracks.find { it.id == id } ?: throw ApiFailure(AppError.Unknown)
-        if (track.status !is TrackStatus.Failed) return@operation track
+        val failure = track.status as? TrackStatus.Failed ?: return@operation track
+        if (failure.error in setOf(
+                AppError.ProviderOutcomeUnknown,
+                AppError.UnsupportedMode,
+                AppError.InvalidReference,
+            )
+        ) {
+            throw ApiFailure(failure.error)
+        }
         val replacementId = store.read().stringOrNull("retry-" + id.value)
         val replacement = account.tracks.find { it.id.value == replacementId }
         if (replacement != null && replacement.status !is TrackStatus.Failed) return@operation replacement
@@ -463,31 +480,28 @@ class DurableStudioRepository(
     }
 
     override suspend fun deleteAccount(): Outcome<Unit> = operation {
-        val account = requireAccount()
-        if (account.token != null) api.request("DELETE", "/v1/me", account.token)
-        deletingAccountId = account.session.user.id.value
-        account.tracks.forEach(recordings::delete)
-        val snapshot = store.read()
-        val legacyReferences = account.tracks.mapNotNull { track ->
-            snapshot.optJSONObject("request-" + track.id.value)?.stringOrNull("referenceAudioUri")
+        val intent = state.value?.let(deletions::begin)
+            ?: deletions.pending().firstOrNull() ?: throw ApiFailure(AppError.Unauthorized)
+        deletingAccountId = intent.ownerId
+        try {
+            val result = deletions.execute(intent)
+            if (state.value?.session?.user?.id?.value == result.ownerId) state.value = null
+            result.remoteError?.let { throw ApiFailure(it) }
+        } finally {
+            if (state.value?.session?.user?.id?.value != intent.ownerId) deletingAccountId = null
         }
-        recordings.deleteReferences(account.session.user.id.value, legacyReferences)
-        store.change { root ->
-            root.remove("account-" + account.session.user.id.value)
-            root.remove("pending-" + account.session.user.id.value)
-            root.remove("active")
-            root.keys().asSequence().filter {
-                it.startsWith("upload-" + account.session.user.id.value + "-")
-            }.toList().forEach(root::remove)
-            account.tracks.forEach {
-                root.remove("request-" + it.id.value)
-                root.remove("rename-" + it.id.value)
-                root.remove("retry-" + it.id.value)
-                root.remove("detail-" + it.id.value)
+        Unit
+    }
+
+    private suspend fun resumeDeletions() {
+        lastDeletionRetryMillis = System.currentTimeMillis()
+        deletions.pending().forEach { intent ->
+            guarded {
+                val result = deletions.execute(intent)
+                if (state.value?.session?.user?.id?.value == result.ownerId) state.value = null
+                if (deletingAccountId == result.ownerId) deletingAccountId = null
             }
         }
-        state.value = null
-        deletingAccountId = null
     }
 
     override suspend fun signOut() {
@@ -503,6 +517,7 @@ class DurableStudioRepository(
 
     private suspend fun refresh() {
         val account = state.value ?: return
+        if (store.read().has("deletion-" + account.session.user.id.value)) return
         lastSyncMillis = System.currentTimeMillis()
         if (account.token == null) {
             val tracks = account.tracks.map { track ->
@@ -580,7 +595,11 @@ class DurableStudioRepository(
         save(account.copy(credits = Credits(quota.getInt("remaining").coerceIn(0, limit), limit)))
     }
 
-    private fun requireAccount(): AccountSnapshot = state.value ?: throw ApiFailure(AppError.Unauthorized)
+    private fun requireAccount(): AccountSnapshot {
+        val account = state.value ?: throw ApiFailure(AppError.Unauthorized)
+        if (store.read().has("deletion-" + account.session.user.id.value)) throw ApiFailure(AppError.Unauthorized)
+        return account
+    }
     private fun resetCredits(account: AccountSnapshot): AccountSnapshot = if (account.creditDay == utcDay()) {
         account
     } else {
@@ -612,7 +631,7 @@ class DurableStudioRepository(
         state.value = account
     }
     private fun loadActive(): AccountSnapshot? = store.read().stringOrNull("active")?.let(::loadAccount)
-        ?.takeIf { api.isAvailable || it.token == null }
+        ?.takeIf { (api.isAvailable || it.token == null) && !store.read().has("deletion-" + it.session.user.id.value) }
     private fun loadAccount(id: String): AccountSnapshot? =
         store.read().optJSONObject("account-" + id)?.let(AccountJsonCodec::decode)
 
@@ -625,7 +644,7 @@ class DurableStudioRepository(
             } catch (failure: ApiFailure) {
                 Outcome.Failure(failure.error)
             } catch (error: Exception) {
-                android.util.Log.e("StudioData", "Data operation failed", error)
+                android.util.Log.e("StudioData", "Data operation failed: " + error.javaClass.simpleName)
                 Outcome.Failure(AppError.Unknown)
             }
         }
@@ -643,7 +662,7 @@ class DurableStudioRepository(
                 )
             }
         } catch (error: Exception) {
-            android.util.Log.e("StudioData", "Refresh failed", error)
+            android.util.Log.e("StudioData", "Refresh failed: " + error.javaClass.simpleName)
         }
     }
     private companion object {

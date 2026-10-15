@@ -156,6 +156,9 @@ internal fun apiError(code: String, suggestion: String? = null): AppError = when
     "RATE_LIMITED" -> AppError.RateLimited
     "UNAUTHORIZED", "ACCOUNT_DELETED", "ACCOUNT_DISABLED" -> AppError.Unauthorized
     "TIMEOUT", "GENERATION_TIMEOUT" -> AppError.Timeout
+    "UNSUPPORTED_MODE" -> AppError.UnsupportedMode
+    "INVALID_REFERENCE" -> AppError.InvalidReference
+    "PROVIDER_OUTCOME_UNKNOWN" -> AppError.ProviderOutcomeUnknown
     else -> AppError.Server
 }
 private fun errorCode(error: AppError): String = when (error) {
@@ -163,5 +166,8 @@ private fun errorCode(error: AppError): String = when (error) {
     AppError.QuotaExceeded -> "QUOTA_EXCEEDED"
     AppError.Unauthorized -> "UNAUTHORIZED"
     AppError.Timeout -> "TIMEOUT"
+    AppError.UnsupportedMode -> "UNSUPPORTED_MODE"
+    AppError.InvalidReference -> "INVALID_REFERENCE"
+    AppError.ProviderOutcomeUnknown -> "PROVIDER_OUTCOME_UNKNOWN"
     else -> "SERVER"
 }

@@ -14,8 +14,8 @@ class StudioStore(context: Context) {
         JSONObject(file.readText())
     } catch (_: java.io.FileNotFoundException) {
         JSONObject()
-    } catch (error: org.json.JSONException) {
-        android.util.Log.e("StudioData", "Cannot read cached state", error)
+    } catch (_: org.json.JSONException) {
+        android.util.Log.e("StudioData", "Cannot read cached state")
         JSONObject()
     }
 

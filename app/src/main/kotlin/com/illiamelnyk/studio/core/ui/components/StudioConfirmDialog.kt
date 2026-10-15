@@ -3,11 +3,14 @@ package com.illiamelnyk.studio.core.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalView
@@ -45,21 +48,22 @@ fun StudioConfirmDialog(
                     .fillMaxWidth()
                     .clip(StudioTheme.shapes.xxl)
                     .background(StudioTheme.colors.surface.level1)
+                    .verticalScroll(rememberScrollState())
                     .padding(dimens.spacing.xl),
                 verticalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
             ) {
                 StudioText(title, StudioTheme.typography.titleLarge)
                 StudioText(message, StudioTheme.typography.bodyMedium, color = StudioTheme.colors.content.secondary)
-                Row(
+                FlowRow(
                     modifier = Modifier
                         .padding(top = dimens.spacing.m)
                         .fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
+                    horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs, Alignment.End),
+                    verticalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
                 ) {
                     StudioButton(
                         text = dismissLabel,
                         onClick = onDismissRequest,
-                        modifier = Modifier.weight(1f),
                         style = StudioButtonStyle.Secondary,
                     )
                     StudioButton(

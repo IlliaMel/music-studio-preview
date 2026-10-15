@@ -170,11 +170,15 @@
     <string name="profile_about">About this prototype</string>
     <string name="profile_about_detail">Studio is an independent music creation prototype. Google sign-in and generation are simulated in this build.</string>
     <string name="network_offline">You are offline</string>
-    <string name="network_offline_detail">Demo tracks still work. We will reconnect automatically.</string>
+    <string name="network_offline_detail">An internet connection is required to use the music service.</string>
     <string name="network_retry">Retry</string>
     <string name="player_download_saved">Audio saved</string>
     <string name="player_download_location">Download/MusicStudio</string>
     <string name="player_queue_reorder">Reorder %1$s</string>
     <string name="player_queue_move_up">Move up</string>
     <string name="player_queue_move_down">Move down</string>
+    <string name="profile_deleted_locally">Local data removed</string>
+    <string name="profile_deletion_unconfirmed">Server deletion could not be confirmed. You may need to sign in again and retry.</string>
+    <string name="error_preferences">Couldn’t access saved preferences. Please try again.</string>
+    <string name="ui_close">Close</string>
 </resources>

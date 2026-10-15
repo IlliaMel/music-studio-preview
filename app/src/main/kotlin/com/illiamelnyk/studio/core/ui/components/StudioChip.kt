@@ -4,6 +4,7 @@ import androidx.annotation.DrawableRes
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -52,7 +53,8 @@ fun StudioChip(
         modifier = modifier
             .minimumTouchTarget()
             .clickable(role = Role.Button, onClick = onClick),
-        containerColor = colors.surface.level3,
+        containerColor = colors.surface.level2,
+        outlined = true,
         // An avatar sits 4 dp from the edge, like it is 4 dp from the top and the bottom.
         startPadding = if (isInput) spacing.xxs else spacing.s,
         gap = if (isInput) spacing.xs else spacing.xxs,
@@ -68,7 +70,7 @@ fun StudioChip(
         }
         StudioText(
             text = text,
-            style = StudioTheme.typography.labelLarge,
+            style = StudioTheme.typography.bodyMedium,
             color = if (isInput) colors.content.secondary else colors.content.primary,
             maxLines = 1,
         )
@@ -141,6 +143,7 @@ private fun ChipContainer(
     startPadding: Dp,
     gap: Dp,
     modifier: Modifier = Modifier,
+    outlined: Boolean = false,
     content: @Composable RowScope.() -> Unit,
 ) {
     val dimens = StudioTheme.dimens
@@ -148,6 +151,13 @@ private fun ChipContainer(
         modifier = modifier
             .heightIn(min = dimens.size.component.chip)
             .background(containerColor, StudioTheme.shapes.full)
+            .then(
+                if (outlined) {
+                    Modifier.border(dimens.stroke.hairline, StudioTheme.colors.outline.subtle, StudioTheme.shapes.full)
+                } else {
+                    Modifier
+                },
+            )
             .padding(start = startPadding, end = dimens.spacing.s),
         horizontalArrangement = Arrangement.spacedBy(gap),
         verticalAlignment = Alignment.CenterVertically,

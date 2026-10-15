@@ -177,7 +177,7 @@ private fun ComposerAction(
         contentDescription = stringResource(description),
         onClick = onClick,
         style = style,
-        size = StudioIconButtonSize.Small,
+        size = if (style == StudioIconButtonStyle.Surface) StudioIconButtonSize.Medium else StudioIconButtonSize.Small,
     )
 }
 

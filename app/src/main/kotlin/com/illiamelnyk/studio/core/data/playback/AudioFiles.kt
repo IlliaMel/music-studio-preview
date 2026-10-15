@@ -24,7 +24,7 @@ class AudioFiles(private val context: Context) {
             val uri = source.toUri()
             val candidateExtension = uri.path?.substringAfterLast('.')?.lowercase()
             val extension = candidateExtension?.takeIf { it in AUDIO_EXTENSIONS } ?: "mp3"
-            var target = File(context.cacheDir, "audio/${track.id.value.hashCode()}.$extension")
+            var target = File(context.cacheDir, "audio/${audioCacheKey(track.id)}.$extension")
             target.parentFile?.mkdirs()
             val cacheFolder = target.parentFile
             val cacheStem = target.nameWithoutExtension
@@ -79,7 +79,7 @@ class AudioFiles(private val context: Context) {
 
     private suspend fun demo(track: Track): File = withContext(Dispatchers.IO) {
         demoLock.withLock {
-            val file = File(context.cacheDir, "audio/demo-${track.id.value.hashCode()}.wav")
+            val file = File(context.cacheDir, "audio/demo-${audioCacheKey(track.id)}.wav")
             file.parentFile?.mkdirs()
             if (file.exists() && file.length() > 44) return@withLock file
             val rate = 16000

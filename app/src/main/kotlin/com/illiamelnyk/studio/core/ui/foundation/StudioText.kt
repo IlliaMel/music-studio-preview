@@ -6,6 +6,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,5 +49,22 @@ fun StudioText(
         overflow = overflow,
         maxLines = maxLines,
         color = { color },
+    )
+}
+
+@Composable
+fun StudioText(
+    text: AnnotatedString,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    color: Color = LocalStudioContentColor.current,
+    maxLines: Int = Int.MAX_VALUE,
+) {
+    BasicText(
+        text = text,
+        modifier = modifier,
+        style = style.copy(color = color),
+        overflow = TextOverflow.Ellipsis,
+        maxLines = maxLines,
     )
 }

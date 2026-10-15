@@ -32,6 +32,7 @@ fun OverlaySheet(
     visible: Boolean,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    showCloseButton: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     // Whether the sheet's content is composed: from the moment it opens until it has left.
@@ -49,7 +50,12 @@ fun OverlaySheet(
     ) {
         FeedbackWindow {
             PlainWindow()
-            StudioBottomSheet(visible = visible, onDismissRequest = onDismissRequest, modifier = modifier) {
+            StudioBottomSheet(
+                visible = visible,
+                onDismissRequest = onDismissRequest,
+                modifier = modifier,
+                showCloseButton = showCloseButton,
+            ) {
                 DisposableEffect(Unit) {
                     onScreen = true
                     onDispose { onScreen = false }

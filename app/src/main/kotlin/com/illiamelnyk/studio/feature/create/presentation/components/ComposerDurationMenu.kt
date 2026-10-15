@@ -1,8 +1,6 @@
 package com.illiamelnyk.studio.feature.create.presentation.components
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,7 +27,7 @@ fun ComposerDurationMenu(selected: DurationOptionUi?, onSelect: (Duration?) -> U
             onClick = { expanded = true },
             leadingIcon = StudioIcons.Schedule,
         )
-        StudioContextMenu(expanded, { expanded = false }, Modifier.verticalScroll(rememberScrollState())) {
+        StudioContextMenu(expanded, { expanded = false }) {
             (listOf(null) + trackLengthOptions).forEach { option ->
                 ContextMenuItem(
                     label = option?.label ?: stringResource(R.string.create_quality_auto),

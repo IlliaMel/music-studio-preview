@@ -185,7 +185,6 @@
     </string-array>
     <string name="create_today">Today</string>
     <string name="create_yesterday">Yesterday</string>
-    <string name="create_variations_group">Variations \u00b7 2 tracks</string>
     <string name="create_variation_number">#%1$d</string>
     <string name="create_creating_title">Creating title\u2026</string>
     <string name="create_creating_artwork">Creating artwork\u2026</string>
@@ -208,4 +207,9 @@
     <string name="create_tools_studio">studio</string>
     <string name="create_settings_engine">Writing Engine</string>
     <string name="create_settings_variations">Variations</string>
+    <string name="create_variations_title">Variations</string>
+    <plurals name="create_variations_count">
+        <item quantity="one">· %1$d track</item>
+        <item quantity="other">· %1$d tracks</item>
+    </plurals>
 </resources>

@@ -57,7 +57,7 @@ fun PlayerTrackInfo(
         }
         if (onLyricsClick != null) {
             GlassIconButton(
-                icon = StudioIcons.Forum,
+                icon = StudioIcons.Lyrics,
                 contentDescription = stringResource(R.string.player_lyrics),
                 onClick = onLyricsClick,
                 selected = showLyrics,
@@ -66,7 +66,7 @@ fun PlayerTrackInfo(
         if (onQueueClick !=
             null
         ) {
-            GlassIconButton(StudioIcons.PlaylistPlay, stringResource(R.string.player_queue), onQueueClick)
+            GlassIconButton(StudioIcons.Queue, stringResource(R.string.player_queue), onQueueClick)
         }
     }
 }

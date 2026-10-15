@@ -18,15 +18,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.presentation.track.TrackUi
 import com.illiamelnyk.studio.core.ui.components.Cover
-import com.illiamelnyk.studio.core.ui.components.StudioIconButton
-import com.illiamelnyk.studio.core.ui.components.StudioIconButtonSize
-import com.illiamelnyk.studio.core.ui.components.StudioIconButtonStyle
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.foundation.minimumTouchTarget
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
@@ -167,13 +163,13 @@ private fun QueueToggle(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    StudioIconButton(
+    GlassIconButton(
         icon = icon,
         contentDescription = label,
         onClick = onClick,
-        modifier = modifier.semantics { this.selected = selected },
-        style = if (selected) StudioIconButtonStyle.Primary else StudioIconButtonStyle.Surface,
-        size = StudioIconButtonSize.Small,
+        modifier = modifier,
+        selected = selected,
+        size = StudioTheme.dimens.size.control.m,
     )
 }
 
@@ -184,7 +180,7 @@ private fun QueueNowPlaying(track: NowPlayingUi, onClose: () -> Unit, onLyrics: 
         horizontalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.s),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Cover(track.coverSeed, StudioTheme.dimens.size.cover.xs)
+        Cover(track.coverSeed, StudioTheme.dimens.size.cover.s)
         Column(Modifier.weight(1f)) {
             StudioText(track.title, StudioTheme.typography.labelLarge, maxLines = 1)
             StudioText(
@@ -195,10 +191,10 @@ private fun QueueNowPlaying(track: NowPlayingUi, onClose: () -> Unit, onLyrics: 
             )
         }
         if (onLyrics != null) {
-            GlassIconButton(StudioIcons.Forum, stringResource(R.string.player_lyrics), onLyrics)
+            GlassIconButton(StudioIcons.Lyrics, stringResource(R.string.player_lyrics), onLyrics)
         }
         GlassIconButton(
-            StudioIcons.PlaylistPlay,
+            StudioIcons.Queue,
             stringResource(R.string.player_queue),
             onClose,
             selected = true,

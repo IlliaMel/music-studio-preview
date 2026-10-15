@@ -33,6 +33,12 @@ sealed interface AppError {
     /** The server failed (5xx). */
     data object Server : AppError
 
+    data object UnsupportedMode : AppError
+
+    data object InvalidReference : AppError
+
+    data object ProviderOutcomeUnknown : AppError
+
     /** Anything else; the details go to the log, not to the user. */
     data object Unknown : AppError
 }

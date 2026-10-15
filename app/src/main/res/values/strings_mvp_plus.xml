@@ -1,11 +1,11 @@
 <resources>
     <string name="create_custom_lyrics_hint">Type or paste your lyrics here…</string>
-    <string name="record_title">Audio reference</string>
+    <string name="record_title">Record idea</string>
     <string name="record_explanation">Record your own voice or choose an audio file. Record at least 10 seconds.</string>
     <string name="record_start">Start recording</string>
     <string name="record_pause">Pause</string>
     <string name="record_resume">Resume</string>
-    <string name="record_stop">Finish recording</string>
+    <string name="record_stop">Stop</string>
     <string name="record_choose">Choose audio file</string>
     <string name="record_use">Use as reference</string>
     <string name="record_save">Save as draft</string>
@@ -13,9 +13,16 @@
     <string name="record_permission">Microphone permission is required to record. You can still choose an audio file.</string>
     <string name="record_error">Recording is unavailable. Try an audio file instead.</string>
     <string name="record_idea">Idea %1$s</string>
-    <plurals name="record_seconds"><item quantity="one">%1$d second</item><item quantity="other">%1$d seconds</item></plurals>
     <string name="tool_reference_ready">Audio reference attached</string>
     <string name="auth_local_server">Continue with local server</string>
     <string name="tool_fill_options">Choose the highlighted options</string>
     <string name="profile_backend_development_server">Development server: tracks, credits and playlists sync with the local API. Sign-in and music generation are mocked.</string>
+    <string name="record_idea_explanation">Every great track starts with a rough idea</string>
+    <string name="record_minimum_remaining">Minimum %1$ds more</string>
+    <string name="record_ready">Ready to use · %1$s</string>
+    <string name="record_name">Title</string>
+    <string name="record_again">Record again</string>
+    <string name="error_unsupported_mode">This mode is unavailable from the connected music service. Change the generation settings.</string>
+    <string name="error_invalid_reference">This audio reference cannot be used. Choose another reference or remove it.</string>
+    <string name="error_provider_outcome_unknown">The music service may have processed this request. Its result could not be confirmed. Repeating it may use more credits.</string>
 </resources>

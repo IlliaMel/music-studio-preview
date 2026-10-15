@@ -18,11 +18,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +40,7 @@ import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.IntOffset
@@ -79,6 +85,12 @@ fun StudioContextMenu(
     val shadow = StudioTheme.effects.elevation.menu
     val shape = StudioTheme.shapes.l
     val density = LocalDensity.current
+    val window = LocalWindowInfo.current.containerSize
+    val insets = WindowInsets.safeDrawing
+    val maxWidth = with(density) { window.width.toDp() } - dimens.layout.screenPadding * 2
+    val maxHeight = with(density) {
+        (window.height - insets.getTop(this) - insets.getBottom(this)).coerceAtLeast(0).toDp()
+    } - dimens.layout.screenPadding * 2
     // The popup window has room around the menu for its shadow.
     val shadowRoom = shadow.blur + shadow.offsetY
     var opensUpwards by remember { mutableStateOf(false) }
@@ -121,6 +133,8 @@ fun StudioContextMenu(
                 ) {
                     Column(
                         modifier = modifier
+                            .widthIn(max = maxWidth.coerceAtLeast(dimens.size.touchTarget))
+                            .heightIn(max = maxHeight.coerceAtLeast(dimens.size.touchTarget))
                             .dropShadow(shape, shadow.toShadow())
                             .width(IntrinsicSize.Max)
                             .clip(shape)
@@ -128,6 +142,7 @@ fun StudioContextMenu(
                             .border(dimens.stroke.hairline, StudioTheme.colors.outline.subtle, shape)
                             // Taps between the items stay in the menu.
                             .pointerInput(Unit) { detectTapGestures { } }
+                            .verticalScroll(rememberScrollState())
                             .padding(dimens.spacing.xs),
                         content = content,
                     )

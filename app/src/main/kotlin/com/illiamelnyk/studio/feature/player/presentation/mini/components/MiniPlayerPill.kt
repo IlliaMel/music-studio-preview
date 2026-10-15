@@ -13,21 +13,15 @@ import androidx.compose.ui.tooling.preview.PreviewLightDark
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
-import com.illiamelnyk.studio.core.ui.components.Cover
 import com.illiamelnyk.studio.core.ui.components.MiniPlayer
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.player.presentation.NowPlayingUi
 import com.illiamelnyk.studio.feature.player.presentation.components.GlassIconButton
-import com.illiamelnyk.studio.feature.player.presentation.host.playerCoverShape
 
 /**
  * The kit's glass [MiniPlayer] for [track] — the cover, the title and the subtitle, play or pause
  * (stop on a station), next and the progress line — with the round Remix wand beside it.
- *
- * The kit draws its own cover and has no way to make it a shared element, so the same cover is
- * drawn over it, in the same place, with [coverModifier]: that copy is what grows into the full
- * player's cover.
  *
  * @param progress read only while drawing the progress line, from 0 to 1.
  * @param onNext `null` hides the next button, as for a station.
@@ -47,7 +41,6 @@ fun MiniPlayerPill(
     onRemix: (() -> Unit)?,
     modifier: Modifier = Modifier,
     pillModifier: Modifier = Modifier,
-    coverModifier: Modifier = Modifier,
     nextEnabled: Boolean = true,
 ) {
     val dimens = StudioTheme.dimens
@@ -68,16 +61,6 @@ fun MiniPlayerPill(
                 onNext = onNext,
                 nextEnabled = nextEnabled,
                 live = isStation,
-            )
-            // Where the kit places its cover: the pill's start padding, centered vertically.
-            Cover(
-                seed = track.coverSeed,
-                size = dimens.size.cover.xs,
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = dimens.spacing.xs)
-                    .then(coverModifier),
-                shape = playerCoverShape(),
             )
         }
         if (onRemix != null) {

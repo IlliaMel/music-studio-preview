@@ -53,7 +53,7 @@ enum class StudioButtonStyle {
 }
 
 enum class StudioButtonSize {
-    /** 48 dp: the main action of a screen. */
+    /** 52 dp: the main action of a screen. */
     Large,
 
     /** 40 dp: the default. */
@@ -133,10 +133,10 @@ private fun buttonMetrics(size: StudioButtonSize, style: StudioButtonStyle): But
     val metrics = when (size) {
         StudioButtonSize.Large -> ButtonMetrics(
             height = dimens.size.component.buttonLarge,
-            horizontalPadding = dimens.spacing.xl,
+            horizontalPadding = if (style == StudioButtonStyle.Glass) dimens.spacing.m else dimens.spacing.xl,
             gap = dimens.spacing.xs,
             iconSize = dimens.size.icon.m,
-            textStyle = typography.labelLarge,
+            textStyle = typography.labelExtraLarge,
         )
 
         StudioButtonSize.Medium -> ButtonMetrics(

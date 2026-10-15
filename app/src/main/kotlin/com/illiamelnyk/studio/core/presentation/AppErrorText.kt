@@ -23,5 +23,11 @@ fun AppError.toUiText(): UiText = when (this) {
 
     AppError.Server -> UiText.Resource(R.string.error_server)
 
+    AppError.UnsupportedMode -> UiText.Resource(R.string.error_unsupported_mode)
+
+    AppError.InvalidReference -> UiText.Resource(R.string.error_invalid_reference)
+
+    AppError.ProviderOutcomeUnknown -> UiText.Resource(R.string.error_provider_outcome_unknown)
+
     AppError.Unknown -> UiText.Resource(R.string.error_unknown)
 }

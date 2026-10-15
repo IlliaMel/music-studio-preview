@@ -28,6 +28,7 @@ class TrackGroupsTest {
             )
         val rows = tracks.toGroupedCreateUi(today, zone)
         assertEquals(listOf(1, 2, null), rows.map { it.variation })
+        assertEquals(listOf("legacy:1", "legacy:1", null), rows.map { it.variationGroupId })
         assertEquals(listOf(UiText.Resource(R.string.create_today), null, null), rows.map { it.dayLabel })
     }
 
@@ -67,6 +68,7 @@ class TrackGroupsTest {
         ).toGroupedCreateUi(today, zone)
         assertEquals(listOf("first", "second"), rows.map { it.row.id.value })
         assertEquals(listOf(1, 2), rows.map { it.variation })
+        assertEquals(listOf("generation:batch", "generation:batch"), rows.map { it.variationGroupId })
         val separate = listOf(
             base.copy(generationId = "one"),
             base.copy(id = TrackId("other"), generationId = "two"),

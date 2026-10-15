@@ -4,6 +4,7 @@ import com.illiamelnyk.studio.core.domain.playback.PlaybackController
 import com.illiamelnyk.studio.core.domain.playback.PlaybackState
 import com.illiamelnyk.studio.core.domain.playback.RepeatMode
 import com.illiamelnyk.studio.core.domain.track.Track
+import com.illiamelnyk.studio.core.domain.track.TrackId
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -171,6 +172,35 @@ class FakePlaybackController(private val scope: CoroutineScope, private val rand
             mutableState.update {
                 it.copy(queue = playOrder.map(originalQueue::get), currentIndex = currentIndex)
             }
+        }
+    }
+
+    override fun removeTrack(id: TrackId) {
+        synchronized(playbackLock) {
+            val state = mutableState.value
+            val current = state.current ?: return
+            if (originalQueue.none { it.id == id }) return
+            val retained = originalQueue.indices.filter { originalQueue[it].id != id }
+            if (retained.isEmpty()) {
+                stop()
+                return
+            }
+            val remap = retained.mapIndexed { index, old -> old to index }.toMap()
+            val currentOriginal = playOrder[state.currentIndex]
+            val order = playOrder.mapNotNull(remap::get)
+            val currentRemoved = current.id == id
+            val nextIndex = if (currentRemoved) {
+                state.currentIndex.coerceAtMost(order.lastIndex)
+            } else {
+                order.indexOf(remap.getValue(currentOriginal))
+            }
+            originalQueue = retained.map(originalQueue::get)
+            playOrder = order
+            mutableState.value = state.copy(
+                queue = order.map(originalQueue::get),
+                currentIndex = nextIndex,
+                positionMs = if (currentRemoved) 0 else state.positionMs,
+            )
         }
     }
 

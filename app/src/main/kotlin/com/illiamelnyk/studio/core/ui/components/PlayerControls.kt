@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -62,7 +63,7 @@ fun PlayerControls(
         if (showModes) {
             MediaToggle(StudioIcons.Shuffle, stringResource(R.string.ui_shuffle), shuffle, onShuffleChange)
         } else {
-            Spacer(Modifier.size(StudioTheme.dimens.size.component.iconButton))
+            Spacer(Modifier.size(StudioTheme.dimens.size.touchTarget))
         }
         MediaButton(StudioIcons.SkipPreviousFilled, stringResource(R.string.ui_previous), onPrevious)
         PlayButton(isPlaying, onPlayPause)
@@ -70,7 +71,7 @@ fun PlayerControls(
         if (showModes) {
             MediaToggle(StudioIcons.Repeat, stringResource(R.string.ui_repeat), repeat, onRepeatChange)
         } else {
-            Spacer(Modifier.size(StudioTheme.dimens.size.component.iconButton))
+            Spacer(Modifier.size(StudioTheme.dimens.size.touchTarget))
         }
     }
 }
@@ -100,6 +101,10 @@ private fun PlayButton(isPlaying: Boolean, onClick: () -> Unit) {
             StudioIcon(
                 icon = if (playing) StudioIcons.PauseFilled else StudioIcons.PlayArrowFilled,
                 contentDescription = null,
+                modifier = Modifier.graphicsLayer {
+                    scaleX = if (playing) PAUSE_WIDTH_SCALE else PLAY_SCALE
+                    scaleY = if (playing) PAUSE_HEIGHT_SCALE else PLAY_SCALE
+                },
                 tint = colors.overlay.onMediaPrimary,
                 size = dimens.size.component.playButton,
             )
@@ -121,6 +126,10 @@ private fun MediaButton(@DrawableRes icon: Int, description: String, onClick: ()
         StudioIcon(
             icon,
             contentDescription = null,
+            modifier = Modifier.graphicsLayer {
+                scaleX = SKIP_SCALE
+                scaleY = SKIP_SCALE
+            },
             tint = if (enabled) {
                 StudioTheme.colors.overlay.onMediaPrimary
             } else {
@@ -149,7 +158,17 @@ private fun MediaToggle(@DrawableRes icon: Int, description: String, on: Boolean
             .size(dimens.size.component.iconButton),
         contentAlignment = Alignment.Center,
     ) {
-        StudioIcon(icon, contentDescription = null, tint = tint)
+        StudioIcon(
+            icon,
+            contentDescription = null,
+            tint = tint,
+            size = dimens.size.icon.xl,
+            modifier = Modifier.graphicsLayer {
+                val scale = if (icon == StudioIcons.Repeat) REPEAT_SCALE else SHUFFLE_SCALE
+                scaleX = scale
+                scaleY = scale
+            },
+        )
     }
 }
 
@@ -169,3 +188,10 @@ private fun PlayerControlsPreview() {
         )
     }
 }
+
+private const val PLAY_SCALE = 1.3f
+private const val PAUSE_WIDTH_SCALE = 0.95f
+private const val PAUSE_HEIGHT_SCALE = 1.15f
+private const val SKIP_SCALE = 1.5f
+private const val SHUFFLE_SCALE = 1.5f
+private const val REPEAT_SCALE = 1.3f

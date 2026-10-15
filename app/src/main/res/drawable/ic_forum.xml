@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Material Symbols Rounded "forum, weight 300" (Apache License 2.0). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="960"
-    android:viewportHeight="960">
-    <group android:translateY="960">
-        <path
-            android:fillColor="@android:color/white"
-            android:pathData="M284.62-275.39q-15.04 0-25.22-10.17-10.17-10.17-10.17-25.21v-60h495l12.69 12.69V-720h60q15.04 0 25.21 10.17 10.18 10.18 10.18 25.21v463.39q0 24.18-22.2 33.59-22.19 9.41-39.27-7.67l-80.07-80.08H284.62Zm-35.39-175.38-80.07 80.08q-17.08 17.07-39.27 7.67-22.2-9.41-22.2-33.6v-427.99q0-15.04 10.18-25.22Q128.04-860 143.08-860h498.46q15.04 0 25.21 10.17 10.17 10.18 10.17 25.22v338.46q0 15.03-10.17 25.21-10.17 10.17-25.21 10.17H249.23Zm367.69-60V-800H167.69v316.93l27.7-27.7h421.53Zm-449.23 0V-800v289.23Z" />
-    </group>
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="@android:color/white"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12,11 L17,11 Q19,11 19,13 L19,17 Q19,19 17,19 L16,19 L16,22 L12,19 L10,19 Q8,19 8,17 L8,16 M5,3 L14,3 Q16,3 16,5 L16,10 Q16,12 14,12 L8,12 L4,15 L4,12 Q2,12 2,10 L2,5 Q2,3 5,3 Z" />
 </vector>

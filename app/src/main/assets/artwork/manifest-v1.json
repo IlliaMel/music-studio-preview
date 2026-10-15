@@ -1,0 +1,318 @@
+{
+  "schemaVersion": 1,
+  "fixtureVersion": "studio-original-artwork-v1",
+  "generatedAt": "2026-10-15",
+  "atlases": [
+    {
+      "id": "covers",
+      "file": "studio-covers-atlas-v1.png",
+      "columns": 5,
+      "rows": 4,
+      "insetPx": 1,
+      "width": 1402,
+      "height": 1122,
+      "sha256": "d994499ba2a84a19bf65befe1dae849a1da7aff64203a73a9aa794fb127faafd"
+    },
+    {
+      "id": "hero",
+      "file": "studio-hero-atlas-v1.png",
+      "columns": 2,
+      "rows": 2,
+      "insetPx": 1,
+      "width": 1254,
+      "height": 1254,
+      "sha256": "092306cd47f7e3c8a16a8a3b5f37a10d67bb14fe6a71642ed06c889ba06ac8a7"
+    }
+  ],
+  "fallbackTiles": [
+    "glass-harbor",
+    "night-drive",
+    "paper-moons",
+    "unplugged"
+  ],
+  "tiles": [
+    {
+      "id": "glass-harbor",
+      "atlas": "hero",
+      "index": 0,
+      "aliases": [
+        "Glass Harbor",
+        "glass-harbor"
+      ],
+      "palette": [
+        "#173D64",
+        "#B36E41",
+        "#0C172D"
+      ]
+    },
+    {
+      "id": "night-drive",
+      "atlas": "hero",
+      "index": 1,
+      "aliases": [
+        "Night Drive Through Kyiv",
+        "night-drive",
+        "Night Drive",
+        "Late Night Lo-fi"
+      ],
+      "palette": [
+        "#0A3154",
+        "#B55E2D",
+        "#081027"
+      ]
+    },
+    {
+      "id": "paper-moons",
+      "atlas": "hero",
+      "index": 2,
+      "aliases": [
+        "Paper Moons",
+        "paper-moons"
+      ],
+      "palette": [
+        "#17366A",
+        "#B78F62",
+        "#0A1638"
+      ]
+    },
+    {
+      "id": "cold-brew",
+      "atlas": "covers",
+      "index": 3,
+      "aliases": [
+        "Cold Brew Mornings",
+        "cold-brew"
+      ],
+      "palette": [
+        "#613C20",
+        "#A96F35",
+        "#17100D"
+      ]
+    },
+    {
+      "id": "signal-fire",
+      "atlas": "covers",
+      "index": 4,
+      "aliases": [
+        "Signal Fire",
+        "signal-fire"
+      ],
+      "palette": [
+        "#143A68",
+        "#B45627",
+        "#0A1529"
+      ]
+    },
+    {
+      "id": "copper-sky",
+      "atlas": "covers",
+      "index": 5,
+      "aliases": [
+        "Copper Sky",
+        "copper-sky"
+      ],
+      "palette": [
+        "#79514B",
+        "#A57B58",
+        "#182C4A"
+      ]
+    },
+    {
+      "id": "lanterns",
+      "atlas": "covers",
+      "index": 6,
+      "aliases": [
+        "Lanterns on the Vistula",
+        "lanterns"
+      ],
+      "palette": [
+        "#123F62",
+        "#A56632",
+        "#0B192B"
+      ]
+    },
+    {
+      "id": "static-bloom",
+      "atlas": "covers",
+      "index": 7,
+      "aliases": [
+        "Static Bloom",
+        "static-bloom"
+      ],
+      "palette": [
+        "#164C78",
+        "#8D406B",
+        "#10192E"
+      ]
+    },
+    {
+      "id": "afterglow",
+      "atlas": "covers",
+      "index": 8,
+      "aliases": [
+        "Afterglow Avenue",
+        "afterglow"
+      ],
+      "palette": [
+        "#19486A",
+        "#A26537",
+        "#101D35"
+      ]
+    },
+    {
+      "id": "slow-tide",
+      "atlas": "covers",
+      "index": 9,
+      "aliases": [
+        "Slow Tide",
+        "slow-tide"
+      ],
+      "palette": [
+        "#284460",
+        "#A66B3F",
+        "#0C1929"
+      ]
+    },
+    {
+      "id": "kinetic",
+      "atlas": "covers",
+      "index": 10,
+      "aliases": [
+        "Kinetic",
+        "kinetic"
+      ],
+      "palette": [
+        "#203C5A",
+        "#A76D38",
+        "#101B2A"
+      ]
+    },
+    {
+      "id": "low-orbit",
+      "atlas": "covers",
+      "index": 11,
+      "aliases": [
+        "Low Orbit",
+        "low-orbit"
+      ],
+      "palette": [
+        "#0D527D",
+        "#325C84",
+        "#081426"
+      ]
+    },
+    {
+      "id": "voice-to-song",
+      "atlas": "covers",
+      "index": 12,
+      "aliases": [
+        "VoiceToSong",
+        "Voice to Song"
+      ],
+      "palette": [
+        "#14436E",
+        "#A25254",
+        "#0C1830"
+      ]
+    },
+    {
+      "id": "genreshift",
+      "atlas": "covers",
+      "index": 13,
+      "aliases": [
+        "Genreshift",
+        "Genre shift"
+      ],
+      "palette": [
+        "#204C82",
+        "#BB6029",
+        "#0C1833"
+      ]
+    },
+    {
+      "id": "sample-to-song",
+      "atlas": "covers",
+      "index": 14,
+      "aliases": [
+        "SampleToSong",
+        "Sample to Song"
+      ],
+      "palette": [
+        "#21486F",
+        "#97612A",
+        "#0A1729"
+      ]
+    },
+    {
+      "id": "unplugged",
+      "atlas": "hero",
+      "index": 3,
+      "aliases": [
+        "Unplugged",
+        "Acoustic Favorites"
+      ],
+      "palette": [
+        "#714825",
+        "#AC622C",
+        "#0C172C"
+      ]
+    },
+    {
+      "id": "voice-memo",
+      "atlas": "covers",
+      "index": 16,
+      "aliases": [
+        "VoiceMemoToSong",
+        "Voice Memo to Song"
+      ],
+      "palette": [
+        "#204265",
+        "#9A6133",
+        "#0C1C30"
+      ]
+    },
+    {
+      "id": "hum-to-song",
+      "atlas": "covers",
+      "index": 17,
+      "aliases": [
+        "HumToSong",
+        "Hum to Song"
+      ],
+      "palette": [
+        "#274267",
+        "#B77F42",
+        "#111C34"
+      ]
+    },
+    {
+      "id": "night-piano",
+      "atlas": "covers",
+      "index": 18,
+      "aliases": [
+        "Night Piano",
+        "Piano Room"
+      ],
+      "palette": [
+        "#163F71",
+        "#5E527B",
+        "#0B1832"
+      ]
+    },
+    {
+      "id": "ambient",
+      "atlas": "covers",
+      "index": 19,
+      "aliases": [
+        "Ambient Spaces",
+        "Ambient",
+        "Deep Focus"
+      ],
+      "palette": [
+        "#164E84",
+        "#784C92",
+        "#0A1536"
+      ]
+    }
+  ]
+}

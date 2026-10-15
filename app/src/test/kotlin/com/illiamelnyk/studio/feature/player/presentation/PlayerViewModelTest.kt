@@ -365,7 +365,7 @@ class PlayerViewModelTest {
     }
 
     @Test
-    fun `download exports the playing track and autoplay enables queue repeat`() =
+    fun `download exports the playing track and unavailable autoplay preserves repeat`() =
         runTest(mainDispatcherRule.testDispatcher) {
             val playback = playback()
             playback.play(listOf(sung), startIndex = 0)
@@ -375,8 +375,10 @@ class PlayerViewModelTest {
                 runCurrent()
                 assertEquals(PlayerEffect.Download(sung), awaitItem())
             }
+            val before = playback.state.value.repeat
             viewModel.onIntent(PlayerIntent.ComingSoonClicked(SoonFeature.Autoplay))
-            assertEquals(RepeatMode.All, playback.state.value.repeat)
+            assertEquals(before, playback.state.value.repeat)
+            assertEquals(PlayerSheet.ComingSoon(SoonFeature.Autoplay), viewModel.state.value.content.sheet)
         }
 
     @Test

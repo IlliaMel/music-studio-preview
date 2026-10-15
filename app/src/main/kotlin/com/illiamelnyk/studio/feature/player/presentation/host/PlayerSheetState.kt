@@ -17,9 +17,11 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Whether the full player is open, as one seekable transition from the mini player (`false`) to the
@@ -107,7 +109,7 @@ internal class PlayerSheetState(
             }
             animateTo(false)
         } catch (cancelled: CancellationException) {
-            animateTo(true)
+            withContext(NonCancellable) { animateTo(true) }
             throw cancelled
         }
     }
@@ -130,11 +132,13 @@ internal class PlayerSheetState(
             transitionState.seekTo(0f, targetState = expanded)
         }
         val remaining = if (expanded) 1f - expandedFraction else expandedFraction
-        transitionState.animateTo(expanded, settleSpec(remaining))
+        transitionState.animateTo(expanded, settleSpec(remaining, expanded))
     }
 
-    private fun settleSpec(remaining: Float): FiniteAnimationSpec<Float> =
-        tween((motion.duration.long * remaining).roundToInt(), easing = motion.easing.emphasized)
+    private fun settleSpec(remaining: Float, expanded: Boolean): FiniteAnimationSpec<Float> {
+        val duration = motion.duration.long * if (expanded) 1f else COLLAPSE_DURATION_FRACTION
+        return tween((duration * remaining).roundToInt(), easing = motion.easing.emphasized)
+    }
 
     private class Drag(val target: Boolean, val fractions: Channel<Float>, val job: Job) {
         var fraction = 0f
@@ -142,6 +146,7 @@ internal class PlayerSheetState(
 
     private companion object {
         const val HALF_WAY = 0.5f
+        const val COLLAPSE_DURATION_FRACTION = 0.75f
 
         /** A fling faster than this, in player heights per second, completes or cancels the drag. */
         const val FLING_FRACTION_PER_SECOND = 0.5f

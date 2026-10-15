@@ -7,7 +7,6 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
-/** Finishes playback and local cleanup after account deletion succeeds. */
 class DeleteAccount(
     private val sessions: SessionRepository,
     private val playback: PlaybackController,
@@ -16,7 +15,7 @@ class DeleteAccount(
     suspend operator fun invoke(): Outcome<Unit> = withContext(NonCancellable) {
         val ids = tracks.observeMine().first().map { it.id }
         val result = sessions.deleteAccount()
-        if (result is Outcome.Success) {
+        if (result is Outcome.Success || sessions.session.first() == null) {
             playback.stop()
             ids.forEach { tracks.delete(it) }
         }

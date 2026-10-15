@@ -37,7 +37,7 @@ fun CreateChips(
     ) {
         StudioChip(stringResource(R.string.create_soon_muse), onMuseClick, leadingIcon = StudioIcons.Forum)
         StudioChip(stringResource(R.string.create_chip_styles), onStylesClick, leadingIcon = StudioIcons.AutoAwesome)
-        StudioChip(stringResource(R.string.create_chip_sounds), onSoundsClick, leadingIcon = StudioIcons.MusicNote)
+        StudioChip(stringResource(R.string.create_chip_sounds), onSoundsClick, leadingIcon = StudioIcons.Waveform)
         StudioChip(stringResource(R.string.create_chip_record), onRecordClick, leadingIcon = StudioIcons.Mic)
     }
 }

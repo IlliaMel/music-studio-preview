@@ -48,7 +48,10 @@ val coreModule = module {
     single<SessionRepository> { get<DurableStudioRepository>() }
     single<CreditsRepository> { get<DurableStudioRepository>() }
     single<TrackRepository> { get<DurableStudioRepository>() }
-    single { AndroidPlaybackController(androidContext(), get(named(APP_SCOPE))) } bind PlaybackController::class
+    single {
+        val repository: DurableStudioRepository = get()
+        AndroidPlaybackController(androidContext(), get(named(APP_SCOPE)), ownerId = { repository.activeAccountId })
+    } bind PlaybackController::class
     singleOf(::LocalLyricsRepository) bind LyricsRepository::class
     single<AudioExporter> { AndroidAudioExporter(androidContext()) }
     factoryOf(::AudioActions)

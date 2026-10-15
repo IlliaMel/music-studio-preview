@@ -26,7 +26,7 @@ enum class StudioIconButtonStyle {
     /** Just the icon, in the secondary content color: actions of a row, such as "more". */
     Muted,
 
-    /** On a `surface.level3` circle. */
+    /** On a raised surface circle. */
     Surface,
 
     /** On the inverse surface, for the main action of a bar, such as sending a prompt. */
@@ -92,7 +92,7 @@ private fun StudioIconButtonStyle.containerColor(colors: StudioColors, enabled: 
     StudioIconButtonStyle.OnGlass,
     -> Color.Transparent
 
-    StudioIconButtonStyle.Surface -> colors.surface.level3
+    StudioIconButtonStyle.Surface -> if (enabled) colors.surface.level4 else colors.surface.level3
 
     StudioIconButtonStyle.Primary -> if (enabled) colors.inverse.surface else colors.surface.level3
 }

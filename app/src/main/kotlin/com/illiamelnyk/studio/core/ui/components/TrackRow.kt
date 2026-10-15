@@ -69,6 +69,7 @@ fun TrackRow(
     onMore: (() -> Unit)? = null,
     onRetry: (() -> Unit)? = null,
     badges: (@Composable RowScope.() -> Unit)? = null,
+    titleSuffix: (@Composable () -> Unit)? = null,
 ) {
     val colors = StudioTheme.colors
     val dimens = StudioTheme.dimens
@@ -86,7 +87,13 @@ fun TrackRow(
             Cover(coverSeed, dimens.size.cover.s, generating = state == TrackRowState.Generating)
         }
         Column(Modifier.weight(1f)) {
-            StudioText(title, StudioTheme.typography.titleSmall, maxLines = 1)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                StudioText(title, StudioTheme.typography.titleSmall, Modifier.weight(1f, fill = false), maxLines = 1)
+                titleSuffix?.invoke()
+            }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xxs),
                 verticalAlignment = Alignment.CenterVertically,

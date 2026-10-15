@@ -17,12 +17,13 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.illiamelnyk.studio.core.domain.playback.PlaybackController
 import com.illiamelnyk.studio.core.domain.track.ComposerDraftStore
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.player.presentation.host.PlayerHostScope
-import com.illiamelnyk.studio.feature.player.presentation.host.sharedPlayerCover
 import com.illiamelnyk.studio.feature.player.presentation.mini.components.MiniPlayerPill
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -33,7 +34,7 @@ import org.koin.compose.viewmodel.koinViewModel
  * dragged up.
  *
  * While the full player is open the pill fades out but keeps its place, so the screens under the
- * player don't move; its cover is where the full player's cover grows from and shrinks back to.
+ * player don't move. Its measured pill bounds anchor the full player's card motion.
  *
  * Only the progress line reads the position, in its draw phase, so the ticks of the clock redraw
  * that line and recompose nothing.
@@ -66,7 +67,7 @@ fun MiniPlayerHost(
     ) {
         Box(Modifier.fillMaxWidth().height(StudioTheme.dimens.size.component.miniPlayer)) {
             // Fades out in the first part of opening the full player and back in at the end of closing
-            // it; the cover flies meanwhile. Linear: the player's transition eases as a whole.
+            // it. Linear: the player's transition eases as a whole.
             host.transition.AnimatedVisibility(
                 visible = { expanded -> !expanded },
                 enter = fadeIn(
@@ -90,14 +91,15 @@ fun MiniPlayerHost(
                     } else {
                         null
                     },
-                    coverModifier = Modifier.sharedPlayerCover(host, this),
-                    pillModifier = Modifier.draggable(
-                        state = host.sheet.expandDrag,
-                        orientation = Orientation.Vertical,
-                        onDragStarted = { host.sheet.startDrag(expanded = true) },
-                        // Dragging up opens: velocities upwards are negative.
-                        onDragStopped = { velocity -> host.sheet.endDrag(-velocity) },
-                    ),
+                    pillModifier = Modifier
+                        .onGloballyPositioned { host.miniBounds = it.boundsInRoot() }
+                        .draggable(
+                            state = host.sheet.expandDrag,
+                            orientation = Orientation.Vertical,
+                            onDragStarted = { host.sheet.startDrag(expanded = true) },
+                            // Dragging up opens: velocities upwards are negative.
+                            onDragStopped = { velocity -> host.sheet.endDrag(-velocity) },
+                        ),
                 )
             }
         }

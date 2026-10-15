@@ -18,7 +18,7 @@ import com.illiamelnyk.studio.core.ui.theme.PreviewSurface
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
 /**
- * The title of a section, in `titleMedium`. With [onTitleClick] the title gets a chevron and opens
+ * The title of a section, in `sectionTitle`. With [onTitleClick] the title gets a chevron and opens
  * the whole section; [action] goes at the end, such as a "Show more" text button.
  */
 @Composable
@@ -51,7 +51,7 @@ fun SectionHeader(
             horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xxs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            StudioText(title, StudioTheme.typography.titleMedium, maxLines = 1)
+            StudioText(title, StudioTheme.typography.sectionTitle, maxLines = 1)
             if (onTitleClick != null) {
                 StudioIcon(
                     icon = StudioIcons.ChevronRight,

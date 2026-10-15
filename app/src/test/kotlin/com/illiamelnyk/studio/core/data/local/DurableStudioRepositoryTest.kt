@@ -2,6 +2,8 @@ package com.illiamelnyk.studio.core.data.local
 
 import android.content.Context
 import com.illiamelnyk.studio.core.data.fake.FakeCatalog
+import com.illiamelnyk.studio.core.data.playback.audioCacheKey
+import com.illiamelnyk.studio.core.data.playback.playbackPreferenceKey
 import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.session.SessionDataMode
 import com.illiamelnyk.studio.core.domain.track.GenerationRequest
@@ -11,6 +13,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -119,7 +122,7 @@ class DurableStudioRepositoryTest {
         assertEquals(25, repo.credits.first().remaining)
         val restarted = DurableStudioRepository(context, StudioStore(context), StudioApi(context), backgroundScope)
         assertEquals(saved.audioUri, restarted.observeMine().first().single().audioUri)
-        val exported = java.io.File(context.cacheDir, "audio/" + saved.id.value.hashCode() + ".mp3")
+        val exported = java.io.File(context.cacheDir, "audio/" + audioCacheKey(saved.id) + ".mp3")
         exported.parentFile!!.mkdirs()
         exported.writeBytes(ByteArray(64))
         restarted.deleteAccount()
@@ -255,16 +258,197 @@ class DurableStudioRepositoryTest {
         assertEquals("Other client title", repo.observeMine().first().single().title)
     }
 
+    @Test
+    fun confirmedRemoteDeletionRetriesFailedLocalCleanupWithoutAuthenticatingAgain() = runTest {
+        val api = MemoryApi(context)
+        val store = StudioStore(context)
+        val repo = DurableStudioRepository(context, store, api, backgroundScope)
+        repo.signInServer()
+        val track = repo.observeMine().first().single()
+        val blocker = java.io.File(context.cacheDir, "audio/" + audioCacheKey(track.id) + ".mp3")
+        blocker.mkdirs()
+        val child = java.io.File(blocker, "busy").apply { writeText("fixture") }
+
+        assertTrue(repo.deleteAccount() is Outcome.Failure)
+        assertTrue(api.deleted)
+        assertEquals(1, api.deleteRequests)
+        assertTrue(store.read().getJSONObject("deletion-server-user").getBoolean("remoteConfirmed"))
+        child.delete()
+        blocker.delete()
+
+        assertTrue(repo.deleteAccount() is Outcome.Success)
+        assertEquals(1, api.deleteRequests)
+        assertNull(repo.session.first())
+        assertFalse(store.read().has("deletion-server-user"))
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun restartFinishesConfirmedLocalCleanupWithoutTheDeletedPrincipal() = runTest {
+        val api = MemoryApi(context)
+        val repo = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
+        repo.signInServer()
+        val track = repo.observeMine().first().single()
+        val blocker = java.io.File(context.cacheDir, "audio/" + audioCacheKey(track.id) + ".mp3")
+        blocker.mkdirs()
+        val child = java.io.File(blocker, "busy").apply { writeText("fixture") }
+        assertTrue(repo.deleteAccount() is Outcome.Failure)
+        child.delete()
+        blocker.delete()
+
+        val restartedStore = StudioStore(context)
+        val restarted = DurableStudioRepository(
+            context,
+            restartedStore,
+            api,
+            backgroundScope,
+            StandardTestDispatcher(testScheduler),
+        )
+        assertNull(restarted.session.first())
+        assertNull(restarted.activeAccountId)
+        runCurrent()
+        assertFalse(restartedStore.read().has("deletion-server-user"))
+        assertEquals(1, api.deleteRequests)
+    }
+
+    @Test
+    fun remoteSuccessBeforePhaseWriteFailurePurgesLocallyButDoesNotCall401Confirmation() = runTest {
+        val api = MemoryApi(context)
+        val store = StudioStore(context)
+        val repo = DurableStudioRepository(context, store, api, backgroundScope)
+        repo.signInServer()
+        api.afterDelete = { java.io.File(context.filesDir, "studio-state-v1.json.new").mkdir() }
+
+        assertTrue(repo.deleteAccount() is Outcome.Failure)
+        assertFalse(store.read().getJSONObject("deletion-server-user").getBoolean("remoteConfirmed"))
+        assertTrue(repo.deleteAccount() is Outcome.Failure)
+
+        assertNull(repo.session.first())
+        assertEquals(1, api.deleteRequests)
+        val pending = store.read().getJSONObject("deletion-server-user")
+        assertTrue(pending.getBoolean("localPurged"))
+        assertFalse(pending.getBoolean("remoteConfirmed"))
+        assertFalse(store.read().has("account-server-user"))
+    }
+
+    @Test
+    fun failedRemoteDeletionPurgesAuthorizedLocalDataAndKeepsHonestPendingStatus() = runTest {
+        val api = MemoryApi(context)
+        val store = StudioStore(context)
+        val repo = DurableStudioRepository(context, store, api, backgroundScope)
+        repo.signInServer()
+        val reference = java.io.File(repo.referenceDirectory(), "private.wav").apply { writeBytes(ByteArray(64)) }
+        api.failDelete = true
+
+        assertTrue(repo.deleteAccount() is Outcome.Failure)
+
+        assertNull(repo.session.first())
+        assertFalse(reference.exists())
+        assertFalse(store.read().has("account-server-user"))
+        val pending = store.read().getJSONObject("deletion-server-user")
+        assertTrue(pending.getBoolean("localPurged"))
+        assertFalse(pending.getBoolean("remoteConfirmed"))
+        assertEquals(0, pending.getJSONArray("audio").length())
+    }
+
+    @Test
+    fun deletionRecoveryNeverDeletesANewAccountResolvedFromTheSameDevToken() = runTest {
+        val api = MemoryApi(context)
+        val store = StudioStore(context)
+        val repo = DurableStudioRepository(context, store, api, backgroundScope)
+        repo.signInServer()
+        api.failDelete = true
+        assertTrue(repo.deleteAccount() is Outcome.Failure)
+        api.failDelete = false
+        api.profileOwnerId = "new-server-user"
+
+        assertTrue(repo.deleteAccount() is Outcome.Failure)
+
+        assertEquals(1, api.deleteRequests)
+        assertFalse(api.deleted)
+        assertFalse(store.read().getJSONObject("deletion-server-user").getBoolean("remoteConfirmed"))
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun pollingCannotRehydrateAnAccountAwaitingPrivateFileCleanup() = runTest {
+        val api = MemoryApi(context)
+        api.failures = listOf(api.failure("pending-track", "auto").put("status", "queued"))
+        val store = StudioStore(context)
+        val repo = DurableStudioRepository(
+            context,
+            store,
+            api,
+            backgroundScope,
+            StandardTestDispatcher(testScheduler),
+        )
+        repo.signInServer()
+        val track = repo.observeMine().first().first()
+        val blocker = java.io.File(context.cacheDir, "audio/" + audioCacheKey(track.id) + ".mp3")
+        blocker.mkdirs()
+        val child = java.io.File(blocker, "busy").apply { writeText("fixture") }
+        try {
+            assertTrue(repo.deleteAccount() is Outcome.Failure)
+            val requestsBeforePolling = api.libraryRequests
+            advanceTimeBy(2_001)
+            runCurrent()
+            assertEquals(requestsBeforePolling, api.libraryRequests)
+            assertTrue(store.read().has("deletion-server-user"))
+            assertNull(repo.activeAccountId)
+        } finally {
+            child.delete()
+            blocker.delete()
+        }
+    }
+
+    @Test
+    fun deletingAndRecreatingSameDemoOwnerCannotRestorePrivatePlayback() = runTest {
+        val repo = DurableStudioRepository(context, StudioStore(context), StudioApi(context), backgroundScope)
+        repo.signInDemo()
+        val preferences = context.getSharedPreferences("playback", Context.MODE_PRIVATE)
+        val ownerKey = playbackPreferenceKey("local-demo")
+        assertTrue(preferences.edit().putString(ownerKey, "private paused queue").putString("state", "legacy").commit())
+
+        assertTrue(repo.deleteAccount() is Outcome.Success)
+        assertTrue(repo.signInDemo() is Outcome.Success)
+
+        assertEquals("local-demo", repo.activeAccountId)
+        assertFalse(preferences.contains(ownerKey))
+        assertFalse(preferences.contains("state"))
+        val restarted = DurableStudioRepository(context, StudioStore(context), StudioApi(context), backgroundScope)
+        assertEquals("local-demo", restarted.activeAccountId)
+        assertFalse(context.getSharedPreferences("playback", Context.MODE_PRIVATE).contains(ownerKey))
+    }
+
+    @Test
+    fun malformedCachedJsonNeverAppearsInDiagnosticLogs() {
+        val marker = "PRIVATE_CACHE_TEST_MARKER"
+        java.io.File(context.filesDir, "studio-state-v1.json").writeText("{\"token\":\"" + marker + "\",\"active\":")
+        org.robolectric.shadows.ShadowLog.clear()
+
+        StudioStore(context)
+
+        val logs = org.robolectric.shadows.ShadowLog.getLogsForTag("StudioData")
+        assertTrue(logs.isNotEmpty())
+        assertFalse(logs.any { it.msg.contains(marker) || it.throwable?.toString()?.contains(marker) == true })
+    }
+
     private class MemoryApi(context: Context) : StudioApi(context) {
         override val isAvailable: Boolean = true
         private val likes = mutableSetOf<String>()
         private val members = mutableSetOf<String>()
         private var playlistCreated = false
         var detailRequests = 0
+        var libraryRequests = 0
         var renamedTitle: String? = null
         var failures: List<org.json.JSONObject> = emptyList()
         var lastGeneration: org.json.JSONObject? = null
         var holdProfile = false
+        var deleted = false
+        var deleteRequests = 0
+        var failDelete = false
+        var afterDelete: (() -> Unit)? = null
+        var profileOwnerId = "server-user"
         val profileStarted = CompletableDeferred<Unit>()
         val profileRelease = CompletableDeferred<Unit>()
 
@@ -292,22 +476,35 @@ class DurableStudioRepositoryTest {
             body: org.json.JSONObject?,
             key: String?,
         ): org.json.JSONObject = when {
+            path == "/v1/me" && method == "DELETE" -> {
+                deleteRequests++
+                if (failDelete) throw ApiFailure(com.illiamelnyk.studio.core.domain.AppError.Network)
+                deleted = true
+                afterDelete?.invoke()
+                org.json.JSONObject()
+            }
+
+            path == "/v1/me" && deleted -> throw ApiFailure(com.illiamelnyk.studio.core.domain.AppError.Unauthorized)
+
             path == "/v1/me" && method == "PATCH" && holdProfile -> {
                 profileStarted.complete(Unit)
                 profileRelease.await()
-                org.json.JSONObject().put("id", "server-user").put("displayName", "Server listener")
+                org.json.JSONObject().put("id", profileOwnerId).put("displayName", "Server listener")
             }
 
             path == "/v1/me" -> org.json.JSONObject()
-                .put("id", "server-user").put("displayName", "Server listener")
+                .put("id", profileOwnerId).put("displayName", "Server listener")
                 .put("termsVersion", "2026-10-14")
 
             path == "/v1/me/quota" -> org.json.JSONObject().put("limit", 25).put("remaining", 25)
 
-            path.startsWith("/v1/tracks?") -> org.json.JSONObject().put(
-                "tracks",
-                org.json.JSONArray().put(track).apply { failures.forEach { put(it) } },
-            )
+            path.startsWith("/v1/tracks?") -> {
+                libraryRequests++
+                org.json.JSONObject().put(
+                    "tracks",
+                    org.json.JSONArray().put(track).apply { failures.forEach { put(it) } },
+                )
+            }
 
             path == "/v1/tracks" && method == "POST" -> {
                 lastGeneration = body?.let { org.json.JSONObject(it.toString()) }

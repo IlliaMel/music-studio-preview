@@ -1,0 +1,48 @@
+{
+  "fixtureVersion": "studio-original-artwork-v1",
+  "generationDate": "2026-10-15",
+  "tool": "Built-in image_gen.imagegen",
+  "model": "Not exposed by the tool; no model identifier asserted",
+  "externalSourceImages": [],
+  "derivation": "Hero call references only the first generated atlas as a style/subject reference. No ElevenLabs screenshot or album artwork supplied to image generation.",
+  "imageProcessing": "Original PNG bytes copied unchanged. Runtime atlas source-rectangle drawing only; no offline crop/resize/reencode.",
+  "outputs": [
+    {
+      "file": "studio-covers-atlas-v1.png",
+      "sha256": "d994499ba2a84a19bf65befe1dae849a1da7aff64203a73a9aa794fb127faafd",
+      "requestedDimensions": [
+        2560,
+        2048
+      ],
+      "actualDimensions": [
+        1402,
+        1122
+      ],
+      "grid": [
+        5,
+        4
+      ],
+      "prompt": "Use case: stylized-concept. Asset type: ONE production artwork texture atlas for an offline fictional music creation Android demo. Generate one landscape bitmap exactly 2560x2048 pixels, containing EXACTLY FIVE COLUMNS and FOUR ROWS of square cover art, twenty equally sized square tiles touching edge to edge, NO gaps, NO borders, NO rounded corners, NO margins. Every tile is a distinct polished original fictional music cover, vivid blue/cyan with contrasting neon orange, magenta and warm amber, cinematic dark backgrounds, tactile abstract 3D forms and musical energy. No text anywhere, no labels, no logos, no letters, no watermarks, no album sleeve mockups, no UI. Art extends to every edge of every tile. Tile subjects in row-major order: row1 translucent glass harbor architecture at dusk; neon night-road ribbons; floating paper crescent moons; warm coffee steam sculpture; luminous orange signal flare. Row2 copper sky with levitating metallic rings; lanterns reflected in a river; iridescent flower with audio-like petals; afterglow city arches; slow tidal liquid waves. Row3 kinetic geometric rhythm sculpture; low orbit chrome planet; luminous vocal waveform emerging from abstract microphone-like form; prismatic transformation between blue and orange musical ribbons; sound sampling loops woven into a sculpture. Row4 warm acoustic guitar silhouette formed from light threads; floating voice-memo sound capsules; humming melody as glowing continuous line; nocturnal piano keys dissolving into stars; ambient nebula with subtle radial ripple. All twenty tiles share a sophisticated art direction while remaining individually identifiable at small thumbnail size; clear centered silhouettes, rich depth and lighting. This is original fictional artwork inspired only by general vibrant abstract music aesthetics; do not imitate any existing album cover, artist, brand or reference composition. Strict engineering layout: 5 equal columns x 4 equal rows, each tile 512x512px, full bleed, no gutters."
+    },
+    {
+      "file": "studio-hero-atlas-v1.png",
+      "sha256": "092306cd47f7e3c8a16a8a3b5f37a10d67bb14fe6a71642ed06c889ba06ac8a7",
+      "requestedDimensions": [
+        2048,
+        2048
+      ],
+      "actualDimensions": [
+        1254,
+        1254
+      ],
+      "grid": [
+        2,
+        2
+      ],
+      "reference": "studio-covers-atlas-v1.png",
+      "prompt": "Use case: stylized-concept. Asset type: one high-detail HERO artwork atlas for a fictional music app. The supplied20-tile atlas is a STYLE AND SUBJECT REFERENCE, not a screenshot to reproduce. Create one large square image, ideally2048x2048 or the largest available square, exactly TWO columns and TWO rows of four equal square artworks, no gutters/borders/margins/rounding/text/logos/watermarks. Keep the reference's sophisticated blue/cyan and warm amber/orange music aesthetics, rich tactile3D and cinematic lighting. Four full-bleed cover illustrations: upper-left the translucent glass harbor architecture lit from within at dusk reflected in water (reference row1column1); upper-right winding cyan and orange light-trail road above deep-blue nighttime harbor (reference row1column2); lower-left delicate luminous folded-paper crescent moons suspended in a starry blue twilight sky (reference row1column3); lower-right acoustic guitar made from intricate orange light threads with luminous flowing sound ribbons on dark blue (reference row4column1). These are four original fictional cover illustrations, no lettering, no imitation of real albums or brands. Precisely2x2 equal square panels, each independently composed with centered subject and clean identifiable silhouette, edge-to-edge art. High detail suitable for full-screen album player; no UI or album sleeve packaging."
+    }
+  ],
+  "rightsNotice": "Generated for this project at the user request. No third-party license or copyright assignment is represented here; no claim of exclusivity, public-domain status, or CC license is made. Applicable service/account terms govern use.",
+  "productScope": "Bundled display/default mock artwork only. Does not add an offline product mode, offline catalog, network fallback UX, or audio cache flow."
+}

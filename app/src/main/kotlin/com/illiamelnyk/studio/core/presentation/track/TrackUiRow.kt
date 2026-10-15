@@ -22,6 +22,7 @@ fun TrackUiRow(
     onMore: (() -> Unit)? = null,
     onRetry: (() -> Unit)? = null,
     badges: (@Composable RowScope.() -> Unit)? = null,
+    titleSuffix: (@Composable () -> Unit)? = null,
 ) {
     val status = track.status
     TrackRow(
@@ -38,5 +39,6 @@ fun TrackUiRow(
         onMore = onMore,
         onRetry = onRetry,
         badges = badges,
+        titleSuffix = titleSuffix,
     )
 }

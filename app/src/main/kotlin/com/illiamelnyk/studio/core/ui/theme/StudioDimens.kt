@@ -99,7 +99,7 @@ data class StudioDimens(
         val segmentedControl: Dp = 40.dp,
         val segment: Dp = 32.dp,
         val button: Dp = 40.dp,
-        val buttonLarge: Dp = 48.dp,
+        val buttonLarge: Dp = 52.dp,
         val iconButton: Dp = 40.dp,
         val iconButtonSmall: Dp = 32.dp,
         val textField: Dp = 48.dp,

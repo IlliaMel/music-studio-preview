@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,7 +38,7 @@ import org.koin.compose.viewmodel.koinViewModel
  *
  * @param onCollapse goes back to the mini player; also called when nothing is left to play.
  * @param contentPadding the space the system bars take over the player.
- * @param coverModifier makes the cover the shared element that travels from the mini player.
+ * @param coverModifier an optional decoration for the artwork.
  * @param bodyModifier for the player's body under its sheets, such as the drag that closes it.
  */
 @Composable
@@ -51,6 +52,9 @@ fun PlayerRoute(
 ) {
     val state = viewModel.state.collectAsStateWithLifecycle()
     val content by remember { derivedStateOf { state.value.content } }
+    var lastContent by remember { mutableStateOf<PlayerContent?>(null) }
+    val shownContent = content.takeIf { it.track != null } ?: lastContent ?: content
+    SideEffect { if (content.track != null) lastContent = content }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val resources = LocalResources.current
@@ -109,14 +113,12 @@ fun PlayerRoute(
             )
         }
     }
-    // Nothing left to show, such as after a station was stopped or when the app comes back without
-    // the queue it had: back to the screens, where the mini player has gone too.
     if (content.track == null) LaunchedEffect(Unit) { collapse() }
     Box(modifier) {
         PlayerScreen(
-            state = content,
+            state = shownContent,
             clock = { state.value.clock },
-            onIntent = viewModel::onIntent,
+            onIntent = { if (content.track != null) viewModel.onIntent(it) },
             contentPadding = contentPadding,
             coverModifier = coverModifier,
             bodyModifier = bodyModifier,

@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.ui.components.StudioButton
+import com.illiamelnyk.studio.core.ui.components.StudioButtonSize
 import com.illiamelnyk.studio.core.ui.components.StudioButtonStyle
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
@@ -59,6 +60,7 @@ fun PlayerActions(
             StudioButton(
                 text = stringResource(R.string.player_remix),
                 onClick = onRemixClick,
+                size = StudioButtonSize.Large,
                 style = StudioButtonStyle.Glass,
                 icon = StudioIcons.AutoFixHigh,
             )
@@ -66,12 +68,14 @@ fun PlayerActions(
         StudioButton(
             text = stringResource(R.string.player_add_to),
             onClick = onAddToClick,
+            size = StudioButtonSize.Large,
             style = StudioButtonStyle.Glass,
             icon = StudioIcons.Add,
         )
         StudioButton(
             text = stringResource(R.string.player_like),
             onClick = onLikeClick,
+            size = StudioButtonSize.Large,
             modifier = Modifier
                 .semantics { selected = isLiked }
                 .graphicsLayer {

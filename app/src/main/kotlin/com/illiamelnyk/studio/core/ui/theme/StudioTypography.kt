@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.sp
 import com.illiamelnyk.studio.R
 
 /**
- * The type scale from `typography.styles` in tokens.json: ten styles in Inter, sizes and line
+ * The shared Inter type scale, including headings and action labels measured from the references; sizes and line
  * heights in sp so text follows the system font size. Every text in the app uses exactly one of them.
  */
 @Immutable
@@ -21,21 +21,23 @@ data class StudioTypography(
     /** Tab title. */
     val headlineLarge: TextStyle = interStyle(size = 32.sp, lineHeight = 40.sp, FontWeight.Bold, tracking = (-0.5).sp),
     /** Player and collection title, lyrics. */
-    val titleLarge: TextStyle = interStyle(size = 22.sp, lineHeight = 28.sp, FontWeight.Bold),
-    /** Section header, sheet title. */
+    val titleLarge: TextStyle = interStyle(size = 22.sp, lineHeight = 28.sp, FontWeight.SemiBold),
+    val sectionTitle: TextStyle = interStyle(size = 20.sp, lineHeight = 28.sp, FontWeight.SemiBold),
+    /** Toolbar and sheet title. */
     val titleMedium: TextStyle = interStyle(size = 16.sp, lineHeight = 24.sp, FontWeight.SemiBold),
     /** Row title. */
-    val titleSmall: TextStyle = interStyle(size = 14.sp, lineHeight = 20.sp, FontWeight.SemiBold),
+    val titleSmall: TextStyle = interStyle(size = 14.sp, lineHeight = 20.sp, FontWeight.Medium),
     /** Prompt input, long text. */
     val bodyLarge: TextStyle = interStyle(size = 16.sp, lineHeight = 24.sp, FontWeight.Normal),
     /** Body text, a setting's value. */
     val bodyMedium: TextStyle = interStyle(size = 14.sp, lineHeight = 20.sp, FontWeight.Normal),
     /** Artist, metadata, captions. */
     val bodySmall: TextStyle = interStyle(size = 12.sp, lineHeight = 16.sp, FontWeight.Normal),
+    val labelExtraLarge: TextStyle = interStyle(size = 16.sp, lineHeight = 24.sp, FontWeight.Medium),
     /** Buttons, chips, segments. */
-    val labelLarge: TextStyle = interStyle(size = 14.sp, lineHeight = 20.sp, FontWeight.SemiBold),
+    val labelLarge: TextStyle = interStyle(size = 14.sp, lineHeight = 20.sp, FontWeight.Medium),
     /** Navigation labels, small buttons. */
-    val labelMedium: TextStyle = interStyle(size = 12.sp, lineHeight = 16.sp, FontWeight.SemiBold),
+    val labelMedium: TextStyle = interStyle(size = 12.sp, lineHeight = 16.sp, FontWeight.Medium),
     /** Badges. */
     val labelSmall: TextStyle = interStyle(size = 11.sp, lineHeight = 16.sp, FontWeight.Bold, tracking = 0.3.sp),
 )

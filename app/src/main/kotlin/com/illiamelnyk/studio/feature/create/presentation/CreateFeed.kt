@@ -1,5 +1,6 @@
 package com.illiamelnyk.studio.feature.create.presentation
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
@@ -7,10 +8,12 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.feature.create.presentation.common.ComingSoonFeature
 import com.illiamelnyk.studio.feature.create.presentation.components.CreateChips
+import com.illiamelnyk.studio.feature.create.presentation.components.CreateTrackGroup
 import com.illiamelnyk.studio.feature.create.presentation.components.CreateTrackItem
 import com.illiamelnyk.studio.feature.create.presentation.components.PromptIdeas
 import com.illiamelnyk.studio.feature.create.presentation.components.PublishedSoon
@@ -52,6 +55,9 @@ fun CreateFeed(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
+    val groups = remember(state.tracks) {
+        state.tracks.groupBy { it.variationGroupId ?: "track:" + it.row.id.value }.values.toList()
+    }
     LazyColumn(modifier = modifier.fillMaxSize(), state = listState, contentPadding = contentPadding) {
         item(key = "chips", contentType = "chips") {
             CreateChips(
@@ -82,21 +88,29 @@ fun CreateFeed(
                 PromptIdeas(state.ideas, onIdeaClick = { onIntent(CreateIntent.IdeaClicked(it)) })
             }
 
-            else -> items(state.tracks, key = { it.row.id.value }, contentType = { "track" }) { track ->
-                val id = track.row.id
-                CreateTrackItem(
-                    track = track,
-                    isPlaying = id == state.playingTrackId,
-                    menuExpanded = id == state.menuTrackId,
-                    onClick = { onIntent(CreateIntent.TrackClicked(id)) },
-                    onMoreClick = { onIntent(CreateIntent.MoreClicked(id)) },
-                    onRetryClick = { onIntent(CreateIntent.RetryClicked(id)) },
-                    onFixClick = { onIntent(CreateIntent.FixClicked(id)) },
-                    onDeleteClick = { onIntent(CreateIntent.DeleteClicked(id)) },
-                    onMenuAction = { onIntent(CreateIntent.MenuActionClicked(it)) },
-                    onMenuDismiss = { onIntent(CreateIntent.MenuDismissed) },
-                    modifier = Modifier.animateItem(),
-                )
+            else -> items(groups, key = { it.first().row.id.value }, contentType = { "track" }) { group ->
+                val grouped = group.first().variationGroupId != null
+                val drawRow: @Composable (CreateTrackUi) -> Unit = { track ->
+                    val id = track.row.id
+                    CreateTrackItem(
+                        track = track,
+                        isPlaying = id == state.playingTrackId,
+                        menuExpanded = id == state.menuTrackId,
+                        onClick = { onIntent(CreateIntent.TrackClicked(id)) },
+                        onMoreClick = { onIntent(CreateIntent.MoreClicked(id)) },
+                        onRetryClick = { onIntent(CreateIntent.RetryClicked(id)) },
+                        onFixClick = { onIntent(CreateIntent.FixClicked(id)) },
+                        onDeleteClick = { onIntent(CreateIntent.DeleteClicked(id)) },
+                        onMenuAction = { onIntent(CreateIntent.MenuActionClicked(it)) },
+                        onMenuDismiss = { onIntent(CreateIntent.MenuDismissed) },
+                        inGroup = grouped,
+                    )
+                }
+                if (grouped) {
+                    CreateTrackGroup(group, Modifier.animateItem(), drawRow)
+                } else {
+                    Box(Modifier.animateItem()) { drawRow(group.first()) }
+                }
             }
         }
     }

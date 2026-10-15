@@ -37,17 +37,12 @@ fun CreateTrackItem(
     onMenuAction: (TrackMenuAction) -> Unit,
     onMenuDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    inGroup: Boolean = false,
 ) {
     val dimens = StudioTheme.dimens
-    Column(modifier.padding(horizontal = dimens.layout.screenPadding)) {
-        track.dayLabel?.let {
+    Column(modifier.padding(horizontal = if (inGroup) dimens.spacing.none else dimens.layout.screenPadding)) {
+        track.dayLabel?.takeUnless { inGroup }?.let {
             StudioText(it.asString(), StudioTheme.typography.labelLarge, Modifier.padding(vertical = dimens.spacing.s))
-        }
-        if (track.variation == 1) {
-            StudioText(stringResource(R.string.create_variations_group), StudioTheme.typography.labelLarge)
-        }
-        track.variation?.let {
-            StudioText(stringResource(R.string.create_variation_number, it), StudioTheme.typography.bodySmall)
         }
         // The menu anchors to the row and opens under its end, by the "more" button.
         Box {
@@ -59,6 +54,15 @@ fun CreateTrackItem(
                     onClick = onClick,
                     isPlaying = isPlaying,
                     onMore = onMoreClick,
+                    titleSuffix = track.variation?.let { number ->
+                        {
+                            StudioText(
+                                stringResource(R.string.create_variation_number, number),
+                                StudioTheme.typography.bodySmall,
+                                color = StudioTheme.colors.content.tertiary,
+                            )
+                        }
+                    },
                 )
             }
             TrackMenu(

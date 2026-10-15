@@ -1,6 +1,7 @@
 package com.illiamelnyk.studio.core.domain.playback
 
 import com.illiamelnyk.studio.core.domain.track.Track
+import com.illiamelnyk.studio.core.domain.track.TrackId
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -38,6 +39,8 @@ interface PlaybackController {
     fun setRepeat(mode: RepeatMode)
 
     fun moveQueueItem(fromIndex: Int, toIndex: Int) = Unit
+
+    fun removeTrack(id: TrackId) = Unit
 
     /** Keeps the current track playing and drops the rest of the queue. */
     fun clearUpNext()

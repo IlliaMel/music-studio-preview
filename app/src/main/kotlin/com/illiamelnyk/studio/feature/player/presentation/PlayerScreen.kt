@@ -1,15 +1,17 @@
 package com.illiamelnyk.studio.feature.player.presentation
 
-import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
@@ -28,7 +30,7 @@ import com.illiamelnyk.studio.feature.player.presentation.components.PlayerTrans
  * controls and the actions, and the sheets over them. [clock] is read only by the parts that show
  * the position, while they draw. Nothing is drawn while nothing is loaded.
  *
- * @param coverModifier makes the cover the shared element that travels from the mini player.
+ * @param coverModifier an optional decoration for the artwork.
  * @param bodyModifier for the player's body under the sheets, such as the drag that closes it.
  */
 @Composable
@@ -46,6 +48,7 @@ fun PlayerScreen(
         PlayerLayout(
             modifier = bodyModifier.padding(contentPadding),
             stationMode = state.isStation,
+            queueMode = state.sheet == PlayerSheet.Queue,
             topBar = {
                 PlayerTopBar(
                     showActions = !state.isStation,
@@ -59,19 +62,23 @@ fun PlayerScreen(
             artwork = { artworkModifier ->
                 Artwork(state, clock, onIntent, artworkModifier, coverModifier)
             },
-        ) {
-            if (state.sheet != PlayerSheet.Queue) {
+        ) { compactHeight ->
+            TrackInfoSlot(visible = state.sheet != PlayerSheet.Queue, reserveSpace = !compactHeight) {
                 PlayerTrackInfo(
                     track = track,
                     showLyrics = state.showLyrics && state.hasLyrics && !state.isStation,
                     onLyricsClick = if (state.hasLyrics &&
                         !state.isStation
                     ) {
-                        ({ onIntent(PlayerIntent.LyricsClicked) })
+                        ({ if (state.sheet != PlayerSheet.Queue) onIntent(PlayerIntent.LyricsClicked) })
                     } else {
                         null
                     },
-                    onQueueClick = if (!state.isStation) ({ onIntent(PlayerIntent.QueueClicked) }) else null,
+                    onQueueClick = if (!state.isStation) {
+                        { if (state.sheet != PlayerSheet.Queue) onIntent(PlayerIntent.QueueClicked) }
+                    } else {
+                        null
+                    },
                 )
             }
             Transport(state, clock, onIntent)
@@ -99,12 +106,10 @@ private fun Artwork(
 ) {
     val track = state.track ?: return
     val motion = StudioTheme.motion
-    AnimatedContent(
+    Crossfade(
         targetState = state.sheet == PlayerSheet.Queue,
         modifier = modifier,
-        transitionSpec = {
-            fadeIn(tween(motion.duration.medium)) togetherWith fadeOut(tween(motion.duration.short))
-        },
+        animationSpec = tween(motion.duration.medium),
         label = "playerQueue",
     ) { queueShown ->
         if (queueShown) {
@@ -172,4 +177,22 @@ private fun Sheets(state: PlayerContent, onIntent: (PlayerIntent) -> Unit) {
 private fun PlayerScreenPreview(@PreviewParameter(PlayerPreviewData.States::class) state: PlayerContent) {
     // The player always uses the dark scheme; see PlayerHost.
     StudioTheme(darkTheme = true) { PlayerScreen(state = state, clock = { PlayerPreviewData.clock }, onIntent = {}) }
+}
+
+@Composable
+private fun TrackInfoSlot(visible: Boolean, reserveSpace: Boolean, content: @Composable () -> Unit) {
+    val opacity = animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(StudioTheme.motion.duration.medium),
+        label = "playerTrackInfo",
+    )
+    Box(
+        Modifier.layout { measurable, constraints ->
+            val child = measurable.measure(constraints)
+            layout(child.width, if (visible || reserveSpace) child.height else 0) {
+                if (opacity.value > 0f) child.place(0, 0)
+            }
+        }.graphicsLayer { alpha = opacity.value }
+            .then(if (visible) Modifier else Modifier.clearAndSetSemantics {}),
+    ) { content() }
 }

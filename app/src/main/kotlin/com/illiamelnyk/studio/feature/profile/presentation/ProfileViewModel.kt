@@ -2,6 +2,7 @@ package com.illiamelnyk.studio.feature.profile.presentation
 
 import androidx.lifecycle.viewModelScope
 import com.illiamelnyk.studio.R
+import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.credits.CreditsRepository
 import com.illiamelnyk.studio.core.domain.session.DeleteAccount
@@ -16,10 +17,15 @@ import com.illiamelnyk.studio.core.presentation.MviViewModel
 import com.illiamelnyk.studio.core.presentation.ToastController
 import com.illiamelnyk.studio.core.presentation.UiText
 import com.illiamelnyk.studio.core.presentation.toUiText
+import java.io.IOException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ProfileViewModel(
     private val sessions: SessionRepository,
@@ -116,21 +122,46 @@ class ProfileViewModel(
         setState { copy(confirmDelete = false, isDeleting = true) }
         viewModelScope.launch {
             val result = deleteAccount()
-            if (result is Outcome.Failure) {
-                setState { copy(isDeleting = false) }
-                toasts.show(result.error.toUiText(), isError = true)
+            withContext(NonCancellable) {
+                if (result is Outcome.Failure) {
+                    setState { copy(isDeleting = false) }
+                    if (sessions.session.first() == null) {
+                        toasts.show(
+                            UiText.Resource(R.string.profile_deleted_locally),
+                            UiText.Resource(R.string.profile_deletion_unconfirmed),
+                            isError = true,
+                        )
+                    } else {
+                        toasts.show(result.error.toUiText(), isError = true)
+                    }
+                }
             }
         }
     }
 
     private fun selectTheme(theme: ThemePreference) {
-        viewModelScope.launch { themes.set(theme) }
+        viewModelScope.launch {
+            try {
+                themes.set(theme)
+            } catch (_: IOException) {
+                toasts.show(UiText.Resource(R.string.error_preferences), isError = true)
+            }
+        }
     }
 
     /** Signing out takes the app back to the welcome screen by itself; nothing to navigate. */
     private fun leave() {
         if (state.value.isSigningOut || state.value.isDeleting || state.value.isSaving) return
         setState { copy(isSigningOut = true) }
-        viewModelScope.launch { signOut() }
+        viewModelScope.launch {
+            try {
+                signOut()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                setState { copy(isSigningOut = false) }
+                toasts.show(AppError.Unknown.toUiText(), isError = true)
+            }
+        }
     }
 }

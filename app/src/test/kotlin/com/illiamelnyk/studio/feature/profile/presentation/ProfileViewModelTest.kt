@@ -15,6 +15,7 @@ import com.illiamelnyk.studio.core.domain.session.SessionRepository
 import com.illiamelnyk.studio.core.domain.session.SignInMethod
 import com.illiamelnyk.studio.core.domain.session.SignOut
 import com.illiamelnyk.studio.core.domain.settings.ThemePreference
+import com.illiamelnyk.studio.core.domain.settings.ThemePreferenceRepository
 import com.illiamelnyk.studio.core.presentation.ToastController
 import com.illiamelnyk.studio.core.presentation.UiText
 import com.illiamelnyk.studio.testing.InMemoryThemePreferenceRepository
@@ -177,14 +178,80 @@ class ProfileViewModelTest {
         assertTrue(toasts.message.value!!.isError)
     }
 
-    private fun TestScope.viewModel(repository: SessionRepository = sessions): ProfileViewModel {
+    @Test
+    fun `sign out IO failure resets busy state and offers retry`() = runTest(main.testDispatcher) {
+        val failing = object : SessionRepository by sessions {
+            override suspend fun signOut() = throw java.io.IOException("simulated store failure")
+        }
+        val vm = viewModel(failing)
+        runCurrent()
+        vm.onIntent(ProfileIntent.SignOutClicked)
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.isSigningOut)
+        assertEquals("Illia", sessions.session.first()!!.user.displayName)
+        assertTrue(toasts.message.value!!.isError)
+        vm.onIntent(ProfileIntent.BackClicked)
+        vm.effects.test { assertEquals(ProfileEffect.Close, awaitItem()) }
+    }
+
+    @Test
+    fun `local purge with uncertain server deletion is reported separately`() = runTest(main.testDispatcher) {
+        val uncertain = object : SessionRepository by sessions {
+            override suspend fun deleteAccount(): Outcome<Unit> {
+                sessions.deleteAccount()
+                return Outcome.Failure(AppError.Network)
+            }
+        }
+        val vm = viewModel(uncertain)
+        runCurrent()
+        vm.onIntent(ProfileIntent.DeleteClicked)
+        vm.onIntent(ProfileIntent.DeleteConfirmed)
+        advanceUntilIdle()
+
+        assertNull(sessions.session.first())
+        assertEquals(UiText.Resource(R.string.profile_deleted_locally), toasts.message.value!!.title)
+        assertTrue(toasts.message.value!!.isError)
+    }
+
+    @Test
+    fun themePreferenceWriteFailurePreservesThemeAndProfileDraftAndAllowsRetry() = runTest(main.testDispatcher) {
+        var fail = true
+        val failing = object : ThemePreferenceRepository by themes {
+            override suspend fun set(preference: ThemePreference) {
+                if (fail) throw java.io.IOException("simulated preference write failure")
+                themes.set(preference)
+            }
+        }
+        val vm = viewModel(themeRepository = failing)
+        runCurrent()
+        val initialTheme = vm.state.value.theme
+        vm.onIntent(ProfileIntent.NameChanged("Unsaved draft"))
+        vm.onIntent(ProfileIntent.ThemeSelected(ThemePreference.Dark))
+        advanceUntilIdle()
+
+        assertEquals(initialTheme, vm.state.value.theme)
+        assertEquals("Unsaved draft", vm.state.value.name)
+        assertEquals(UiText.Resource(R.string.error_preferences), toasts.message.value!!.title)
+        assertTrue(toasts.message.value!!.isError)
+        fail = false
+        vm.onIntent(ProfileIntent.ThemeSelected(ThemePreference.Dark))
+        advanceUntilIdle()
+        assertEquals(ThemePreference.Dark, vm.state.value.theme)
+        assertEquals("Unsaved draft", vm.state.value.name)
+    }
+
+    private fun TestScope.viewModel(
+        repository: SessionRepository = sessions,
+        themeRepository: ThemePreferenceRepository = themes,
+    ): ProfileViewModel {
         toasts = ToastController(backgroundScope)
         val playback = FakePlaybackController(backgroundScope)
         val tracks = FakeTrackRepository(credits, repository, backgroundScope, Clock.System)
         return ProfileViewModel(
             repository,
             credits,
-            themes,
+            themeRepository,
             SignOut(repository, playback),
             DeleteAccount(repository, playback, tracks),
             toasts,

@@ -44,6 +44,14 @@ fun List<Track>.toGroupedCreateUi(today: LocalDate, zone: ZoneId): ImmutableList
             index == pairedThrough -> 2
             else -> null
         }
-        track.toCreateUi().copy(dayLabel = dayLabel, variation = variation)
+        track.toCreateUi().copy(
+            dayLabel = dayLabel,
+            variation = variation,
+            variationGroupId = when {
+                variation == null -> null
+                track.generationId != null -> "generation:" + track.generationId
+                else -> "legacy:" + sorted[if (first) index else pairedThrough - 1].id.value
+            },
+        )
     }.toImmutableList()
 }

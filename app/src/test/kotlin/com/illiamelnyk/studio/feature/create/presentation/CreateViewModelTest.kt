@@ -49,9 +49,15 @@ class CreateViewModelTest {
         override fun now() = Instant.parse("2026-10-14T09:00:00Z")
     }
     private var answered = false
+    private var failNotificationRead = false
+    private var failNotificationWrite = false
     private val notificationChoice = object : NotificationChoice {
-        override suspend fun hasAnswered() = answered
+        override suspend fun hasAnswered(): Boolean {
+            if (failNotificationRead) throw java.io.IOException("simulated preference read failure")
+            return answered
+        }
         override suspend fun answer() {
+            if (failNotificationWrite) throw java.io.IOException("simulated preference write failure")
             answered = true
         }
     }
@@ -435,6 +441,8 @@ class CreateViewModelTest {
     fun `delete asks first, and only a confirmed delete removes the track`() =
         runTest(mainDispatcherRule.testDispatcher) {
             val viewModel = viewModel()
+            viewModel.onIntent(CreateIntent.TrackClicked(TrackId("seed-2")))
+            assertEquals(TrackId("seed-2"), playback.state.value.current?.id)
 
             viewModel.onIntent(CreateIntent.MoreClicked(TrackId("seed-2")))
             viewModel.onIntent(CreateIntent.MenuActionClicked(TrackMenuAction.Delete))
@@ -443,6 +451,7 @@ class CreateViewModelTest {
             advanceTimeBy(1.seconds)
             assertNull(viewModel.state.value.deleting)
             assertEquals(6, viewModel.state.value.tracks.size)
+            assertEquals(TrackId("seed-2"), playback.state.value.current?.id)
 
             viewModel.onIntent(CreateIntent.MoreClicked(TrackId("seed-2")))
             viewModel.onIntent(CreateIntent.MenuActionClicked(TrackMenuAction.Delete))
@@ -450,6 +459,8 @@ class CreateViewModelTest {
             advanceTimeBy(1.seconds)
 
             assertNull(viewModel.state.value.deleting)
+            assertEquals(TrackId("seed-4"), playback.state.value.current?.id)
+            assertEquals(ids("seed-1", "seed-4", "seed-6"), playback.state.value.queue.map { it.id })
             assertEquals(
                 ids("seed-1", "seed-3", "seed-4", "seed-5", "seed-6"),
                 viewModel.state.value.tracks.map {
@@ -539,6 +550,55 @@ class CreateViewModelTest {
         assertEquals("Lo-fi beat", viewModel.state.value.composer.prompt)
         assertEquals(false, viewModel.state.value.composer.isSending)
     }
+
+    @Test
+    fun notificationPreferenceReadFailurePreservesSuccessfulGenerationAndPermitsAnotherSend() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val viewModel = viewModel()
+            failNotificationRead = true
+            viewModel.effects.test {
+                send(viewModel, "Warm cinematic piano")
+                assertEquals(CreateEffect.TracksStarted, awaitItem())
+                val error = awaitItem() as CreateEffect.ShowToast
+                assertEquals(UiText.Resource(R.string.error_preferences), error.toast.message)
+                assertEquals(StudioToastKind.Error, error.toast.kind)
+                assertEquals(7, credits.credits.first().remaining)
+                assertEquals(TracksFilter.Drafts, viewModel.state.value.filter)
+                assertEquals("", viewModel.state.value.composer.prompt)
+                assertEquals(false, viewModel.state.value.composer.isSending)
+                assertEquals(TrackUi.Status.Generating, viewModel.state.value.tracks.first().row.status)
+                failNotificationRead = false
+                send(viewModel, "Second warm piano idea")
+                assertEquals(CreateEffect.TracksStarted, awaitItem())
+                assertEquals(CreateSheet.Notify, viewModel.state.value.sheet)
+                assertEquals(6, credits.credits.first().remaining)
+            }
+        }
+
+    @Test
+    fun notificationPreferenceWriteFailureKeepsPromptRetryableWithoutRequestingPermission() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val viewModel = viewModel()
+            viewModel.effects.test {
+                send(viewModel, "Warm cinematic piano")
+                assertEquals(CreateEffect.TracksStarted, awaitItem())
+                failNotificationWrite = true
+                viewModel.onIntent(CreateIntent.NotificationAnswered(true))
+                runCurrent()
+                val error = awaitItem() as CreateEffect.ShowToast
+                assertEquals(UiText.Resource(R.string.error_preferences), error.toast.message)
+                assertEquals(CreateSheet.Notify, viewModel.state.value.sheet)
+                assertEquals(false, answered)
+                expectNoEvents()
+                failNotificationWrite = false
+                viewModel.onIntent(CreateIntent.NotificationAnswered(true))
+                runCurrent()
+                assertEquals(CreateEffect.RequestNotifications, awaitItem())
+                assertEquals(true, answered)
+                assertNull(viewModel.state.value.sheet)
+                assertEquals(7, credits.credits.first().remaining)
+            }
+        }
 
     private fun TestScope.viewModel(): CreateViewModel {
         tracks = FailingTrackRepository(FakeTrackRepository(credits, FakeSessionRepository(), backgroundScope, clock))
