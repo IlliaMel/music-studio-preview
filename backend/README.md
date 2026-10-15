@@ -1,6 +1,6 @@
 # Studio backend
 
-The server behind the Studio Android app. It supports Firebase token verification and local development sign-in, keeps profiles and tracks, and runs the long music generations in the background, so the phone only creates a track and polls until it is ready. Generation runs on a mock provider for now; the ElevenLabs client, which will keep the API key away from the phone, comes next.
+The server behind the Studio Android app. It supports Firebase token verification and local development sign-in, keeps profiles and tracks, and runs music generations in the background while the phone polls for completion. Generation supports a fast local mock and the real ElevenLabs Music API. Choose the provider in the environment; API keys remain on the server. See [LIVE_SETUP.md](LIVE_SETUP.md) for activation, supported modes, paid-attempt safety and remaining Android integration.
 
 **Stack:** Node.js 24, TypeScript, [Hono](https://hono.dev), [zod](https://zod.dev), [Drizzle ORM](https://orm.drizzle.team) on Postgres, [PGlite](https://pglite.dev) for local work and tests, [pino](https://getpino.io) logs, [Vitest](https://vitest.dev), [Biome](https://biomejs.dev).
 
@@ -58,9 +58,9 @@ src/
    └─ index.ts              creates the feature from its dependencies
 ```
 
-Dependencies point one way: routes → service → repository → database. `core` never imports from `features`, and a feature reaches another feature only through its service, never through its table.
+Dependencies point one way: routes → service → repository → database. `core` never imports from `features`, cross-feature SQL operations coordinate account, track and library ownership/deletion in shared transactions. These deliberate table references preserve atomic cleanup.
 
-**Errors.** Every failure has the same shape, `{"error": {"code", "message", "details?"}}`. Throw `new ApiError(status, 'CODE', 'message')` from any layer; anything else becomes `500 INTERNAL` and is logged with its stack, without leaking details to the client. Each response carries `X-Request-Id`, also present on every log line of that request.
+**Errors.** Every failure has the same shape, `{"error": {"code", "message", "details?"}}`. Throw `new ApiError(status, 'CODE', 'message')` from any layer; anything else becomes `500 INTERNAL` and is logged with safe classification/code and sanitized causes, without SQL parameters, messages or stacks. Each response carries `X-Request-Id`, also present on every log line of that request.
 
 ## Sign-in
 
@@ -76,11 +76,11 @@ A token that is missing, malformed or expired gets `401 UNAUTHORIZED` with `WWW-
 |---|---|
 | `GET /v1/me` | The profile and current terms acceptance status |
 | `PATCH /v1/me` | Accepts current terms through `acceptedTermsVersion`; legacy optional profile/consent fields remain compatible |
-| `DELETE /v1/me` | Deletes the account: our data first, then the Firebase user. Safe to retry |
+| `DELETE /v1/me` | Marks deletion durably; cleans audio/tracks, Firebase, then SQL account data; startup/periodic recovery can finish without the deleted token |
 
 When the terms change, bump `TERMS_VERSION` in `users.service.ts`: every user gets `terms` back in the missing steps and `requireOnboarding` stops them until they accept.
 
-**Modes.** `AUTH_MODE=firebase` needs `FIREBASE_SERVICE_ACCOUNT`, the JSON key from Firebase console → Project settings → Service accounts, pasted as one line; the Admin SDK needs it to delete users. `AUTH_MODE=dev` accepts `dev:<name>` tokens, so tests, CI and anyone without our Firebase project can use the API. Because anyone could claim any name, the server refuses dev mode in production and on any address other than loopback.
+**Modes.** `AUTH_MODE=firebase` needs `FIREBASE_SERVICE_ACCOUNT` (inline JSON) or `FIREBASE_SERVICE_ACCOUNT_FILE` (credential path), the JSON key from Firebase console → Project settings → Service accounts, pasted as one line; the Admin SDK needs it to delete users. `AUTH_MODE=dev` accepts `dev:<name>` tokens, so tests, CI and anyone without our Firebase project can use the API. Because anyone could claim any name, the server refuses dev mode in production and on any address other than loopback.
 
 ## Tracks and generation
 
@@ -91,10 +91,10 @@ POST /v1/tracks  ──►  queued  ──► worker claims it ──►  runnin
 
 The app creates a track and polls `GET /v1/tracks/:id` every few seconds until it is `done` or `failed`, then downloads `audioUrl` once. Generation takes from half a minute to a few minutes, so it never runs inside the request.
 
-- **The queue is the `tracks` table.** Each worker loop claims the oldest `queued` row with `FOR UPDATE SKIP LOCKED`, so loops never take the same track and nothing queued lives only in memory. On shutdown the songs in progress are cancelled and put back in the queue for the next server; a track left `running` by a crash is failed as `INTERRUPTED` once it is clearly abandoned.
+- **The queue is the `tracks` table.** Each worker loop claims the oldest `queued` row with `FOR UPDATE SKIP LOCKED`, so loops never take the same track and nothing queued lives only in memory. On shutdown mock songs are cancelled and requeued. Live paid songs are never blindly resubmitted: disconnects, shutdown and abandoned running rows become terminal `PROVIDER_OUTCOME_UNKNOWN`. Check provider history before intentionally starting another paid request.
 - **Idempotency.** The app sends an `Idempotency-Key` per attempt and reuses it on network retries; the same key returns the same track instead of paying for a second generation. The same key with a different body is `422 IDEMPOTENCY_KEY_REUSED`. "Try again" after a failure is a new attempt with a new key.
-- **Daily limit** per user (`DAILY_GENERATIONS_PER_USER`, UTC days), checked under a per-user lock so parallel requests cannot slip past it. Failures the provider refuses up front (rejected prompt, rate limit, outage, no credits) do not count; a timeout or an interruption does, since the song may have been generated and paid for. Deleting a track wipes its content but does not give the generation back. `GET /v1/me/quota` shows what is left.
-- **Retries and timeout.** Rate limits and a briefly unavailable provider are retried after 2, 4 and 8 seconds; a rejected prompt is not. Each song gives up after `GENERATION_TIMEOUT_MS`.
+- **Daily limit** per user (`DAILY_GENERATIONS_PER_USER`, UTC days), checked under a per-user lock so parallel requests cannot slip past it. Mock failures refused up front (rejected prompt, rate limit, outage, no credits) do not count. Live failures conservatively retain the group credit; a timeout or an interruption does, since the song may have been generated and paid for. Deleting a track wipes its content but does not give the generation back. `GET /v1/me/quota` shows what is left.
+- **Retries and timeout.** Mock retryable failures use 2, 4 and 8 second delays. Live paid calls are not automatically retried, including 429/5xx and uncertain responses. Each song gives up after `GENERATION_TIMEOUT_MS`.
 - **Audio** is served with `Range` support, so the player can seek without downloading the whole file again. It is kept in `AUDIO_DIR` on the server's disk, so run **one** instance with a persistent volume; several instances need an object store behind `AudioStorage`.
 
 | Endpoint | What it does |
@@ -102,7 +102,7 @@ The app creates a track and polls `GET /v1/tracks/:id` every few seconds until i
 | `POST /v1/tracks` | Queue a generation: `prompt`, `lengthMs` (omit for Auto), `instrumental`, `modelId`. Needs accepted current terms; age/name onboarding is not required |
 | `GET /v1/tracks?limit&cursor` | The user's tracks, newest first, a page at a time |
 | `GET /v1/tracks/:id` | One track, with the timing of every sung word |
-| `GET /v1/tracks/:id/audio` | The audio file (WAV for mock, MP3 for a future provider); `409 NOT_READY` until it is done |
+| `GET /v1/tracks/:id/audio` | The audio file (WAV for mock, MP3 for ElevenLabs); `409 NOT_READY` until it is done |
 | `DELETE /v1/tracks/:id` | Delete a track and its audio, in any state |
 | `GET /v1/me/quota` | Generations used and left today |
 
@@ -136,9 +136,9 @@ POST /v1/tracks requires Idempotency-Key (8–100 characters) and accepts:
 {"prompt":"A bright electronic melody","instrumental":false,"variants":2,"quality":"auto","lengthMs":30000,"modelId":"music_v2_5","customLyrics":"Hello Kyiv tonight"}
 ```
 
-Quality accepts auto/deep/fast and is persisted/passed to the provider; the mock does not change rendering quality. Optional reference fields: referenceUploadId (owned upload UUID), remixTrackId (catalog ID or owned ready track UUID). Remix-of-remix is rejected. The response preserves the first track DTO and adds generationId, variantIndex, variants, and tracks containing all variants. Two variants reserve ONE daily generation atomically; the default limit is 25. Repeating the same key/body returns the same group; changing the body returns 422. Retry failed generations with a new key.
+The transport accepts auto/deep/fast and persists the option; the mock does not change rendering quality. Live ElevenLabs supports Auto only and rejects Deep/Fast with UNSUPPORTED_MODE before queue insertion. Optional reference fields: referenceUploadId (owned upload UUID), remixTrackId (catalog ID or owned ready track UUID). Remix-of-remix is rejected. The response preserves the first track DTO and adds generationId, variantIndex, variants, and tracks containing all variants. Two variants reserve ONE daily generation atomically; the default limit is 25. Repeating the same key/body returns the same group; changing the body returns 422. A new key is an intentional new attempt. For PROVIDER_OUTCOME_UNKNOWN, inspect ElevenLabs history before creating another paid request.
 
-POST /v1/uploads accepts raw audio/mpeg, audio/mp4, audio/wav, audio/x-wav, audio/aac, audio/ogg or audio/webm up to 20 MiB and returns {id,contentType,sizeBytes,durationMs:null,provider:"mock"}. Upload ownership is checked on generation. Reference bytes are persisted in PGlite/Postgres; object storage and audio inspection belong with the real provider adapter.
+POST /v1/uploads stores raw audio up to 20 MiB and returns {id,contentType,sizeBytes,durationMs:null,provider,expiresAt}. Mock accepts audio/mpeg, audio/mp4, audio/wav, audio/x-wav, audio/aac, audio/ogg and audio/webm; live mode checks MP3, WAV and MP4/M4A container signatures. Per-account limits are 20 files and 100 MiB, with 24-hour expiry and ownership-safe DELETE /v1/uploads/:id. Active generation references cannot be deleted. Enterprise references must be explicitly enabled; the worker transfers audio through the billable ElevenLabs upload endpoint, validates its extracted-plan duration and persists remote identity/attempt state. See LIVE_SETUP.md for codec inspection, entitlement and remote retention limits.
 
 | Method | Path | Response |
 |---|---|---|
@@ -154,10 +154,10 @@ POST /v1/uploads accepts raw audio/mpeg, audio/mp4, audio/wav, audio/x-wav, audi
 
 Playlist DTO: {id,name,createdAt,trackIds}. Track IDs match the 12-track Android built-in demo catalog. Likes, playlists and uploads persist in the database and are deleted with the account. Deleting a generated track also removes its library references.
 
-The mock generates audible PCM WAV of exactly the requested duration (Auto:30 seconds), maps supplied words to synthetic lyric timings, and varies melodies between variants. Audio endpoints return Content-Type:audio/wav and support byte ranges. These are deterministic demo tones, not ElevenLabs music or synthesized singing. Remix/upload contracts are stored; the mock does not interpret or transform reference audio. Real ElevenLabs and live Firebase credentials remain unvalidated.
+The mock generates audible PCM WAV of exactly the requested duration (Auto:30 seconds), maps supplied words to synthetic lyric timings, and varies melodies between variants. Audio endpoints return Content-Type:audio/wav and support byte ranges. These are deterministic demo tones, not ElevenLabs music or synthesized singing. Remix/upload contracts are stored; the mock does not interpret or transform reference audio. The real ElevenLabs adapter and Firebase Admin integration are implemented, but actual credentials, paid calls and enterprise access remain unvalidated.
 
 PATCH /v1/tracks/:id accepts {title:string} (trimmed, 1–80 characters) and returns the persisted track DTO. Only owned done/failed tracks can be renamed; queued/running returns 409 NOT_READY, foreign/deleted returns 404. This prevents a finishing provider from overwriting an in-flight rename.
 
 Idempotency-Key values reserve the substring `:variant:` for internal variant rows; client keys containing it are rejected with 400. Deleted queued tracks are never sent to the provider. Library membership additions lock the referenced owned track in the same transaction as insertion, so concurrent track deletion cannot leave orphan references.
 
-Account deletion uses a durable deletionRequestedAt marker (migration0003). Other requests receive409 ACCOUNT_DELETING while DELETE /v1/me remains retryable. Tombstoned tracks cannot save new audio; workers hold a track row lock through audio save and completion, so cleanup either waits for that save or prevents it. Single-track DELETE also marks first and can retry failed file cleanup after the track is hidden. Catalog audio links honor PUBLIC_BASE_URL.
+Account deletion uses a durable deletionRequestedAt marker (migration0003). Other requests receive409 ACCOUNT_DELETING while DELETE /v1/me remains retryable. Tombstoned tracks cannot save new audio; workers hold a track row lock through audio save and completion, so cleanup either waits for that save or prevents it. Single-track DELETE also marks first and can retry failed file cleanup after the track is hidden. A startup/30-second deletion worker retries marked users independently of client authentication. Catalog audio links honor PUBLIC_BASE_URL; HEAD synthesizes no full WAV and Range renders only the requested samples. GET /v1/capabilities describes provider modes and upload limits.

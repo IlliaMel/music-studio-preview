@@ -2,7 +2,7 @@ import type { CurrentUser } from '../../core/http/app-env.js'
 import { ApiError } from '../../core/http/errors.js'
 import type { AudioStorage, StoredFile } from '../../core/storage/audio-storage.js'
 import { catalogTracks } from '../library/catalog.js'
-import type { ModelId } from './generation/music-provider.js'
+import { type ModelId, type MusicProvider, ProviderError } from './generation/music-provider.js'
 import type { TrackCursor, TracksRepository } from './tracks.repository.js'
 import type { Track } from './tracks.table.js'
 
@@ -33,6 +33,7 @@ export class TracksService {
     private readonly worker: { wake(): void },
     private readonly options: TracksOptions,
     private readonly now: () => Date = () => new Date(),
+    private readonly provider?: MusicProvider,
   ) {}
 
   /**
@@ -73,17 +74,31 @@ export class TracksService {
       throw new ApiError(404, 'UPLOAD_NOT_FOUND', 'No such audio upload')
     if (input.remixTrackId && !catalogTracks.some((track) => track.id === input.remixTrackId)) {
       const source = await this.get(user, input.remixTrackId)
+      if (this.provider?.paid && (source.providerName !== this.provider.name || !source.songId))
+        throw new ApiError(
+          422,
+          'UNSUPPORTED_MODE',
+          'Live remix requires a live original stored with enterprise references enabled',
+        )
       if (source.remixTrackId)
         throw new ApiError(409, 'REMIX_OF_REMIX', 'Choose an original track to remix')
       if (source.status !== 'done')
         throw new ApiError(409, 'NOT_READY', 'The original track is not ready')
     }
+    try {
+      this.provider?.validate?.({ ...input, modelId: request.modelId })
+    } catch (error) {
+      if (error instanceof ProviderError) throw new ApiError(422, error.code, error.message)
+      throw error
+    }
     const outcome = await this.repository.create(
-      { userId: user.id, idempotencyKey, ...request },
+      { userId: user.id, idempotencyKey, ...request, providerName: this.provider?.name ?? 'mock' },
       { since: startOfDay(now), max: this.options.dailyLimit },
       now,
     )
     switch (outcome.kind) {
+      case 'upload-not-found':
+        throw new ApiError(404, 'UPLOAD_NOT_FOUND', 'No such unexpired audio upload')
       case 'account-deleting':
         throw new ApiError(
           409,

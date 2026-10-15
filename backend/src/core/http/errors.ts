@@ -36,7 +36,6 @@ export const errorHandler: ErrorHandler<AppEnv> = (error, c) => {
   if (error instanceof HTTPException) {
     return c.json(errorBody(`HTTP_${error.status}`, error.message), error.status)
   }
-  // Anything else is a bug: log it with the stack, show the client nothing internal.
   c.get('log').error({ err: error }, 'unhandled error')
   return c.json(errorBody('INTERNAL', 'Something went wrong on our side'), 500)
 }

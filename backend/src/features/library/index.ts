@@ -4,7 +4,11 @@ import { LibraryRepository } from './library.repository.js'
 import { libraryRoutes } from './library.routes.js'
 import { LibraryService } from './library.service.js'
 
-export function createLibraryFeature(db: Database, publicBaseUrl?: string): Feature {
-  const service = new LibraryService(new LibraryRepository(db))
+export function createLibraryFeature(
+  db: Database,
+  publicBaseUrl?: string,
+  realProvider = false,
+): Feature {
+  const service = new LibraryService(new LibraryRepository(db), realProvider)
   return { name: 'library', routes: libraryRoutes(service, publicBaseUrl) }
 }

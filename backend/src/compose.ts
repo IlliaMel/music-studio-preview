@@ -1,13 +1,16 @@
+import { Hono } from 'hono'
 import { createApp } from './app.js'
 import type { AuthProvider } from './core/auth/auth-provider.js'
 import { authenticate } from './core/auth/authenticate.js'
 import type { Database } from './core/db/database.js'
-import type { Feature } from './core/http/app-env.js'
+import type { AppEnv, Feature } from './core/http/app-env.js'
 import type { Logger } from './core/logger.js'
 import type { AudioStorage } from './core/storage/audio-storage.js'
 import { createLibraryFeature } from './features/library/index.js'
+import { LibraryRepository } from './features/library/library.repository.js'
 import type { MusicProvider } from './features/tracks/generation/music-provider.js'
 import { createTracksFeature, type TracksFeatureOptions } from './features/tracks/index.js'
+import { AccountDeletionWorker } from './features/users/account-deletion-worker.js'
 import { createUsersFeature } from './features/users/index.js'
 
 export type AppServices = {
@@ -41,7 +44,35 @@ export function composeApp(services: AppServices, extraFeatures: readonly Featur
   const features = [
     users.feature,
     tracks.feature,
-    createLibraryFeature(db, services.tracks.publicBaseUrl),
+    createLibraryFeature(
+      db,
+      services.tracks.publicBaseUrl,
+      services.provider.name === 'elevenlabs',
+    ),
+    {
+      name: 'capabilities',
+      routes: new Hono<AppEnv>().get('/capabilities', (c) =>
+        c.json({
+          provider: services.provider.name,
+          qualityModes: services.provider.paid ? ['auto'] : ['auto', 'deep', 'fast'],
+          customLyrics: true,
+          variants: [1, 2],
+          audioReferences: services.provider.paid
+            ? services.provider.capabilities?.references
+              ? 'enabled-enterprise'
+              : 'disabled-enterprise-entitlement-required'
+            : 'mock',
+          liveCatalogRemix: false,
+          uploads: {
+            maxFiles: 20,
+            maxBytes: 100 * 1024 * 1024,
+            maxFileBytes: 20 * 1024 * 1024,
+            ttlSeconds: 86400,
+          },
+          uncertainPaidRequests: 'terminal-no-automatic-retry',
+        }),
+      ),
+    },
     ...extraFeatures,
   ]
 
@@ -51,5 +82,11 @@ export function composeApp(services: AppServices, extraFeatures: readonly Featur
     authenticate: authenticate(auth, (identity) => users.service.resolve(identity)),
     features,
   })
-  return { app, features, worker: tracks.worker }
+  return {
+    app,
+    features,
+    purgeExpiredUploads: () => new LibraryRepository(db).purgeExpiredUploads(),
+    worker: tracks.worker,
+    accountDeletionWorker: new AccountDeletionWorker(users.service, log),
+  }
 }

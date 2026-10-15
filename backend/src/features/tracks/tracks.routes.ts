@@ -133,6 +133,7 @@ const toTrack = (track: Track, audioUrl: string) => ({
   variantIndex: track.variantIndex,
   variants: track.variants,
   quality: track.quality,
+  provider: track.providerName,
   customLyrics: track.customLyrics,
   referenceUploadId: track.referenceUploadId,
   remixTrackId: track.remixTrackId,

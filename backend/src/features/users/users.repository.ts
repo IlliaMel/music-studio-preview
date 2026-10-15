@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm'
+import { asc, eq, isNotNull, sql } from 'drizzle-orm'
 import type { Database } from '../../core/db/database.js'
 import { type User, users } from './users.table.js'
 
@@ -77,6 +77,15 @@ export class UsersRepository {
       .where(eq(users.id, id))
       .returning()
     return user
+  }
+
+  pendingDeletions(limit = 50): Promise<User[]> {
+    return this.db
+      .select()
+      .from(users)
+      .where(isNotNull(users.deletionRequestedAt))
+      .orderBy(asc(users.deletionRequestedAt))
+      .limit(limit)
   }
 
   async requestDeletion(id: string, now: Date): Promise<boolean> {

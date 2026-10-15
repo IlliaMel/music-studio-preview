@@ -108,6 +108,23 @@ export class GenerationWorker {
 
   private async generate(track: Track): Promise<void> {
     const log = this.deps.log.child({ trackId: track.id })
+    if (
+      (this.deps.provider.paid && track.providerName !== this.deps.provider.name) ||
+      (track.providerName === 'elevenlabs' && this.deps.provider.name !== 'elevenlabs')
+    ) {
+      await this.recordFailure(
+        track,
+        {
+          code: 'UNSUPPORTED_MODE',
+          message:
+            'Queued provider differs from active provider; configure the original provider before generating new requests',
+          promptSuggestion: null,
+        },
+        log,
+        undefined,
+      )
+      return
+    }
     const startedAt = performance.now()
     const timeout = AbortSignal.timeout(this.options.timeoutMs)
     const signal = AbortSignal.any([timeout, this.shutdown.signal])
@@ -118,6 +135,11 @@ export class GenerationWorker {
         () =>
           this.deps.provider.compose(
             {
+              identity: {
+                trackId: track.id,
+                userId: track.userId,
+                generationId: track.generationId,
+              },
               prompt: track.prompt,
               variantIndex: track.variantIndex,
               quality: track.quality as 'auto' | 'deep' | 'fast',
@@ -130,18 +152,31 @@ export class GenerationWorker {
             },
             signal,
           ),
-        this.options.retryDelaysMs,
+        this.deps.provider.paid ? [] : this.options.retryDelaysMs,
         signal,
       )
     } catch (error) {
-      if (this.shutdown.signal.aborted && !timeout.aborted) {
+      if (this.shutdown.signal.aborted && !timeout.aborted && !this.deps.provider.paid) {
         await this.deps.repository.requeue(track.id, this.now()).catch((requeueError) => {
           log.error({ err: requeueError }, 'could not requeue; it will be failed as abandoned')
         })
         log.info('generation cancelled by shutdown, back in the queue')
         return
       }
-      await this.recordFailure(track, toFailure(error, timeout), log, error)
+      await this.recordFailure(
+        track,
+        this.deps.provider.paid &&
+          (!(error instanceof ProviderError) || error.code === 'PROVIDER_OUTCOME_UNKNOWN')
+          ? {
+              code: 'PROVIDER_OUTCOME_UNKNOWN',
+              message:
+                'Provider outcome unknown; check ElevenLabs request history before creating another generation',
+              promptSuggestion: null,
+            }
+          : toFailure(error, timeout),
+        log,
+        error,
+      )
       return
     }
 

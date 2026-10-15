@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { z } from 'zod'
 
 /** Where the data lives: a real Postgres server, or the embedded PGlite for local work and tests. */
@@ -14,8 +15,8 @@ export type AuthConfig =
   | { mode: 'dev' }
 
 export type GenerationConfig = {
-  /** Only the mock for now; the ElevenLabs client arrives with its own pull request. */
-  provider: 'mock'
+  provider: 'mock' | 'elevenlabs'
+  elevenlabs?: { apiKey: string; references: boolean }
   mockDelayMs: number
   concurrency: number
   timeoutMs: number
@@ -85,6 +86,10 @@ const Env = z.object({
   DAILY_GENERATIONS_PER_USER: optional(z.coerce.number().int().min(0)),
   MOCK_DELAY_MS: optional(z.coerce.number().int().min(0)),
   FIREBASE_SERVICE_ACCOUNT: optional(ServiceAccountJson),
+  FIREBASE_SERVICE_ACCOUNT_FILE: optional(z.string().min(1)),
+  MUSIC_PROVIDER: optional(z.enum(['mock', 'elevenlabs'])),
+  ELEVENLABS_API_KEY: optional(z.string().trim().min(1)),
+  ELEVENLABS_ENABLE_REFERENCES: optional(flag),
 })
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
@@ -98,7 +103,18 @@ export class ConfigError extends Error {
 
 /** Reads and checks the environment once at start, so a bad value fails loudly instead of later. */
 export function loadConfig(environment: Record<string, string | undefined>): Config {
-  const parsed = Env.safeParse(environment)
+  let values = environment
+  if (environment.FIREBASE_SERVICE_ACCOUNT_FILE && !environment.FIREBASE_SERVICE_ACCOUNT) {
+    try {
+      values = {
+        ...environment,
+        FIREBASE_SERVICE_ACCOUNT: readFileSync(environment.FIREBASE_SERVICE_ACCOUNT_FILE, 'utf8'),
+      }
+    } catch {
+      throw new ConfigError(['FIREBASE_SERVICE_ACCOUNT_FILE: could not read credential file'])
+    }
+  }
+  const parsed = Env.safeParse(values)
   if (!parsed.success) {
     throw new ConfigError(
       parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`),
@@ -136,6 +152,14 @@ export function loadConfig(environment: Record<string, string | undefined>): Con
   if (authMode === 'firebase' && !env.FIREBASE_SERVICE_ACCOUNT) {
     problems.push('FIREBASE_SERVICE_ACCOUNT: required when AUTH_MODE is firebase')
   }
+  if (
+    nodeEnv === 'production' &&
+    env.PUBLIC_BASE_URL &&
+    !env.PUBLIC_BASE_URL.startsWith('https://')
+  )
+    problems.push('PUBLIC_BASE_URL: HTTPS is required in production')
+  if (env.MUSIC_PROVIDER === 'elevenlabs' && !env.ELEVENLABS_API_KEY)
+    problems.push('ELEVENLABS_API_KEY: required when MUSIC_PROVIDER is elevenlabs')
   if (problems.length > 0) throw new ConfigError(problems)
 
   return {
@@ -150,7 +174,15 @@ export function loadConfig(environment: Record<string, string | undefined>): Con
         ? { mode: 'firebase', serviceAccount: env.FIREBASE_SERVICE_ACCOUNT }
         : { mode: 'dev' },
     generation: {
-      provider: 'mock',
+      provider: env.MUSIC_PROVIDER ?? 'mock',
+      ...(env.MUSIC_PROVIDER === 'elevenlabs' && env.ELEVENLABS_API_KEY
+        ? {
+            elevenlabs: {
+              apiKey: env.ELEVENLABS_API_KEY,
+              references: env.ELEVENLABS_ENABLE_REFERENCES ?? false,
+            },
+          }
+        : {}),
       mockDelayMs: env.MOCK_DELAY_MS ?? 8_000,
       concurrency: env.GENERATION_CONCURRENCY ?? 2,
       timeoutMs: env.GENERATION_TIMEOUT_MS ?? 5 * 60_000,

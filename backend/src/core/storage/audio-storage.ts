@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { mkdir, open, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, open, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import type { ReadableStream } from 'node:stream/web'
@@ -31,11 +31,15 @@ export class LocalAudioStorage implements AudioStorage {
   constructor(private readonly directory: string) {}
 
   async save(key: string, audio: Uint8Array): Promise<void> {
+    const destination = this.path(key)
     await mkdir(this.directory, { recursive: true })
-    // Written aside and renamed, so a reader never sees half a file.
     const temporary = join(this.directory, `.${key}.${randomUUID()}.tmp`)
-    await writeFile(temporary, audio)
-    await rename(temporary, this.path(key))
+    try {
+      await writeFile(temporary, audio)
+      await rename(temporary, destination)
+    } finally {
+      await rm(temporary, { force: true })
+    }
   }
 
   async open(key: string): Promise<StoredFile | undefined> {
@@ -73,9 +77,18 @@ export class LocalAudioStorage implements AudioStorage {
 
   async delete(key: string): Promise<void> {
     const path = this.path(key)
+    const names = await readdir(this.directory).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return []
+      throw error
+    })
+    const prefix = `.${key}.`
+    const suffix = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.tmp$/i
     await Promise.all([
       rm(path, { force: true }),
       rm(join(this.directory, `${key}.mp3`), { force: true }),
+      ...names
+        .filter((name) => name.startsWith(prefix) && suffix.test(name.slice(prefix.length)))
+        .map((name) => rm(join(this.directory, name), { force: true })),
     ])
   }
 
