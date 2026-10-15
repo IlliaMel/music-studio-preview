@@ -7,12 +7,24 @@ import kotlinx.collections.immutable.persistentListOf
 
 class ListenPreviewData : PreviewParameterProvider<ListenState> {
     override val values = sequenceOf(
-        ListenState(sections = persistentListOf(
-            CatalogSectionUi(CatalogSectionKind.Stations, persistentListOf(CollectionUi("live", "Piano Room", UiText.Raw("Live"), "Piano Room")), isLoading = false),
-            CatalogSectionUi(CatalogSectionKind.New, persistentListOf(CollectionUi("new", "New This Week", UiText.Raw("6 tracks · 19:20"), "New This Week")), isLoading = false),
-        )),
+        ListenState(
+            sections = persistentListOf(
+                section(CatalogSectionKind.Stations, "live", "Piano Room", "Live"),
+                section(CatalogSectionKind.New, "new", "New This Week", "6 tracks · 19:20"),
+            ),
+        ),
         ListenState(),
-        ListenState(sections = persistentListOf(CatalogSectionUi(CatalogSectionKind.New, isLoading = false, failed = true))),
+        ListenState(
+            sections = persistentListOf(
+                CatalogSectionUi(CatalogSectionKind.New, isLoading = false, failed = true),
+            ),
+        ),
         ListenState(searchVisible = true),
+    )
+
+    private fun section(kind: CatalogSectionKind, id: String, title: String, subtitle: String) = CatalogSectionUi(
+        kind = kind,
+        collections = persistentListOf(CollectionUi(id, title, UiText.Raw(subtitle), title)),
+        isLoading = false,
     )
 }

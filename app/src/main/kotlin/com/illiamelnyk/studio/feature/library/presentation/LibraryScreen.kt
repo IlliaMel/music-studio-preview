@@ -73,7 +73,7 @@ fun LibraryScreen(
             state.nameInvalid,
             state.failed,
             state.isBusy,
-            onNameChanged = {
+            onNameChange = {
                 onIntent(LibraryIntent.PlaylistNameChanged(it))
             },
             onCreate = {
