@@ -80,78 +80,78 @@
     <string name="create_soon_muse_text">Talk about a vibe, a reference or a lyric idea, and turn the conversation into a prompt.</string>
     <string-array name="create_soon_muse_steps">
         <item>Describe what you want in your own words</item>
-        <item>A language model drafts a prompt and a `composition_plan`</item>
-        <item>Generate the track with `/v1/music`</item>
+        <item>Muse helps shape your idea into a detailed song outline</item>
+        <item>Turn the outline into a finished track</item>
     </string-array>
     <string name="create_soon_sounds">Sounds</string>
     <string name="create_soon_sounds_text">Generate short loops and one-shots to build your tracks from.</string>
     <string-array name="create_soon_sounds_steps">
         <item>Describe a sound, such as an 808 bass at 101 BPM</item>
-        <item>Generate it with `/v1/sound-generation`, up to 30 s</item>
-        <item>Use it as the `conditioning_ref` of a new track</item>
+        <item>Create a sound clip up to 30 s long</item>
+        <item>Use the sound as inspiration for a new track</item>
     </string-array>
     <string name="create_soon_record">Record</string>
     <string name="create_soon_record_text">Hum, sing or play an idea, and turn it into a track.</string>
     <string-array name="create_soon_record_steps">
         <item>Record up to 30 s with the microphone</item>
-        <item>Send the recording to `/v1/music/upload`</item>
-        <item>Generate with it as the `conditioning_ref`</item>
+        <item>Upload your recording</item>
+        <item>Build a track around your recorded idea</item>
     </string-array>
     <string name="create_soon_upload">Upload audio</string>
     <string name="create_soon_upload_text">Start from a file of your own: a demo, a loop or a stem.</string>
     <string-array name="create_soon_upload_steps">
         <item>Pick an audio file on your phone</item>
-        <item>Send it to `/v1/music/upload`</item>
-        <item>Reference it with `conditioning_ref` and `condition_strength`</item>
+        <item>Upload your audio</item>
+        <item>Choose how closely the new track follows your audio</item>
     </string-array>
     <string name="create_soon_enhance">Enhance prompt</string>
     <string name="create_soon_enhance_text">Turn a short idea into a detailed prompt with sections, instruments and a mood.</string>
     <string-array name="create_soon_enhance_steps">
-        <item>Send your prompt to the free `/v1/music/plan`</item>
+        <item>Expand your idea into a song outline</item>
         <item>Review the sections and styles it returns</item>
-        <item>Generate from that `composition_plan`</item>
+        <item>Turn the outline into a finished track</item>
     </string-array>
     <string name="create_soon_lyrics">Your lyrics</string>
     <string name="create_soon_lyrics_text">Write the words yourself and let the music follow them.</string>
     <string-array name="create_soon_lyrics_steps">
         <item>Write the lyrics line by line</item>
-        <item>Place them in the `lines` of a `composition_plan`</item>
+        <item>Arrange the words into verses and choruses</item>
         <item>Generate the track from that plan</item>
     </string-array>
     <string name="create_soon_publish">Publishing</string>
     <string name="create_soon_publish_text">Share your tracks on a public artist profile, where everyone can listen to them.</string>
     <string-array name="create_soon_publish_steps">
         <item>Set up your artist profile</item>
-        <item>Publish a draft with `POST /v1/tracks/{id}/publish`</item>
+        <item>Publish a draft to your artist profile</item>
         <item>It shows up in Listen for everyone</item>
     </string-array>
     <string name="create_soon_playlist">Add to playlist</string>
     <string name="create_soon_playlist_text">Keep your own tracks in the playlists of your Library.</string>
     <string-array name="create_soon_playlist_steps">
         <item>Pick a playlist or make a new one</item>
-        <item>The track is saved with it in `playlist_tracks` on your phone</item>
+        <item>Add your track to the playlist</item>
         <item>Play the playlist from Library</item>
     </string-array>
     <string name="create_soon_download">Download</string>
     <string name="create_soon_download_text">Keep an MP3 of your track on your phone, up to 5 a day.</string>
     <string-array name="create_soon_download_steps">
-        <item>Fetch the audio with `GET /v1/tracks/{id}/audio`</item>
-        <item>Save it to Music with `MediaStore`</item>
+        <item>Download the audio of your finished track</item>
+        <item>Save it to the Music folder on your phone</item>
         <item>Play or share it offline</item>
     </string-array>
     <string name="create_soon_voice">Add your voice</string>
     <string name="create_soon_voice_text">Record a short reference, and the tool turns your voice into a polished song.</string>
     <string-array name="create_soon_voice_steps">
         <item>Record up to 30 s of singing or humming</item>
-        <item>Send it to `/v1/music/upload`</item>
-        <item>Use it as the `conditioning_ref`, with `condition_strength` high</item>
+        <item>Upload your audio</item>
+        <item>Keep your vocal melody and character in the finished song</item>
     </string-array>
     <string name="create_soon_sample">Add your sample</string>
     <string name="create_soon_sample_text">Record or pick a short loop, and the tool builds a whole track around it.</string>
     <string-array name="create_soon_sample_steps">
         <item>Record or pick a loop of up to 30 s</item>
-        <item>Send it to `/v1/music/upload`</item>
-        <item>Use it as the `conditioning_ref` of the tool\'s prompt</item>
+        <item>Upload your audio</item>
+        <item>Build a finished song around your sample</item>
     </string-array>
 
     <!-- Tools of Create -->
