@@ -39,6 +39,7 @@ fun PlayerScreen(
     PlayerBackdrop(track.coverSeed, modifier) {
         PlayerLayout(
             modifier = bodyModifier.padding(contentPadding),
+            stationMode = state.isStation,
             topBar = {
                 PlayerTopBar(
                     showActions = !state.isStation,

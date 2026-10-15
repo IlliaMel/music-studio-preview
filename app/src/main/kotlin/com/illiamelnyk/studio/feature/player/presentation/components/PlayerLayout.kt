@@ -36,6 +36,7 @@ fun PlayerLayout(
     topBar: @Composable () -> Unit,
     artwork: @Composable (Modifier) -> Unit,
     modifier: Modifier = Modifier,
+    stationMode: Boolean = false,
     details: @Composable ColumnScope.() -> Unit,
 ) {
     val dimens = StudioTheme.dimens
@@ -74,8 +75,14 @@ fun PlayerLayout(
                 Column(
                     modifier = Modifier
                         .padding(horizontal = dimens.spacing.huge)
-                        .padding(bottom = dimens.spacing.m),
-                    verticalArrangement = detailsArrangement,
+                        .padding(
+                            bottom = if (stationMode) dimens.spacing.huge + dimens.spacing.xxs else dimens.spacing.m,
+                        ),
+                    verticalArrangement = if (stationMode) {
+                        Arrangement.spacedBy(dimens.spacing.giant + dimens.spacing.s)
+                    } else {
+                        detailsArrangement
+                    },
                 ) { movableDetails() }
             }
         }
