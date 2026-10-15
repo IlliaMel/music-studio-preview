@@ -37,7 +37,10 @@ export function createApp({ db, log, authenticate, features }: AppDependencies):
 
   const api = new Hono<AppEnv>()
   api.use((c, next) => {
-    const maxSize = c.req.path === '/v1/uploads' ? 20 * 1024 * 1024 : MAX_BODY_BYTES
+    const binaryUpload =
+      c.req.path === '/v1/uploads' ||
+      (c.req.method === 'PUT' && /^\/v1\/recordings\/[^/]+$/.test(c.req.path))
+    const maxSize = binaryUpload ? 20 * 1024 * 1024 : MAX_BODY_BYTES
     return bodyLimit({
       maxSize,
       onError: () => {

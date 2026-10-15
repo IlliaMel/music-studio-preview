@@ -18,6 +18,7 @@ import kotlinx.coroutines.withContext
 class AndroidAudioRecorder(
     private val context: Context,
     private val referenceDirectory: () -> File = { File(context.filesDir, "references") },
+    private val readDurationMs: (File) -> Long = ::encodedAudioDurationMs,
 ) : AudioRecorder {
     private var recorder: MediaRecorder? = null
     private var file: File? = null
@@ -69,23 +70,24 @@ class AndroidAudioRecorder(
     override fun amplitude(): Float = if (paused) 0f else (recorder?.maxAmplitude ?: 0) / 32767f
 
     override fun finish(): RecordedAudio {
-        val duration = elapsedMs()
         val output = requireNotNull(file)
         try {
             requireNotNull(recorder).stop()
-            require(duration >= 10_000) { "Record at least 10 seconds" }
+            release()
+            val duration = readDurationMs(output)
+            require(duration >= 10_000) { "Recorded audio must contain at least 10 seconds" }
             require(output.parentFile?.canonicalFile == referenceDirectory().canonicalFile) { "Account changed" }
+            return RecordedAudio(
+                Uri.fromFile(output).toString(),
+                context.getString(R.string.record_idea, java.time.LocalTime.now().withNano(0).toString()),
+                duration,
+            )
         } catch (error: Exception) {
             output.delete()
             throw error
         } finally {
             release()
         }
-        return RecordedAudio(
-            Uri.fromFile(output).toString(),
-            context.getString(R.string.record_idea, java.time.LocalTime.now().withNano(0).toString()),
-            duration,
-        )
     }
 
     override fun release() {
@@ -112,13 +114,7 @@ class AndroidAudioRecorder(
                     }
                 }
             }
-            val metadata = MediaMetadataRetriever()
-            val duration = try {
-                metadata.setDataSource(output.absolutePath)
-                metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0
-            } finally {
-                metadata.release()
-            }
+            val duration = readDurationMs(output)
             require(duration in 1_000..300_000) { "Audio must be 1 second to 5 minutes" }
             require(output.parentFile?.canonicalFile == referenceDirectory().canonicalFile) { "Account changed" }
             RecordedAudio(Uri.fromFile(output).toString(), "Audio reference", duration)
@@ -126,5 +122,15 @@ class AndroidAudioRecorder(
             output.delete()
             throw error
         }
+    }
+}
+
+private fun encodedAudioDurationMs(file: File): Long {
+    val metadata = MediaMetadataRetriever()
+    return try {
+        metadata.setDataSource(file.absolutePath)
+        metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+    } finally {
+        metadata.release()
     }
 }

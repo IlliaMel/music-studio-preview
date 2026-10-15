@@ -663,10 +663,11 @@ class DurableStudioRepositoryTest {
         )
         assertEquals(mapOf("Authorization" to "Bearer fixture.payload.signature-1"), repo.playbackHeaders(track))
         assertEquals(mapOf("Authorization" to "Bearer fixture.payload.signature-2"), repo.playbackHeaders(track))
+        assertEquals(mapOf("Authorization" to "Bearer fixture.payload.signature-3"), repo.exportHeaders(track))
         assertFalse(store.read().toString().contains("fixture.payload.signature"))
         val foreign = track.copy(audioUri = "https://other.test/audio")
         assertEquals(emptyMap<String, String>(), repo.playbackHeaders(foreign))
-        assertEquals(2, refreshes)
+        assertEquals(3, refreshes)
         repo.signOut()
         try {
             repo.playbackHeaders(track)
@@ -674,7 +675,7 @@ class DurableStudioRepositoryTest {
         } catch (failure: ApiFailure) {
             assertEquals(com.illiamelnyk.studio.core.domain.AppError.Unauthorized, failure.error)
         }
-        assertEquals(2, refreshes)
+        assertEquals(3, refreshes)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -853,7 +854,7 @@ class DurableStudioRepositoryTest {
                 .put("id", "server-track").put("prompt", "Server generated piano")
                 .put("title", renamedTitle ?: "Server piano").put("status", "done").put("durationMs", 120000)
                 .put("modelId", "music_v2_5").put("createdAt", "2026-10-15T09:00:00Z")
-                .put("audioUrl", "http://10.0.2.2:8787/v1/tracks/server-track/audio")
+                .put("audioUrl", baseUrl + "/v1/tracks/server-track/audio")
         private fun playlist(): org.json.JSONObject = org.json.JSONObject()
             .put("id", "server-playlist").put("name", "Server playlist")
             .put("trackIds", org.json.JSONArray(members.toList()))
@@ -923,6 +924,8 @@ class DurableStudioRepositoryTest {
                     ),
                 )
             }
+
+            path == "/v1/recordings" -> org.json.JSONObject().put("recordings", org.json.JSONArray())
 
             path == "/v1/likes" -> org.json.JSONObject().put("trackIds", org.json.JSONArray(likes.toList()))
 

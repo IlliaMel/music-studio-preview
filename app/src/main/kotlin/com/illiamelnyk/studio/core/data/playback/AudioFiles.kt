@@ -10,34 +10,80 @@ import java.nio.ByteOrder
 import kotlin.math.PI
 import kotlin.math.sin
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-class AudioFiles(private val context: Context) {
+class AudioFiles(
+    private val context: Context,
+    private val ownerId: () -> String? = { null },
+    private val authorization: suspend (
+        Track,
+    ) -> Map<String, String> = { throw SecurityException("Audio export is not authorized") },
+    private val openConnection: (String) -> java.net.HttpURLConnection = { source ->
+        (java.net.URI(source).toURL().openConnection() as java.net.HttpURLConnection).apply {
+            instanceFollowRedirects =
+                false
+        }
+    },
+) {
     suspend fun playableUri(track: Track): Uri = track.audioUri?.toUri() ?: Uri.fromFile(demo(track))
 
     suspend fun export(track: Track): File = withContext(Dispatchers.IO) {
         exportLock.withLock {
+            val owner = ownerId() ?: throw SecurityException("Audio export requires a current account")
+            val generation = playbackStateGeneration(owner)
+            fun checkOwner() {
+                if (ownerId() != owner || playbackStateGeneration(owner) != generation) {
+                    throw SecurityException("Audio export account changed")
+                }
+            }
+            val headers = authorization(track)
+            checkOwner()
             val source = track.audioUri
-            if (source == null) return@withLock demo(track)
+            if (source == null) {
+                val file = demo(track, owner, ::checkOwner)
+                checkOwner()
+                return@withLock file
+            }
             val uri = source.toUri()
             val candidateExtension = uri.path?.substringAfterLast('.')?.lowercase()
             val extension = candidateExtension?.takeIf { it in AUDIO_EXTENSIONS } ?: "mp3"
-            var target = File(context.cacheDir, "audio/${audioCacheKey(track.id)}.$extension")
+            var target = File(context.cacheDir, "audio/${audioCacheKey(track.id, owner)}.$extension")
             target.parentFile?.mkdirs()
             val cacheFolder = target.parentFile
             val cacheStem = target.nameWithoutExtension
             val cached = AUDIO_EXTENSIONS.asSequence().map { File(cacheFolder, "$cacheStem.$it") }
                 .firstOrNull { it.exists() && it.length() > 44 }
-            if (cached != null) return@withLock cached
+            if (cached != null) {
+                checkOwner()
+                return@withLock cached
+            }
             val temporary = File(target.path + ".tmp")
+            var completed = false
+            var promoted = false
+            suspend fun copy(input: java.io.InputStream) {
+                input.use {
+                    temporary.outputStream().use { output ->
+                        val buffer = ByteArray(8192)
+                        while (true) {
+                            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                            checkOwner()
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            output.write(buffer, 0, count)
+                        }
+                    }
+                }
+            }
             try {
                 if (uri.scheme == "http" || uri.scheme == "https") {
-                    val connection = java.net.URI(source).toURL().openConnection() as java.net.HttpURLConnection
+                    val connection = openConnection(source)
                     connection.connectTimeout = 15000
                     connection.readTimeout = 60000
-                    track.audioHeaders.forEach(connection::setRequestProperty)
+                    connection.instanceFollowRedirects = false
+                    headers.forEach(connection::setRequestProperty)
                     try {
                         if (connection.contentType?.substringBefore(';') in
                             listOf("audio/wav", "audio/x-wav", "audio/wave")
@@ -46,14 +92,12 @@ class AudioFiles(private val context: Context) {
                                 File(target.parentFile, target.nameWithoutExtension + ".wav")
                         }
                         check(connection.responseCode in 200..299) { "Audio HTTP ${connection.responseCode}" }
-                        connection.inputStream.use { input -> temporary.outputStream().use { input.copyTo(it) } }
+                        copy(connection.inputStream)
                     } finally {
                         connection.disconnect()
                     }
                 } else {
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        temporary.outputStream().use { input.copyTo(it) }
-                    } ?: error("Audio is unavailable")
+                    copy(context.contentResolver.openInputStream(uri) ?: error("Audio is unavailable"))
                 }
                 check(temporary.length() > 44) { "Empty audio" }
                 val header = ByteArray(16)
@@ -69,19 +113,34 @@ class AudioFiles(private val context: Context) {
                     else -> target.extension
                 }
                 target = File(target.parentFile, target.nameWithoutExtension + "." + detected)
+                checkOwner()
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
                 check(temporary.renameTo(target)) { "Cannot save audio" }
+                promoted = true
+                checkOwner()
+                completed = true
                 target
             } finally {
+                if (promoted && !completed) target.delete()
                 temporary.delete()
             }
         }
     }
 
-    private suspend fun demo(track: Track): File = withContext(Dispatchers.IO) {
+    private suspend fun demo(
+        track: Track,
+        owner: String? = null,
+        checkOwner: () -> Unit = {
+        },
+    ): File = withContext(Dispatchers.IO) {
         demoLock.withLock {
-            val file = File(context.cacheDir, "audio/demo-${audioCacheKey(track.id)}.wav")
+            val key = owner?.let { audioCacheKey(track.id, it) } ?: audioCacheKey(track.id)
+            val file = File(context.cacheDir, "audio/demo-$key.wav")
             file.parentFile?.mkdirs()
-            if (file.exists() && file.length() > 44) return@withLock file
+            if (file.exists() && file.length() > 44) {
+                checkOwner()
+                return@withLock file
+            }
             val rate = 16000
             val samples = track.duration.inWholeSeconds.coerceIn(5, 300).toInt() * rate
             val data = ByteBuffer.allocate(44 + samples * 2).order(ByteOrder.LITTLE_ENDIAN)
@@ -97,9 +156,22 @@ class AudioFiles(private val context: Context) {
                 data.putShort((sound * 6000).toInt().toShort())
             }
             val temporary = File(file.path + ".tmp")
-            temporary.writeBytes(data.array())
-            check(temporary.renameTo(file))
-            file
+            var promoted = false
+            var completed = false
+            try {
+                checkOwner()
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                temporary.writeBytes(data.array())
+                checkOwner()
+                check(temporary.renameTo(file))
+                promoted = true
+                checkOwner()
+                completed = true
+                file
+            } finally {
+                if (promoted && !completed) file.delete()
+                temporary.delete()
+            }
         }
     }
 

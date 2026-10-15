@@ -36,9 +36,52 @@ class AudioPlaybackTest {
     }
 
     @Test
+    fun autoplayPreferenceAndHistoryRestorePausedAndArePurgedWithOwner() = runTest {
+        val song = track("autoplay-native", 20.seconds)
+        val next = track("autoplay-next", 20.seconds)
+        saveQueue("autoplay-owner", listOf(song))
+        val playback = AndroidPlaybackController(context, backgroundScope, ownerId = { "autoplay-owner" })
+        playback.setAutoplay(true)
+        playback.appendAutoplay(playback.state.value, next)
+        val restored = AndroidPlaybackController(context, backgroundScope, ownerId = { "autoplay-owner" })
+        assertTrue(restored.state.value.autoplay)
+        assertFalse(restored.state.value.isPlaying)
+        assertEquals(listOf(song.id, next.id), restored.state.value.queue.map { it.id })
+        assertTrue(next.id in restored.state.value.autoplayHistory)
+        val other = AndroidPlaybackController(context, backgroundScope, ownerId = { "another-owner" })
+        assertFalse(other.state.value.autoplay)
+        assertTrue(other.state.value.autoplayHistory.isEmpty())
+        clearPlaybackState(context, "autoplay-owner")
+        val cleared = AndroidPlaybackController(context, backgroundScope, ownerId = { "autoplay-owner" })
+        assertFalse(cleared.state.value.autoplay)
+        assertFalse(
+            context.getSharedPreferences(
+                "playback",
+                Context.MODE_PRIVATE,
+            ).contains(autoplayPreferenceKey("autoplay-owner")),
+        )
+    }
+
+    @Test
+    fun staleOwnerCannotAppendAutoplayTrackOrPersistPreference() = runTest {
+        var owner = "autoplay-original"
+        val song = track("autoplay-owned", 20.seconds)
+        saveQueue(owner, listOf(song))
+        val playback = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        playback.setAutoplay(true)
+        val expected = playback.state.value
+        owner = "autoplay-other"
+        playback.appendAutoplay(expected, track("autoplay-rejected", 20.seconds))
+        assertEquals(listOf(song.id), playback.state.value.queue.map { it.id })
+        assertFalse(
+            context.getSharedPreferences("playback", Context.MODE_PRIVATE).contains(autoplayPreferenceKey(owner)),
+        )
+    }
+
+    @Test
     fun `local demo exports audible WAV with declared track duration`() = runTest {
         val song = track("audio-fixture", 5.seconds)
-        val file = AudioFiles(context).export(song)
+        val file = AudioFiles(context, ownerId = { "audio-test-owner" }, authorization = { emptyMap() }).export(song)
         val bytes = file.readBytes()
         assertEquals("wav", file.extension)
         assertEquals("RIFF", String(bytes, 0, 4))
@@ -47,7 +90,12 @@ class AudioPlaybackTest {
         assertEquals(16000, buffer.getInt(24))
         assertEquals(16000 * 5 * 2, buffer.getInt(40))
         assertTrue(bytes.drop(44).any { it.toInt() != 0 })
-        assertEquals(file, AudioFiles(context).export(song))
+        assertEquals(
+            file,
+            AudioFiles(context, ownerId = {
+                "audio-test-owner"
+            }, authorization = { emptyMap() }).export(song),
+        )
     }
 
     @Test
@@ -57,7 +105,9 @@ class AudioPlaybackTest {
         "ftyp".toByteArray().copyInto(bytes, destinationOffset = 4)
         source.writeBytes(bytes)
         val song = track("container-fixture", 5.seconds).copy(audioUri = android.net.Uri.fromFile(source).toString())
-        val exported = AudioFiles(context).export(song)
+        val exported = AudioFiles(context, ownerId = {
+            "audio-test-owner"
+        }, authorization = { emptyMap() }).export(song)
         assertEquals("m4a", exported.extension)
         org.junit.Assert.assertArrayEquals(bytes, exported.readBytes())
     }
@@ -76,18 +126,31 @@ class AudioPlaybackTest {
             source.writeBytes(bytes)
             track(id, 5.seconds).copy(audioUri = android.net.Uri.fromFile(source).toString())
         }
-        val first = AudioFiles(context).export(songs[0])
-        val second = AudioFiles(context).export(songs[1])
+        val first = AudioFiles(context, ownerId = {
+            "audio-test-owner"
+        }, authorization = { emptyMap() }).export(songs[0])
+        val second = AudioFiles(context, ownerId = {
+            "audio-test-owner"
+        }, authorization = { emptyMap() }).export(songs[1])
         assertFalse(first == second)
         assertEquals(1, first.readBytes().last().toInt())
         assertEquals(2, second.readBytes().last().toInt())
-        com.illiamelnyk.studio.core.data.local.RecordingFiles(context).deleteCached(songs[0].id)
+        com.illiamelnyk.studio.core.data.local.RecordingFiles(context).deleteCached(songs[0].id, "audio-test-owner")
         assertFalse(first.exists())
         assertTrue(second.exists())
-        assertEquals(second, AudioFiles(context).export(songs[1]))
-        val demos = songs.map { AudioFiles(context).export(it.copy(audioUri = null)) }
+        assertEquals(
+            second,
+            AudioFiles(context, ownerId = {
+                "audio-test-owner"
+            }, authorization = { emptyMap() }).export(songs[1]),
+        )
+        val demos = songs.map {
+            AudioFiles(context, ownerId = {
+                "audio-test-owner"
+            }, authorization = { emptyMap() }).export(it.copy(audioUri = null))
+        }
         assertFalse(demos[0] == demos[1])
-        com.illiamelnyk.studio.core.data.local.RecordingFiles(context).deleteCached(songs[0].id)
+        com.illiamelnyk.studio.core.data.local.RecordingFiles(context).deleteCached(songs[0].id, "audio-test-owner")
         assertFalse(demos[0].exists())
         assertTrue(demos[1].exists())
     }
@@ -255,7 +318,11 @@ class AudioPlaybackTest {
         demo.delete()
         try {
             assertEquals(song.audioUri, AudioFiles(context).playableUri(song).toString())
-            assertTrue(runCatching { AudioFiles(context).export(song) }.isFailure)
+            assertTrue(
+                runCatching {
+                    AudioFiles(context, ownerId = { "audio-test-owner" }, authorization = { emptyMap() }).export(song)
+                }.isFailure,
+            )
             assertFalse(demo.exists())
         } finally {
             server.stop(0)

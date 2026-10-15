@@ -10,7 +10,7 @@
             android:label="@string/catalog_label"
             android:taskAffinity="com.illiamelnyk.studio.catalog"
             android:windowSoftInputMode="adjustResize">
-            <intent-filter>
+            <intent-filter android:priority="-1">
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>

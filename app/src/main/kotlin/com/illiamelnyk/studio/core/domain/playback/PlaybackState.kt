@@ -1,6 +1,7 @@
 package com.illiamelnyk.studio.core.domain.playback
 
 import com.illiamelnyk.studio.core.domain.track.Track
+import com.illiamelnyk.studio.core.domain.track.TrackId
 
 /**
  * What the player is doing. Positions and durations are in milliseconds, like the media APIs that
@@ -19,6 +20,9 @@ data class PlaybackState(
     val shuffle: Boolean = false,
     val repeat: RepeatMode = RepeatMode.Off,
     val stationName: String? = null,
+    val autoplay: Boolean = false,
+    val autoplayWaiting: Boolean = false,
+    val autoplayHistory: Set<TrackId> = emptySet(),
 ) {
     /** The track that is playing or paused, `null` when nothing is loaded. */
     val current: Track? get() = queue.getOrNull(currentIndex)

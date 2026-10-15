@@ -66,7 +66,7 @@ class CreateViewModel(
         tracks.observeMine().onEach(::showTracks).launchIn(viewModelScope)
         drafts.pending.onEach { track ->
             if (track != null) {
-                changeSettings { copy(remixTrackId = track.id.value) }
+                changeSettings { copy(remixTrackId = track.id.value, referenceAudioUri = null) }
                 updateComposer { copy(prompt = track.prompt, referenceLabel = track.title) }
                 drafts.clear()
             }
@@ -140,7 +140,7 @@ class CreateViewModel(
             CreateIntent.ReferenceClicked -> setState { copy(sheet = CreateSheet.Reference) }
 
             is CreateIntent.ReferenceSelected -> {
-                changeSettings { copy(referenceAudioUri = intent.uri) }
+                changeSettings { copy(referenceAudioUri = intent.uri, remixTrackId = null) }
                 updateComposer { copy(referenceLabel = intent.title) }
                 setState { copy(sheet = null) }
             }

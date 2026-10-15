@@ -88,11 +88,13 @@ class FakePlaybackController(private val scope: CoroutineScope, private val rand
             if (state.current == null) return
             if (state.isPlaying) {
                 stopClock()
-                mutableState.update { it.copy(isPlaying = false) }
+                mutableState.update { it.copy(isPlaying = false, autoplayWaiting = false) }
             } else {
                 // Playing again after the queue ended starts the last track over.
                 val atEnd = state.positionMs >= state.durationMs
-                mutableState.update { it.copy(isPlaying = true, positionMs = if (atEnd) 0 else it.positionMs) }
+                mutableState.update {
+                    it.copy(isPlaying = true, positionMs = if (atEnd) 0 else it.positionMs, autoplayWaiting = false)
+                }
                 startClock()
             }
         }
@@ -100,7 +102,7 @@ class FakePlaybackController(private val scope: CoroutineScope, private val rand
 
     override fun seekTo(positionMs: Long) {
         synchronized(playbackLock) {
-            mutableState.update { it.copy(positionMs = positionMs.coerceIn(0, it.durationMs)) }
+            mutableState.update { it.copy(positionMs = positionMs.coerceIn(0, it.durationMs), autoplayWaiting = false) }
         }
     }
 
@@ -120,10 +122,16 @@ class FakePlaybackController(private val scope: CoroutineScope, private val rand
         synchronized(playbackLock) {
             mutableState.update { state ->
                 when {
-                    state.positionMs > RESTART_THRESHOLD.inWholeMilliseconds -> state.copy(positionMs = 0)
+                    state.positionMs > RESTART_THRESHOLD.inWholeMilliseconds -> state.copy(
+                        positionMs = 0,
+                        autoplayWaiting = false,
+                    )
+
                     state.currentIndex > 0 -> state.atTrack(state.currentIndex - 1)
+
                     state.loops && state.queue.isNotEmpty() -> state.atTrack(state.queue.lastIndex)
-                    else -> state.copy(positionMs = 0)
+
+                    else -> state.copy(positionMs = 0, autoplayWaiting = false)
                 }
             }
         }
@@ -152,7 +160,42 @@ class FakePlaybackController(private val scope: CoroutineScope, private val rand
 
     override fun setRepeat(mode: RepeatMode) {
         synchronized(playbackLock) {
-            mutableState.update { it.copy(repeat = mode) }
+            mutableState.update { it.copy(repeat = mode, autoplayWaiting = false) }
+        }
+    }
+
+    override fun setAutoplay(enabled: Boolean) {
+        synchronized(playbackLock) {
+            val state = mutableState.value
+            if (state.isStation || state.current == null) return
+            mutableState.value = state.copy(autoplay = enabled, autoplayWaiting = false)
+        }
+    }
+
+    override fun appendAutoplay(expected: PlaybackState, track: Track) {
+        synchronized(playbackLock) {
+            val state = mutableState.value
+            if (!state.autoplay || state.isStation || state.repeat != RepeatMode.Off ||
+                state.current?.id != expected.current?.id || state.currentIndex != expected.currentIndex ||
+                state.queue.map { it.id } != expected.queue.map { it.id } ||
+                state.autoplayHistory != expected.autoplayHistory || track.id in state.autoplayHistory ||
+                state.queue.any { it.id == track.id }
+            ) {
+                return
+            }
+            val index = originalQueue.size
+            originalQueue = originalQueue + track
+            playOrder = playOrder + index
+            val resume = state.autoplayWaiting
+            mutableState.value = state.copy(
+                queue = playOrder.map(originalQueue::get),
+                autoplayHistory = state.autoplayHistory + track.id,
+                autoplayWaiting = false,
+                currentIndex = if (resume) state.currentIndex + 1 else state.currentIndex,
+                positionMs = if (resume) 0 else state.positionMs,
+                isPlaying = state.isPlaying || resume,
+            )
+            if (resume) startClock()
         }
     }
 
@@ -218,7 +261,14 @@ class FakePlaybackController(private val scope: CoroutineScope, private val rand
             stopClock()
             originalQueue = emptyList()
             playOrder = emptyList()
-            mutableState.update { PlaybackState(shuffle = it.shuffle, repeat = it.repeat) }
+            mutableState.update {
+                PlaybackState(
+                    shuffle = it.shuffle,
+                    repeat = it.repeat,
+                    autoplay = it.autoplay,
+                    autoplayHistory = it.autoplayHistory,
+                )
+            }
         }
     }
 
@@ -234,6 +284,8 @@ class FakePlaybackController(private val scope: CoroutineScope, private val rand
                 positionMs = 0,
                 isPlaying = true,
                 stationName = stationName,
+                autoplayWaiting = false,
+                autoplayHistory = it.autoplayHistory + queue.map { track -> track.id },
             )
         }
         startClock()
@@ -271,7 +323,7 @@ class FakePlaybackController(private val scope: CoroutineScope, private val rand
     }
 }
 
-private fun PlaybackState.atTrack(index: Int) = copy(currentIndex = index, positionMs = 0)
+private fun PlaybackState.atTrack(index: Int) = copy(currentIndex = index, positionMs = 0, autoplayWaiting = false)
 
 /** The state [elapsedMs] later: the position moves on, and at the end of a track the queue does. */
 private fun PlaybackState.advancedBy(elapsedMs: Long): PlaybackState {
@@ -287,6 +339,6 @@ private fun PlaybackState.advancedBy(elapsedMs: Long): PlaybackState {
         loops -> atTrack(0)
 
         // The queue has ended: stay on the last track, paused at its end.
-        else -> copy(positionMs = durationMs, isPlaying = false)
+        else -> copy(positionMs = durationMs, isPlaying = false, autoplayWaiting = autoplay && !isStation)
     }
 }

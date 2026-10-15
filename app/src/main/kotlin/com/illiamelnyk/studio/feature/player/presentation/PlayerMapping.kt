@@ -25,6 +25,7 @@ fun PlayerContent.withPlayback(playback: PlaybackState): PlayerContent {
         isStation = playback.isStation,
         shuffle = playback.shuffle,
         repeat = playback.repeat != RepeatMode.Off,
+        autoplay = playback.autoplay && !playback.isStation,
         upNext = playback.queue.drop(playback.currentIndex + 1).map(Track::toUi).toImmutableList(),
         sheet = sheet.takeIf { nowPlaying != null && !playback.isStation },
     )

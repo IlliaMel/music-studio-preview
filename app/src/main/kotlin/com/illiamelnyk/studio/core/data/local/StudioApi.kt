@@ -131,18 +131,7 @@ open class StudioApi(
     open suspend fun upload(uri: String, token: String): String = withContext(Dispatchers.IO) {
         val bearer = authorization(token)
         val parsed = uri.toUri()
-        val bytes = context.contentResolver.openInputStream(parsed)?.use { input ->
-            val output = java.io.ByteArrayOutputStream()
-            val buffer = ByteArray(8192)
-            var total = 0
-            while (total <= MAX_UPLOAD_BYTES) {
-                val count = input.read(buffer, 0, minOf(buffer.size, MAX_UPLOAD_BYTES + 1 - total))
-                if (count < 0) break
-                output.write(buffer, 0, count)
-                total += count
-            }
-            output.toByteArray()
-        } ?: throw ApiFailure(AppError.InvalidPrompt(null))
+        val bytes = readAudio(uri, bearer)
         if (bytes.isEmpty() || bytes.size > MAX_UPLOAD_BYTES) throw ApiFailure(AppError.InvalidPrompt(null))
         val fallback = context.contentResolver.getType(parsed) ?: audioTypeFromPath(uri)
         val type = audioContentType(bytes, fallback)
@@ -160,6 +149,85 @@ open class StudioApi(
             response(connection).getString("id")
         } catch (error: ApiFailure) {
             throw error
+        } catch (_: SocketTimeoutException) {
+            throw ApiFailure(AppError.Timeout)
+        } catch (_: IOException) {
+            throw ApiFailure(AppError.Network)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    open suspend fun putRecording(id: String, uri: String, title: String, durationMs: Long, token: String): JSONObject =
+        withContext(Dispatchers.IO) {
+            val bearer = authorization(token)
+            val parsed = uri.toUri()
+            val bytes = readAudio(uri, bearer)
+            if (bytes.isEmpty() || bytes.size > MAX_UPLOAD_BYTES) throw ApiFailure(AppError.InvalidReference)
+            val type = audioContentType(bytes, context.contentResolver.getType(parsed) ?: audioTypeFromPath(uri))
+            if (type !in setOf("audio/mp4", "audio/wav", "audio/mpeg")) throw ApiFailure(AppError.InvalidReference)
+            val connection = openConnection(baseUrl + "/v1/recordings/" + id)
+            try {
+                connection.requestMethod = "PUT"
+                connection.connectTimeout = 5_000
+                connection.readTimeout = 30_000
+                connection.doOutput = true
+                connection.setRequestProperty("Authorization", "Bearer " + bearer)
+                connection.setRequestProperty("Content-Type", type)
+                connection.setRequestProperty("X-Recording-Title", android.net.Uri.encode(title))
+                connection.setRequestProperty("X-Recording-Duration-Ms", durationMs.toString())
+                connection.setFixedLengthStreamingMode(bytes.size)
+                connection.outputStream.use { it.write(bytes) }
+                response(connection)
+            } catch (failure: ApiFailure) {
+                throw failure
+            } catch (_: SocketTimeoutException) {
+                throw ApiFailure(AppError.Timeout)
+            } catch (_: IOException) {
+                throw ApiFailure(AppError.Network)
+            } finally {
+                connection.disconnect()
+            }
+        }
+
+    private fun readAudio(uri: String, bearer: String): ByteArray {
+        fun bounded(input: java.io.InputStream): ByteArray = input.use {
+            val output = java.io.ByteArrayOutputStream()
+            val buffer = ByteArray(8192)
+            var total = 0
+            while (total <= MAX_UPLOAD_BYTES) {
+                val count = input.read(buffer, 0, minOf(buffer.size, MAX_UPLOAD_BYTES + 1 - total))
+                if (count < 0) break
+                output.write(buffer, 0, count)
+                total += count
+            }
+            output.toByteArray()
+        }
+        val source = java.net.URI(uri)
+        if (source.scheme !in setOf("http", "https")) {
+            return bounded(
+                context.contentResolver.openInputStream(uri.toUri()) ?: throw ApiFailure(AppError.InvalidReference),
+            )
+        }
+        val origin = java.net.URI(baseUrl)
+        if (source.scheme != origin.scheme || source.host != origin.host || source.port != origin.port ||
+            source.rawUserInfo != null || source.rawQuery != null || source.rawFragment != null ||
+            !Regex("/v1/recordings/[0-9a-f-]{36}/audio").matches(source.rawPath.orEmpty())
+        ) {
+            throw ApiFailure(AppError.InvalidReference)
+        }
+        val connection = openConnection(uri)
+        try {
+            connection.connectTimeout = 5_000
+            connection.readTimeout = 30_000
+            connection.setRequestProperty("Authorization", "Bearer " + bearer)
+            if (connection.responseCode != 200) {
+                response(connection)
+                throw ApiFailure(AppError.InvalidReference)
+            }
+            return bounded(connection.inputStream)
+        } catch (failure: ApiFailure) {
+            throw failure
         } catch (_: SocketTimeoutException) {
             throw ApiFailure(AppError.Timeout)
         } catch (_: IOException) {

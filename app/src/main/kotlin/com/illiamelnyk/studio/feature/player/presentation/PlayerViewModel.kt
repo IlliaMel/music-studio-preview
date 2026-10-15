@@ -97,6 +97,8 @@ class PlayerViewModel(
 
             is PlayerIntent.RepeatChanged -> playback.setRepeat(if (intent.enabled) RepeatMode.All else RepeatMode.Off)
 
+            is PlayerIntent.AutoplayChanged -> playback.setAutoplay(intent.enabled)
+
             is PlayerIntent.SeekRequested -> seekTo(intent.fraction)
 
             is PlayerIntent.LyricLineClicked -> playback.seekTo(intent.startMs)
@@ -137,7 +139,7 @@ class PlayerViewModel(
                     sendEffect(PlayerEffect.Collapse)
                 }
 
-                SoonFeature.Autoplay -> setContent { copy(sheet = PlayerSheet.ComingSoon(SoonFeature.Autoplay)) }
+                SoonFeature.Autoplay -> playback.setAutoplay(!playback.state.value.autoplay)
             }
 
             PlayerIntent.WantItClicked -> wantIt()

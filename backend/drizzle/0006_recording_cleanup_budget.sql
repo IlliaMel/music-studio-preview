@@ -1,0 +1,1 @@
+ALTER TABLE "recordings" ADD COLUMN "audio_removed" boolean DEFAULT false NOT NULL;

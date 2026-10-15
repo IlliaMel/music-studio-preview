@@ -8,6 +8,7 @@ import type { Logger } from './core/logger.js'
 import type { AudioStorage } from './core/storage/audio-storage.js'
 import { createLibraryFeature } from './features/library/index.js'
 import { LibraryRepository } from './features/library/library.repository.js'
+import { createRecordingsFeature } from './features/recordings/index.js'
 import type { MusicProvider } from './features/tracks/generation/music-provider.js'
 import { createTracksFeature, type TracksFeatureOptions } from './features/tracks/index.js'
 import { AccountDeletionWorker } from './features/users/account-deletion-worker.js'
@@ -36,14 +37,19 @@ export function composeApp(services: AppServices, extraFeatures: readonly Featur
     provider: services.provider,
     options: services.tracks,
   })
+  const recordings = createRecordingsFeature(db, services.storage, services.tracks.publicBaseUrl)
   const users = createUsersFeature({
     db,
     auth,
-    onAccountDeleted: (userId) => tracks.service.deleteAllForUser(userId),
+    onAccountDeleted: async (userId) => {
+      await tracks.service.deleteAllForUser(userId)
+      await recordings.service.deleteAllForUser(userId)
+    },
   })
   const features = [
     users.feature,
     tracks.feature,
+    recordings.feature,
     createLibraryFeature(
       db,
       services.tracks.publicBaseUrl,
@@ -68,6 +74,13 @@ export function composeApp(services: AppServices, extraFeatures: readonly Featur
             maxBytes: 100 * 1024 * 1024,
             maxFileBytes: 20 * 1024 * 1024,
             ttlSeconds: 86400,
+          },
+          recordings: {
+            maxFiles: 20,
+            maxBytes: 100 * 1024 * 1024,
+            maxFileBytes: 20 * 1024 * 1024,
+            maxDurationMs: 600000,
+            retention: 'until-deleted',
           },
           uncertainPaidRequests: 'terminal-no-automatic-retry',
         }),

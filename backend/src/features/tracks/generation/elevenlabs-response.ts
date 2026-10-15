@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isMp3 } from '../../../core/audio/audio-container.js'
 import { ProviderError } from './music-provider.js'
 
 export const Plan = z.object({
@@ -121,9 +122,6 @@ export function parseDetailed(contentType: string, bytes: Buffer, songId: string
   }
 }
 
-export const isMp3 = (data: Buffer): boolean =>
-  data.length >= 4 &&
-  (data.toString('ascii', 0, 3) === 'ID3' || (data[0] === 255 && ((data[1] ?? 0) & 224) === 224))
 export const invalidResponse = () =>
   new ProviderError(
     'PROVIDER_OUTCOME_UNKNOWN',

@@ -47,6 +47,7 @@ fun PlayerQueueContent(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     onLyrics: (() -> Unit)? = null,
+    autoplay: Boolean = false,
 ) {
     val spacing = StudioTheme.dimens.spacing.xs
     val size = StudioTheme.dimens.size
@@ -58,14 +59,14 @@ fun PlayerQueueContent(
                 verticalArrangement = Arrangement.spacedBy(spacing),
             ) {
                 item("nowPlaying") { QueueNowPlaying(track, onClose, onLyrics) }
-                item("modes") { QueueModes(shuffle, repeat, onShuffle, onRepeat, onAutoplay) }
+                item("modes") { QueueModes(shuffle, repeat, autoplay, onShuffle, onRepeat, onAutoplay) }
                 item("heading") { QueueHeading(upNext.isNotEmpty(), onClear) }
                 queueTracks(upNext, onTrackClick, onMove)
             }
         } else {
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(spacing)) {
                 QueueNowPlaying(track, onClose, onLyrics)
-                QueueModes(shuffle, repeat, onShuffle, onRepeat, onAutoplay)
+                QueueModes(shuffle, repeat, autoplay, onShuffle, onRepeat, onAutoplay)
                 QueueHeading(upNext.isNotEmpty(), onClear)
                 LazyColumn(Modifier.fillMaxWidth().weight(1f).testTag("playerQueue")) {
                     queueTracks(upNext, onTrackClick, onMove)
@@ -79,6 +80,7 @@ fun PlayerQueueContent(
 private fun QueueModes(
     shuffle: Boolean,
     repeat: Boolean,
+    autoplay: Boolean,
     onShuffle: () -> Unit,
     onRepeat: () -> Unit,
     onAutoplay: () -> Unit,
@@ -104,7 +106,7 @@ private fun QueueModes(
         QueueToggle(
             StudioIcons.AllInclusive,
             stringResource(R.string.player_autoplay),
-            false,
+            autoplay,
             onAutoplay,
             Modifier.weight(1f),
         )

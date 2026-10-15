@@ -61,8 +61,9 @@ class DurableStudioRepository(
     private val mutex = Mutex()
     private val publicCatalogTracks = MutableStateFlow(FakeCatalog.tracks)
     private val recordings = RecordingFiles(context)
+    private val recordingDrafts = RecordingDrafts(store, recordings, api)
     private val notificationOutbox = NotificationOutbox(store)
-    private val deletions = AccountDeletions(store, api, recordings, notifications)
+    private val deletions = AccountDeletions(store, api, recordings, notifications, recordingDrafts)
 
     @Volatile private var deletingAccountId: String? = null
     private var lastSyncMillis = 0L
@@ -369,6 +370,12 @@ class DurableStudioRepository(
     override suspend fun saveRecording(localUri: String, title: String, duration: Duration): Outcome<Track> =
         operation {
             val account = requireAccount()
+            if (account.token != null) {
+                val saved = recordingDrafts.save(account, localUri, title, duration)
+                save(account.copy(tracks = listOf(saved.track) + account.tracks.filterNot { it.id == saved.track.id }))
+                guarded { recordingDrafts.acknowledge(listOf(saved)) }
+                return@operation saved.track
+            }
             val id = "recording-" + UUID.randomUUID()
             val audioUri = recordings.copyToPrivateStorage(localUri, id)
             val track = Track(
@@ -392,7 +399,7 @@ class DurableStudioRepository(
                 save(account.copy(tracks = listOf(track) + account.tracks))
                 track
             } catch (error: Exception) {
-                recordings.delete(track)
+                recordings.delete(track, account.session.user.id.value)
                 throw error
             }
         }
@@ -403,26 +410,27 @@ class DurableStudioRepository(
         val account = requireAccount()
         if (account.tracks.none { it.id == id }) throw ApiFailure(AppError.Unknown)
         val target = account.tracks.first { it.id == id }
-        if (account.token != null && !id.value.startsWith("recording-")) {
+        if (account.token != null) {
             if (target.status != TrackStatus.Ready && target.status !is TrackStatus.Failed) {
                 throw ApiFailure(AppError.Unknown)
             }
-            api.request("PATCH", "/v1/tracks/" + id.value, account.token, JSONObject().put("title", trimmed))
+            api.request("PATCH", remoteTrackPath(id), account.token, JSONObject().put("title", trimmed))
         }
         save(account.copy(tracks = account.tracks.map { if (it.id == id) it.copy(title = trimmed) else it }))
     }
 
     override suspend fun delete(id: TrackId): Outcome<Unit> = operation {
         val account = requireAccount()
-        if (account.token != null && !id.value.startsWith("recording-")) {
+        if (account.token != null) {
             api.request(
                 "DELETE",
-                "/v1/tracks/" + id.value,
+                remoteTrackPath(id),
                 account.token,
             )
         }
-        account.tracks.find { it.id == id }?.let(recordings::delete)
-        recordings.deleteCached(id)
+        recordingDrafts.discard(account.session.user.id.value, id)
+        account.tracks.find { it.id == id }?.let { recordings.delete(it, account.session.user.id.value) }
+        recordings.deleteCached(id, account.session.user.id.value)
         store.change {
             it.remove("request-" + id.value)
             it.remove("rename-" + id.value)
@@ -668,7 +676,14 @@ class DurableStudioRepository(
                 }
                 cursor = page.stringOrNull("nextCursor")
             } while (cursor != null)
-            val recordings = account.tracks.filter { it.id.value.startsWith("recording-") }
+            val recoveredDrafts = recordingDrafts.recover(account)
+            val serverDrafts = api.request("GET", "/v1/recordings", account.token).array("recordings").objects()
+                .map { recordingDrafts.track(it, account) }
+            val remoteDraftIds = serverDrafts.map { it.id }.toSet()
+            val recordings = serverDrafts + account.tracks.filter {
+                it.id.value.startsWith("recording-") && it.id !in remoteDraftIds &&
+                    it.audioUri?.startsWith("file:") == true
+            }
             val order = compareByDescending<Track> { it.createdAt }
                 .thenBy { it.generationId }.thenBy { it.variantIndex }
             val allTracks = (remote + recordings).sortedWith(order)
@@ -681,9 +696,11 @@ class DurableStudioRepository(
                 }
                 val localMembers = account.playlists.find { it.id == id }?.tracks.orEmpty()
                     .filter { it.id.value.startsWith("recording-") }
-                Playlist(id, json.getString("name"), members + localMembers)
+                    .mapNotNull { member -> allTracks.find { it.id == member.id } }
+                Playlist(id, json.getString("name"), (members + localMembers).distinctBy { it.id })
             }
             save(account.copy(tracks = allTracks, likes = likes, playlists = playlists))
+            guarded { recordingDrafts.acknowledge(recoveredDrafts) }
             updateQuota()
         }
     }
@@ -745,6 +762,22 @@ class DurableStudioRepository(
         }
     }
 
+    suspend fun exportHeaders(track: Track): Map<String, String> {
+        val owner = withContext(dispatcher) {
+            mutex.withLock {
+                val account = requireAccount()
+                val current = account.tracks.find { it.id == track.id }
+                    ?: publicCatalogTracks.value.find { it.id == track.id }?.let(::catalogTrack)
+                    ?: throw ApiFailure(AppError.Unauthorized)
+                if (track.audioUri != current.audioUri) throw ApiFailure(AppError.Unauthorized)
+                account.session.user.id.value
+            }
+        }
+        val headers = playbackHeaders(track)
+        if (activeAccountId != owner) throw ApiFailure(AppError.Unauthorized)
+        return headers
+    }
+
     suspend fun playbackHeaders(track: Track): Map<String, String> = withContext(dispatcher) {
         mutex.withLock {
             val source = track.audioUri?.let { java.net.URI(it) } ?: return@withLock emptyMap()
@@ -759,7 +792,8 @@ class DurableStudioRepository(
             val account = requireAccount()
             val owner = activeAccountId ?: throw ApiFailure(AppError.Unauthorized)
             val id = Uri.encode(track.id.value)
-            val owned = source.rawPath == "/v1/tracks/" + id + "/audio" && account.tracks.any { it.id == track.id }
+            val owned =
+                source.rawPath == remoteTrackPath(track.id) + "/audio" && account.tracks.any { it.id == track.id }
             val catalog = source.rawPath == "/v1/catalog/tracks/" + id + "/audio"
             if (!owned && !catalog) throw ApiFailure(AppError.Unauthorized)
             val token = account.token ?: return@withLock emptyMap()
@@ -772,6 +806,12 @@ class DurableStudioRepository(
     internal suspend fun fetchCatalog(): Outcome<JSONObject> = operation {
         val account = requireAccount()
         api.request("GET", "/v1/catalog", account.token ?: throw ApiFailure(AppError.UnsupportedMode))
+    }
+
+    private fun remoteTrackPath(id: TrackId): String = if (id.value.startsWith("recording-")) {
+        "/v1/recordings/" + id.value.removePrefix("recording-")
+    } else {
+        "/v1/tracks/" + id.value
     }
 
     private fun loadActive(): AccountSnapshot? = store.read().stringOrNull("active")?.let(::loadAccount)

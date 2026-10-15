@@ -161,3 +161,7 @@ PATCH /v1/tracks/:id accepts {title:string} (trimmed, 1–80 characters) and ret
 Idempotency-Key values reserve the substring `:variant:` for internal variant rows; client keys containing it are rejected with 400. Deleted queued tracks are never sent to the provider. Library membership additions lock the referenced owned track in the same transaction as insertion, so concurrent track deletion cannot leave orphan references.
 
 Account deletion uses a durable deletionRequestedAt marker (migration0003). Other requests receive409 ACCOUNT_DELETING while DELETE /v1/me remains retryable. Tombstoned tracks cannot save new audio; workers hold a track row lock through audio save and completion, so cleanup either waits for that save or prevents it. Single-track DELETE also marks first and can retry failed file cleanup after the track is hidden. A startup/30-second deletion worker retries marked users independently of client authentication. Catalog audio links honor PUBLIC_BASE_URL; HEAD synthesizes no full WAV and Range renders only the requested samples. GET /v1/capabilities describes provider modes and upload limits.
+
+## Persistent recording Drafts
+
+Owner-scoped recordings now support idempotent raw uploads, list/rename/delete and private byte-range playback, independently of temporary reference uploads. See [the recording contract](RECORDINGS.md) for limits, recovery, retention and client integration.

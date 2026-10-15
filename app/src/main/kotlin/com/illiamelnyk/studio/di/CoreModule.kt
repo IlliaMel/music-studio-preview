@@ -13,6 +13,7 @@ import com.illiamelnyk.studio.core.data.notification.AndroidGenerationNotificati
 import com.illiamelnyk.studio.core.data.playback.AndroidAudioExporter
 import com.illiamelnyk.studio.core.data.playback.AndroidPlaybackController
 import com.illiamelnyk.studio.core.data.playback.LocalLyricsRepository
+import com.illiamelnyk.studio.core.data.playback.PlaybackAutoplayCoordinator
 import com.illiamelnyk.studio.core.data.settings.DataStoreThemePreferenceRepository
 import com.illiamelnyk.studio.core.domain.credits.CreditsRepository
 import com.illiamelnyk.studio.core.domain.network.NetworkMonitor
@@ -20,6 +21,7 @@ import com.illiamelnyk.studio.core.domain.notification.GenerationNotificationTar
 import com.illiamelnyk.studio.core.domain.notification.GenerationNotifications
 import com.illiamelnyk.studio.core.domain.notification.OpenGenerationNotification
 import com.illiamelnyk.studio.core.domain.playback.AudioExporter
+import com.illiamelnyk.studio.core.domain.playback.AutoplayCatalog
 import com.illiamelnyk.studio.core.domain.playback.LyricsRepository
 import com.illiamelnyk.studio.core.domain.playback.PlaybackController
 import com.illiamelnyk.studio.core.domain.playlist.PlaylistRepository
@@ -32,10 +34,12 @@ import com.illiamelnyk.studio.core.domain.track.TrackRepository
 import com.illiamelnyk.studio.core.presentation.OfflineViewModel
 import com.illiamelnyk.studio.core.presentation.ToastController
 import com.illiamelnyk.studio.core.presentation.audio.AudioActions
+import com.illiamelnyk.studio.feature.listen.domain.CatalogRepository
 import kotlin.time.Clock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.singleOf
@@ -79,8 +83,25 @@ val coreModule = module {
             audioHeaders = repository::playbackHeaders,
         )
     } bind PlaybackController::class
+    single<AutoplayCatalog> {
+        val catalog: CatalogRepository = get()
+        AutoplayCatalog {
+            catalog.observeCollections().first().flatMap { it.tracks }.distinctBy { it.id }
+        }
+    }
+    single(createdAtStart = true) {
+        val repository: DurableStudioRepository = get()
+        PlaybackAutoplayCoordinator(get(), get(), get(named(APP_SCOPE))) { repository.activeAccountId }
+    }
     singleOf(::LocalLyricsRepository) bind LyricsRepository::class
-    single<AudioExporter> { AndroidAudioExporter(androidContext()) }
+    single<AudioExporter> {
+        val repository: DurableStudioRepository = get()
+        AndroidAudioExporter(
+            androidContext(),
+            ownerId = { repository.activeAccountId },
+            authorization = repository::exportHeaders,
+        )
+    }
     factoryOf(::AudioActions)
     single<PlaylistRepository> { get<DurableStudioRepository>() }
     factoryOf(::SignOut)

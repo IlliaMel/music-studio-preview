@@ -53,7 +53,7 @@ class AndroidPlaybackController(
             when (change) {
                 android.media.AudioManager.AUDIOFOCUS_LOSS, android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
                     hasFocus = false
-                    mutableState.update { it.copy(isPlaying = false) }
+                    mutableState.update { it.copy(isPlaying = false, autoplayWaiting = false) }
                 }
 
                 android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> player?.setVolume(0.2f, 0.2f)
@@ -128,6 +128,10 @@ class AndroidPlaybackController(
                     shuffle = saved.optBoolean("shuffle"),
                     repeat = RepeatMode.entries.firstOrNull { it.name == saved.optString("repeat") } ?: RepeatMode.Off,
                     stationName = saved.optString("station").takeIf { it.isNotBlank() && it != "null" },
+                    autoplay = saved.optBoolean("autoplay"),
+                    autoplayHistory = saved.optJSONArray("autoplayHistory")?.let { values ->
+                        (0 until values.length()).map { TrackId(values.getString(it)) }.toSet()
+                    } ?: original.map { it.id }.toSet(),
                 )
             }.onFailure {
                 check(preferences.edit().remove(key).commit()) { "Cannot clear invalid playback state" }
@@ -151,6 +155,8 @@ class AndroidPlaybackController(
             put("shuffle", state.shuffle)
             put("repeat", state.repeat.name)
             put("station", state.stationName)
+            put("autoplay", state.autoplay)
+            put("autoplayHistory", org.json.JSONArray(state.autoplayHistory.map { it.value }))
         }
         return playbackPreferenceKey(owner) to saved.toString()
     }
@@ -162,6 +168,32 @@ class AndroidPlaybackController(
             check(preferences.edit().putString(saved.first, saved.second).commit()) { "Cannot persist playback queue" }
         }
     }
+
+    @SuppressLint("UseKtx")
+    private fun persistAutoplay() {
+        val owner = playbackOwner ?: return
+        val state = mutableState.value
+        val saved = org.json.JSONObject().apply {
+            put("enabled", state.autoplay)
+            put("history", org.json.JSONArray(state.autoplayHistory.map { it.value }))
+        }
+        synchronized(playbackPersistenceLock) {
+            if (owner != ownerId() || playbackGeneration != playbackStateGeneration(owner)) return
+            check(preferences.edit().putString(autoplayPreferenceKey(owner), saved.toString()).commit()) {
+                "Cannot persist autoplay preference"
+            }
+        }
+    }
+
+    private fun autoplayPreference(owner: String): Pair<Boolean, Set<TrackId>> = runCatching {
+        val saved = preferences.getString(autoplayPreferenceKey(owner), null)?.let { org.json.JSONObject(it) }
+            ?: return@runCatching false to emptySet<TrackId>()
+        saved.optBoolean("enabled") to (
+            saved.optJSONArray("history")?.let { values ->
+                (0 until values.length()).map { TrackId(values.getString(it)) }.toSet()
+            } ?: emptySet()
+            )
+    }.getOrDefault(false to emptySet())
 
     override fun play(queue: List<Track>, startIndex: Int) = synchronized(playbackLock) {
         load(queue, startIndex, stationName = null)
@@ -207,12 +239,14 @@ class AndroidPlaybackController(
             val state = mutableState.value
             if (state.current == null) return
             if (state.isPlaying) {
-                mutableState.update { it.copy(isPlaying = false) }
+                mutableState.update { it.copy(isPlaying = false, autoplayWaiting = false) }
             } else {
                 if (!prepared) loadedId = null
                 val atEnd = state.positionMs >= state.durationMs
                 if (atEnd) pendingSeek = 0
-                mutableState.update { it.copy(isPlaying = true, positionMs = if (atEnd) 0 else it.positionMs) }
+                mutableState.update {
+                    it.copy(isPlaying = true, positionMs = if (atEnd) 0 else it.positionMs, autoplayWaiting = false)
+                }
                 startClock()
             }
         }
@@ -221,7 +255,7 @@ class AndroidPlaybackController(
     override fun seekTo(positionMs: Long) {
         synchronized(playbackLock) {
             pendingSeek = positionMs.coerceIn(0, mutableState.value.durationMs)
-            mutableState.update { it.copy(positionMs = pendingSeek!!) }
+            mutableState.update { it.copy(positionMs = pendingSeek!!, autoplayWaiting = false) }
         }
     }
 
@@ -244,10 +278,16 @@ class AndroidPlaybackController(
             pendingSeek = 0
             mutableState.update { state ->
                 when {
-                    state.positionMs > RESTART_THRESHOLD.inWholeMilliseconds -> state.copy(positionMs = 0)
+                    state.positionMs > RESTART_THRESHOLD.inWholeMilliseconds -> state.copy(
+                        positionMs = 0,
+                        autoplayWaiting = false,
+                    )
+
                     state.currentIndex > 0 -> state.atTrack(state.currentIndex - 1)
+
                     state.loops && state.queue.isNotEmpty() -> state.atTrack(state.queue.lastIndex)
-                    else -> state.copy(positionMs = 0)
+
+                    else -> state.copy(positionMs = 0, autoplayWaiting = false)
                 }
             }
         }
@@ -275,7 +315,51 @@ class AndroidPlaybackController(
 
     override fun setRepeat(mode: RepeatMode) {
         synchronized(playbackLock) {
-            mutableState.update { it.copy(repeat = mode) }
+            mutableState.update { it.copy(repeat = mode, autoplayWaiting = false) }
+        }
+    }
+
+    override fun setAutoplay(enabled: Boolean) {
+        synchronized(playbackLock) {
+            val state = mutableState.value
+            if (state.isStation || state.current == null || playbackOwner != ownerId() ||
+                playbackOwner?.let { playbackGeneration == playbackStateGeneration(it) } != true
+            ) {
+                return
+            }
+            mutableState.value = state.copy(autoplay = enabled, autoplayWaiting = false)
+            persistAutoplay()
+            persistQueue()
+        }
+    }
+
+    override fun appendAutoplay(expected: PlaybackState, track: Track) {
+        synchronized(playbackLock) {
+            val state = mutableState.value
+            if (!state.autoplay || state.isStation || state.repeat != RepeatMode.Off ||
+                state.current?.id != expected.current?.id || state.currentIndex != expected.currentIndex ||
+                state.queue.map { it.id } != expected.queue.map { it.id } ||
+                state.autoplayHistory != expected.autoplayHistory || track.id in state.autoplayHistory ||
+                state.queue.any { it.id == track.id } || playbackOwner != ownerId() ||
+                playbackOwner?.let { playbackGeneration == playbackStateGeneration(it) } != true
+            ) {
+                return
+            }
+            val index = originalQueue.size
+            originalQueue = originalQueue + track
+            playOrder = playOrder + index
+            val resume = state.autoplayWaiting
+            mutableState.value = state.copy(
+                queue = playOrder.map(originalQueue::get),
+                autoplayHistory = state.autoplayHistory + track.id,
+                autoplayWaiting = false,
+                currentIndex = if (resume) state.currentIndex + 1 else state.currentIndex,
+                positionMs = if (resume) 0 else state.positionMs,
+                isPlaying = state.isPlaying || resume,
+            )
+            if (resume) startClock()
+            persistAutoplay()
+            persistQueue()
         }
     }
 
@@ -372,7 +456,9 @@ class AndroidPlaybackController(
             stopClock()
             audioManager.abandonAudioFocusRequest(focusRequest)
             hasFocus = false
-            mutableState.update { it.copy(isPlaying = false, positionMs = position ?: it.positionMs) }
+            mutableState.update {
+                it.copy(isPlaying = false, positionMs = position ?: it.positionMs, autoplayWaiting = false)
+            }
             persistQueue()
         }
     }
@@ -410,6 +496,7 @@ class AndroidPlaybackController(
         playbackGeneration = playbackStateGeneration(owner)
         pendingSeek = 0
         originalQueue = queue
+        val autoplay = autoplayPreference(owner)
         val shuffle = mutableState.value.shuffle
         playOrder = if (shuffle) shuffledOrder(first = startIndex) else queue.indices.toList()
         mutableState.update {
@@ -419,8 +506,12 @@ class AndroidPlaybackController(
                 positionMs = 0,
                 isPlaying = true,
                 stationName = stationName,
+                autoplayWaiting = false,
+                autoplay = autoplay.first,
+                autoplayHistory = autoplay.second + queue.map { track -> track.id },
             )
         }
+        persistAutoplay()
         startClock()
     }
 
@@ -522,7 +613,7 @@ class AndroidPlaybackController(
                             next.release()
                             player = null
                             prepared = false
-                            mutableState.update { it.copy(isPlaying = false) }
+                            mutableState.update { it.copy(isPlaying = false, autoplayWaiting = false) }
                         }
                         true
                     }
@@ -537,7 +628,7 @@ class AndroidPlaybackController(
                         player?.release()
                         player = null
                         prepared = false
-                        mutableState.update { it.copy(isPlaying = false) }
+                        mutableState.update { it.copy(isPlaying = false, autoplayWaiting = false) }
                     }
                 }
             }
@@ -565,7 +656,7 @@ class AndroidPlaybackController(
     private fun requestFocus(): Boolean {
         if (hasFocus) return true
         hasFocus = audioManager.requestAudioFocus(focusRequest) == android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-        if (!hasFocus) mutableState.update { it.copy(isPlaying = false) }
+        if (!hasFocus) mutableState.update { it.copy(isPlaying = false, autoplayWaiting = false) }
         return hasFocus
     }
 
@@ -584,7 +675,7 @@ class AndroidPlaybackController(
     }
 }
 
-private fun PlaybackState.atTrack(index: Int) = copy(currentIndex = index, positionMs = 0)
+private fun PlaybackState.atTrack(index: Int) = copy(currentIndex = index, positionMs = 0, autoplayWaiting = false)
 
 private fun PlaybackState.advancedBy(elapsedMs: Long): PlaybackState {
     if (!isPlaying || current == null) return this
@@ -594,6 +685,6 @@ private fun PlaybackState.advancedBy(elapsedMs: Long): PlaybackState {
         repeat == RepeatMode.One && !isStation -> copy(positionMs = 0)
         currentIndex < queue.lastIndex -> atTrack(currentIndex + 1)
         loops -> atTrack(0)
-        else -> copy(positionMs = durationMs, isPlaying = false)
+        else -> copy(positionMs = durationMs, isPlaying = false, autoplayWaiting = autoplay && !isStation)
     }
 }

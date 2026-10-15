@@ -365,7 +365,7 @@ class PlayerViewModelTest {
     }
 
     @Test
-    fun `download exports the playing track and unavailable autoplay preserves repeat`() =
+    fun `download exports the playing track and autoplay toggles independently of repeat`() =
         runTest(mainDispatcherRule.testDispatcher) {
             val playback = playback()
             playback.play(listOf(sung), startIndex = 0)
@@ -378,7 +378,10 @@ class PlayerViewModelTest {
             val before = playback.state.value.repeat
             viewModel.onIntent(PlayerIntent.ComingSoonClicked(SoonFeature.Autoplay))
             assertEquals(before, playback.state.value.repeat)
-            assertEquals(PlayerSheet.ComingSoon(SoonFeature.Autoplay), viewModel.state.value.content.sheet)
+            assertTrue(playback.state.value.autoplay)
+            assertNull(viewModel.state.value.content.sheet)
+            viewModel.onIntent(PlayerIntent.AutoplayChanged(false))
+            assertFalse(playback.state.value.autoplay)
         }
 
     @Test

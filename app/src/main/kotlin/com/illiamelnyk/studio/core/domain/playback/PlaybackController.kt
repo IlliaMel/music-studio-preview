@@ -38,6 +38,10 @@ interface PlaybackController {
 
     fun setRepeat(mode: RepeatMode)
 
+    fun setAutoplay(enabled: Boolean) = Unit
+
+    fun appendAutoplay(expected: PlaybackState, track: Track) = Unit
+
     fun moveQueueItem(fromIndex: Int, toIndex: Int) = Unit
 
     fun removeTrack(id: TrackId) = Unit

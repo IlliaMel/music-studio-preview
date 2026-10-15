@@ -46,6 +46,7 @@ data class PlayerContent(
     val canRemix: Boolean = true,
     val shuffle: Boolean = false,
     val repeat: Boolean = false,
+    val autoplay: Boolean = false,
     val lyrics: LyricsUi = LyricsUi.Loading,
     val showLyrics: Boolean = false,
     val upNext: ImmutableList<TrackUi> = persistentListOf(),
@@ -102,6 +103,8 @@ sealed interface PlayerIntent {
     data class ShuffleChanged(val enabled: Boolean) : PlayerIntent
 
     data class RepeatChanged(val enabled: Boolean) : PlayerIntent
+
+    data class AutoplayChanged(val enabled: Boolean) : PlayerIntent
 
     /** The seek bar was dragged or tapped at [fraction] of the track. */
     data class SeekRequested(val fraction: Float) : PlayerIntent

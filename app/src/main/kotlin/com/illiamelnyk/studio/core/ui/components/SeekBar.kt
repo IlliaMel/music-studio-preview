@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,7 +33,7 @@ import com.illiamelnyk.studio.core.ui.theme.PreviewSurface
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
 /**
- * The player's seek bar on cover color: a 4 dp track with a 12 dp thumb in a 48 dp touch area, and
+ * The player's seek bar on cover color: an 8 dp track with a drag-only thumb in a 48 dp touch area, and
  * the [elapsed] and [remaining] times under it. Drag the thumb or tap the track to seek; the bar
  * follows the finger and calls [onSeek] when it lifts.
  *
@@ -49,7 +50,8 @@ fun SeekBar(
 ) {
     val colors = StudioTheme.colors
     val dimens = StudioTheme.dimens
-    val shapeRadius = dimens.size.component.seekTrack / 2
+    val paintedTrack = dimens.size.component.seekTrack * 2
+    val shapeRadius = paintedTrack / 2
     val layoutDirection = LocalLayoutDirection.current
     val currentOnSeek by rememberUpdatedState(onSeek)
     // Where the finger is while dragging; the bar shows it instead of the playback position.
@@ -84,7 +86,7 @@ fun SeekBar(
                 }
                 .drawBehind {
                     val fraction = (dragFraction ?: progress()).coerceIn(0f, 1f)
-                    val track = dimens.size.component.seekTrack.toPx()
+                    val track = paintedTrack.toPx()
                     val radius = CornerRadius(shapeRadius.toPx())
                     val top = (size.height - track) / 2
                     val filled = size.width * fraction
@@ -92,14 +94,16 @@ fun SeekBar(
                     drawRoundRect(colors.overlay.onMediaTrack, Offset(0f, top), Size(size.width, track), radius)
                     drawRoundRect(colors.overlay.onMediaPrimary, Offset(filledLeft, top), Size(filled, track), radius)
                     val thumbX = if (layoutDirection == LayoutDirection.Ltr) filled else size.width - filled
-                    drawCircle(
-                        color = colors.overlay.onMediaPrimary,
-                        radius = dimens.size.component.seekThumb.toPx() / 2,
-                        center = Offset(thumbX, size.height / 2),
-                    )
+                    if (dragFraction != null) {
+                        drawCircle(
+                            color = colors.overlay.onMediaPrimary,
+                            radius = dimens.size.component.seekThumb.toPx() / 2,
+                            center = Offset(thumbX, size.height / 2),
+                        )
+                    }
                 },
         )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth().offset(y = -dimens.spacing.m), horizontalArrangement = Arrangement.SpaceBetween) {
             StudioText(elapsed, timeStyle, color = colors.overlay.onMediaSecondary)
             StudioText(remaining, timeStyle, color = colors.overlay.onMediaSecondary)
         }

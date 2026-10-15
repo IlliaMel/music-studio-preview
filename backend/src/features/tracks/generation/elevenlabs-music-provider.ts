@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
-import { boundedBody, invalidResponse, isMp3, Plan, parseDetailed } from './elevenlabs-response.js'
+import { validAudio } from '../../../core/audio/audio-container.js'
+import { boundedBody, invalidResponse, Plan, parseDetailed } from './elevenlabs-response.js'
 import { type ComposeRequest, type MusicProvider, ProviderError } from './music-provider.js'
 
 export type MusicReference = {
@@ -268,18 +269,7 @@ export class ElevenLabsMusicProvider implements MusicProvider {
   }
 }
 
-export function validAudio(data: Buffer, type: string): boolean {
-  if (data.length < 12 || data.length > 20 * 1024 * 1024) return false
-  if (type === 'audio/mpeg') return isMp3(data)
-  if (type === 'audio/mp4')
-    return data.toString('ascii', 4, 8) === 'ftyp' && data.includes(Buffer.from('mdat'))
-  return (
-    (type === 'audio/wav' || type === 'audio/x-wav') &&
-    data.toString('ascii', 0, 4) === 'RIFF' &&
-    data.toString('ascii', 8, 12) === 'WAVE' &&
-    data.includes(Buffer.from('data'))
-  )
-}
+export { validAudio } from '../../../core/audio/audio-container.js'
 
 function stableSeed(request: ComposeRequest): number {
   return (

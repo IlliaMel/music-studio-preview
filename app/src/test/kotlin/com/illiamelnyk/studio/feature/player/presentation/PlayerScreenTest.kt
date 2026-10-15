@@ -124,7 +124,7 @@ class PlayerScreenTest {
         )
         composeRule.onNodeWithContentDescription(string(R.string.player_autoplay)).assertIsDisplayed().performClick()
         assertEquals(
-            listOf(PlayerIntent.ClearUpNextClicked, PlayerIntent.ComingSoonClicked(SoonFeature.Autoplay)),
+            listOf(PlayerIntent.ClearUpNextClicked, PlayerIntent.AutoplayChanged(true)),
             intents,
         )
     }

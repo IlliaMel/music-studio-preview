@@ -1,10 +1,10 @@
 # Live backend activation
 
-The same backend supports mock and real ElevenLabs music. No paid requests were made during implementation or tests. Mock remains the default. The unchanged Android demo still uses development sign-in and a fixed emulator endpoint; Google/Firebase sign-in and production endpoint configuration on Android are separate work.
+The same backend supports mock and real ElevenLabs music. No paid requests were made during implementation or tests. Mock remains the default. Android supports explicit endpoint/auth-mode configuration; actual Google/Firebase sign-in remains separate integration work. Backend credentials alone do not implement Android identity flows.
 
 ## Local server with real music
 
-Copy .env.example to .env, set MUSIC_PROVIDER=elevenlabs and ELEVENLABS_API_KEY to your server-side ElevenLabs key. Keep AUTH_MODE=dev and HOST=127.0.0.1 for local emulator testing. Run npm install, npm run build, npm start. Migrations apply automatically at startup. A valid key with Music API access activates prompt/instrumental generation, custom lyrics, MP3 playback/export, metadata and provider word timestamps. Set MUSIC_PROVIDER=mock for the fast offline fixture flow; MOCK_DELAY_MS controls the delay.
+Copy .env.example to .env, set MUSIC_PROVIDER=elevenlabs and ELEVENLABS_API_KEY to your server-side ElevenLabs key. Keep AUTH_MODE=dev and HOST=127.0.0.1 for local emulator testing. Run npm install, npm run build, npm start. Migrations apply automatically at startup. A valid key with Music API access activates prompt/instrumental generation, custom lyrics, MP3 playback/export, metadata and provider word timestamps. Set MUSIC_PROVIDER=mock for the fast development fixture flow; MOCK_DELAY_MS controls the delay.
 
 AUTH_MODE=firebase activates Firebase Admin token verification/revocation checking and account deletion. Supply either FIREBASE_SERVICE_ACCOUNT as JSON or FIREBASE_SERVICE_ACCOUNT_FILE as an absolute JSON-file path; inline JSON wins if both are present. This is the backend admin credential, not Android google-services.json. The HTTP client must supply a real Firebase ID token. Never commit credentials or put them in the phone.
 
@@ -39,7 +39,7 @@ Catalog fixtures stream synthesized WAV in 64 KiB chunks. HEAD computes metadata
 
 ## Verification and remaining external checks
 
-Tests use synthetic HTTP multipart/audio fixtures and fake Firebase APIs, plus PGlite and the pg wire driver. Run npm run check and npm run build. No real credentials, paid calls, live account deletion, actual enterprise entitlement or independent Postgres server were exercised. Validate those with your own staging credentials before production. A backend credential cannot implement missing Android Google/Firebase sign-in or change its current server URL.
+Tests use synthetic HTTP multipart/audio fixtures and fake Firebase APIs, plus PGlite and the pg wire driver. Run npm run check and npm run build. No real credentials, paid calls, live account deletion, actual enterprise entitlement or independent Postgres server were exercised. Validate those with your own staging credentials before production. A backend credential cannot implement missing Android Google/Firebase sign-in; configure the client endpoint/auth mode explicitly.
 
 Official contracts checked 2026-10-15:
 

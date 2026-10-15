@@ -25,6 +25,7 @@ internal class AccountDeletions(
     private val api: StudioApi,
     private val recordings: RecordingFiles,
     private val notifications: GenerationNotifications = GenerationNotifications.None,
+    private val recordingDrafts: RecordingDrafts = RecordingDrafts(store, recordings, api),
 ) {
     fun pending(): List<AccountDeletionIntent> = store.read().let { root ->
         root.keys().asSequence().filter { it.startsWith(PREFIX) }
@@ -37,7 +38,8 @@ internal class AccountDeletions(
         val intent = AccountDeletionIntent(
             ownerId = account.session.user.id.value,
             token = account.token,
-            audio = account.tracks.map { DeletionAudio(it.id.value, it.audioUri) },
+            audio = account.tracks.map { DeletionAudio(it.id.value, it.audioUri) } +
+                recordingDrafts.pendingAudio(account.session.user.id.value),
             references = account.tracks.mapNotNull {
                 snapshot.optJSONObject("request-" + it.id.value)?.stringOrNull("referenceAudioUri")
             },
@@ -75,12 +77,14 @@ internal class AccountDeletions(
             }
         }
         if (!intent.localPurged) {
-            intent.audio.forEach { recordings.delete(TrackId(it.id), it.uri) }
+            intent.audio.forEach { recordings.delete(TrackId(it.id), it.uri, intent.ownerId) }
+            recordings.deleteRecordingStaging(intent.ownerId)
             recordings.deleteReferences(intent.ownerId, intent.references)
             recordings.deletePlaybackState(intent.ownerId)
             notifications.forget(intent.ownerId)
             store.change { root ->
                 NotificationOutbox.remove(root, intent.ownerId)
+                recordingDrafts.purgeJournal(root, intent.ownerId)
                 root.remove("account-" + intent.ownerId)
                 root.remove("pending-" + intent.ownerId)
                 if (root.stringOrNull("active") == intent.ownerId) root.remove("active")

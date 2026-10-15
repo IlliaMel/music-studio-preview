@@ -1,6 +1,6 @@
 import { z } from 'zod'
+import { validAudio } from '../../core/audio/audio-container.js'
 import { ApiError } from '../../core/http/errors.js'
-import { validAudio } from '../tracks/generation/elevenlabs-music-provider.js'
 import { catalogTracks } from './catalog.js'
 import type { LibraryRepository } from './library.repository.js'
 import type { playlists } from './library.table.js'

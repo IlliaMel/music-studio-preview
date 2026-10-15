@@ -7,9 +7,14 @@ import com.illiamelnyk.studio.core.data.fake.FakePlaybackController
 import com.illiamelnyk.studio.core.data.fake.FakeSessionRepository
 import com.illiamelnyk.studio.core.data.fake.FakeTrackRepository
 import com.illiamelnyk.studio.core.domain.AppError
+import com.illiamelnyk.studio.core.domain.Outcome
+import com.illiamelnyk.studio.core.domain.track.ComposerDraftStore
+import com.illiamelnyk.studio.core.domain.track.GenerationRequest
 import com.illiamelnyk.studio.core.domain.track.MusicModel
 import com.illiamelnyk.studio.core.domain.track.Quality
+import com.illiamelnyk.studio.core.domain.track.Track
 import com.illiamelnyk.studio.core.domain.track.TrackId
+import com.illiamelnyk.studio.core.domain.track.TrackRepository
 import com.illiamelnyk.studio.core.presentation.UiText
 import com.illiamelnyk.studio.core.presentation.track.TrackUi
 import com.illiamelnyk.studio.core.ui.components.StudioToastKind
@@ -66,6 +71,7 @@ class CreateViewModelTest {
     }
     private lateinit var tracks: FailingTrackRepository
     private lateinit var playback: FakePlaybackController
+    private var submittedRequest: GenerationRequest? = null
 
     @Test
     fun `the user's tracks load newest first, with a fix where the prompt was refused and a retry where it failed`() =
@@ -605,8 +611,62 @@ class CreateViewModelTest {
             }
         }
 
-    private fun TestScope.viewModel(): CreateViewModel {
-        tracks = FailingTrackRepository(FakeTrackRepository(credits, FakeSessionRepository(), backgroundScope, clock))
+    @Test
+    fun replacingRemixWithRecordingGeneratesUsingOnlyTheNewReference() = runTest(mainDispatcherRule.testDispatcher) {
+        val drafts = ComposerDraftStore()
+        val viewModel = viewModel(drafts)
+        val original = tracks.observeMine().first().first()
+        drafts.remix(original)
+        runCurrent()
+        assertEquals(original.title, viewModel.state.value.composer.referenceLabel)
+
+        val uri = "content://recordings/new-reference"
+        viewModel.onIntent(CreateIntent.ReferenceSelected(uri, "New recording"))
+        assertEquals("New recording", viewModel.state.value.composer.referenceLabel)
+        viewModel.effects.test {
+            send(viewModel, "An original mellow arrangement")
+            assertEquals(CreateEffect.TracksStarted, awaitItem())
+        }
+
+        val request = requireNotNull(submittedRequest)
+        assertEquals(uri, request.referenceAudioUri)
+        assertNull(request.remixTrackId)
+        assertEquals(7, credits.credits.first().remaining)
+    }
+
+    @Test
+    fun replacingRecordingWithRemixGeneratesUsingOnlyTheNewOriginal() = runTest(mainDispatcherRule.testDispatcher) {
+        val drafts = ComposerDraftStore()
+        val viewModel = viewModel(drafts)
+        viewModel.onIntent(CreateIntent.ReferenceSelected("content://recordings/old-reference", "Old recording"))
+        val original = tracks.observeMine().first().first()
+        drafts.remix(original)
+        runCurrent()
+        assertEquals(original.title, viewModel.state.value.composer.referenceLabel)
+
+        viewModel.effects.test {
+            send(viewModel, "An original mellow arrangement")
+            assertEquals(CreateEffect.TracksStarted, awaitItem())
+        }
+
+        val request = requireNotNull(submittedRequest)
+        assertEquals(original.id.value, request.remixTrackId)
+        assertNull(request.referenceAudioUri)
+        assertEquals(7, credits.credits.first().remaining)
+    }
+
+    private fun TestScope.viewModel(drafts: ComposerDraftStore = ComposerDraftStore()): CreateViewModel {
+        val fake = FakeTrackRepository(credits, FakeSessionRepository(), backgroundScope, clock)
+        val capturing = object : TrackRepository by fake {
+            override suspend fun create(request: GenerationRequest, variants: Int): Outcome<List<Track>> {
+                submittedRequest = request
+                if (request.referenceAudioUri != null && request.remixTrackId != null) {
+                    return Outcome.Failure(AppError.InvalidReference)
+                }
+                return fake.create(request, variants)
+            }
+        }
+        tracks = FailingTrackRepository(capturing)
         playback = FakePlaybackController(backgroundScope)
         val viewModel = CreateViewModel(
             tracks = tracks,
@@ -617,6 +677,7 @@ class CreateViewModelTest {
             playback = playback,
             generateTracks = GenerateTracks(tracks, credits),
             playNext = PlayNext(playback),
+            drafts = drafts,
         )
         runCurrent()
         return viewModel
