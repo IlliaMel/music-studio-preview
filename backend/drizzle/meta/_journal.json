@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1792000180051,
+      "tag": "0000_create_users",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792002441178,
+      "tag": "0001_create_tracks",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792050000000,
+      "tag": "0002_mvp_plus",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792060000000,
+      "tag": "0003_account_deletion",
+      "breakpoints": true
+    }
+  ]
+}

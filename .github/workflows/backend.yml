@@ -1,0 +1,62 @@
+name: Backend
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
+
+# A new push to the same branch cancels the run that is already outdated.
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint, typecheck, test and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      # Actions are pinned to commit SHAs: a tag can be moved, a SHA cannot.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: backend/.node-version
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+
+      - name: Lint and formatting
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # A schema change without its generated migration would break the next deploy.
+      - name: Migrations match the schema
+        run: |
+          npm run db:generate
+          if [ -n "$(git status --porcelain -- drizzle)" ]; then
+            echo "::error::The schema changed but the migration was not generated. Run 'npm run db:generate' and commit drizzle/."
+            git status --porcelain -- drizzle
+            exit 1
+          fi
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
