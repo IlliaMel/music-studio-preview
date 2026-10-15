@@ -4,6 +4,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -23,6 +27,7 @@ import com.illiamelnyk.studio.core.ui.components.StudioBottomSheet
 import com.illiamelnyk.studio.core.ui.foundation.FeedbackWindow
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import org.koin.compose.viewmodel.koinViewModel
+import kotlinx.coroutines.delay
 
 /**
  * The profile, wired to its ViewModel.
@@ -40,9 +45,18 @@ fun ProfileRoute(
     debugSettings: (@Composable () -> Unit)? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var visible by remember { mutableStateOf(true) }
+    val close by rememberUpdatedState(onClose)
+    val exitDuration = StudioTheme.motion.duration.long
+    LaunchedEffect(visible) {
+        if (!visible) {
+            delay(exitDuration.toLong())
+            close()
+        }
+    }
     ObserveEffects(viewModel.effects) { effect ->
         when (effect) {
-            ProfileEffect.Close -> onClose()
+            ProfileEffect.Close -> visible = false
         }
     }
     Dialog(
@@ -62,7 +76,7 @@ fun ProfileRoute(
                     }
                 }
             }
-            StudioBottomSheet(visible = true, onDismissRequest = { viewModel.onIntent(ProfileIntent.BackClicked) }) {
+            StudioBottomSheet(visible = visible, onDismissRequest = { viewModel.onIntent(ProfileIntent.BackClicked) }) {
                 ProfileScreen(
                     state = state,
                     onIntent = viewModel::onIntent,
