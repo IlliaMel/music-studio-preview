@@ -1,6 +1,6 @@
 # Studio backend
 
-The server behind the Studio Android app. It signs users in with Firebase, keeps their profiles and tracks, and runs the long music generations in the background, so the phone only creates a track and polls until it is ready. Generation runs on a mock provider for now; the ElevenLabs client, which will keep the API key away from the phone, comes next.
+The server behind the Studio Android app. It supports Firebase token verification and local development sign-in, keeps profiles and tracks, and runs the long music generations in the background, so the phone only creates a track and polls until it is ready. Generation runs on a mock provider for now; the ElevenLabs client, which will keep the API key away from the phone, comes next.
 
 **Stack:** Node.js 24, TypeScript, [Hono](https://hono.dev), [zod](https://zod.dev), [Drizzle ORM](https://orm.drizzle.team) on Postgres, [PGlite](https://pglite.dev) for local work and tests, [pino](https://getpino.io) logs, [Vitest](https://vitest.dev), [Biome](https://biomejs.dev).
 
@@ -64,7 +64,7 @@ Dependencies point one way: routes → service → repository → database. `cor
 
 ## Sign-in
 
-The app signs in with Firebase (Google, email link; Apple later) and sends the Firebase ID token with every request as `Authorization: Bearer <token>`. The server never sees passwords and keeps no sessions:
+The Firebase backend contract expects a Firebase ID token sent with every request as `Authorization: Bearer <token>`. The current Android prototype uses demo/development sign-in; real provider UI and credentials are not validated. The server never sees passwords and keeps no sessions:
 
 1. `authenticate` checks the token's signature, expiry and audience with the Firebase Admin SDK, using Google's cached public keys, and asks Firebase whether the account still exists and is enabled, so a deleted or blocked user is locked out at once.
 2. `UsersService.resolve` finds our user by the Firebase uid, or creates them on their first request.
@@ -75,7 +75,7 @@ A token that is missing, malformed or expired gets `401 UNAUTHORIZED` with `WWW-
 | Endpoint | What it does |
 |---|---|
 | `GET /v1/me` | The profile and current terms acceptance status |
-| `PATCH /v1/me` | Saves onboarding answers: `displayName`, `ageConfirmed: true`, `acceptedTermsVersion`, `marketingOptIn` |
+| `PATCH /v1/me` | Accepts current terms through `acceptedTermsVersion`; legacy optional profile/consent fields remain compatible |
 | `DELETE /v1/me` | Deletes the account: our data first, then the Firebase user. Safe to retry |
 
 When the terms change, bump `TERMS_VERSION` in `users.service.ts`: every user gets `terms` back in the missing steps and `requireOnboarding` stops them until they accept.
@@ -110,7 +110,7 @@ The app creates a track and polls `GET /v1/tracks/:id` every few seconds until i
 
 ## Adding a feature
 
-Say, playlists:
+For a new feature (library/playlists already exists):
 
 1. **Table.** `src/features/playlists/playlists.table.ts` with `pgTable(...)`, then export it from `src/core/db/schema.ts`.
 2. **Migration.** `npm run db:generate -- --name create_playlists` writes the SQL to `drizzle/`. Read it and commit it; the server applies it on the next start. CI fails if a schema change has no migration.
