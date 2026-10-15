@@ -1,6 +1,6 @@
 # Studio backend
 
-The server behind the Studio Android app. It signs users in with Firebase, keeps their profiles and tracks, and runs the long music generations in the background, so the phone only creates a track and polls until it is ready. Generation runs on a mock provider for now; the ElevenLabs client, which will keep the API key away from the phone, comes next.
+The server behind the Studio Android app. It signs users in with Firebase, keeps their profiles and tracks, and runs the long music generations in the background, so the phone only creates a track and polls until it is ready. Generation supports a fast local mock and the real ElevenLabs Music API. Choose the provider in the environment; API keys remain on the server. See [LIVE_SETUP.md](LIVE_SETUP.md) for activation, supported modes, paid-attempt safety and remaining Android integration.
 
 **Stack:** Node.js 24, TypeScript, [Hono](https://hono.dev), [zod](https://zod.dev), [Drizzle ORM](https://orm.drizzle.team) on Postgres, [PGlite](https://pglite.dev) for local work and tests, [pino](https://getpino.io) logs, [Vitest](https://vitest.dev), [Biome](https://biomejs.dev).
 

@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { ConfigError, loadConfig } from '../src/core/config.js'
 
@@ -161,3 +164,46 @@ function captureError(block: () => unknown): unknown {
   }
   throw new Error('Expected an error')
 }
+
+it('enables live music only with a key and explicitly validates provider/HTTPS', () => {
+  expect(() => loadConfig({ MUSIC_PROVIDER: 'elevenlabs' })).toThrow(/ELEVENLABS_API_KEY/)
+  expect(() => loadConfig({ MUSIC_PROVIDER: 'invented' })).toThrow(/MUSIC_PROVIDER/)
+  expect(
+    loadConfig({
+      MUSIC_PROVIDER: 'elevenlabs',
+      ELEVENLABS_API_KEY: 'test-placeholder',
+      ELEVENLABS_ENABLE_REFERENCES: 'true',
+    }).generation,
+  ).toMatchObject({
+    provider: 'elevenlabs',
+    elevenlabs: { apiKey: 'test-placeholder', references: true },
+  })
+  expect(() =>
+    loadConfig({
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgres://db/studio',
+      AUDIO_DIR: '/persistent/audio',
+      PUBLIC_BASE_URL: 'http://api.example.test',
+      FIREBASE_SERVICE_ACCOUNT: serviceAccount,
+    }),
+  ).toThrow(/HTTPS/)
+})
+
+it('loads a backend Firebase credential file without exposing unreadable-file details', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'firebase-config-'))
+  const file = join(directory, 'admin.json')
+  try {
+    await writeFile(file, serviceAccount)
+    expect(
+      loadConfig({ AUTH_MODE: 'firebase', FIREBASE_SERVICE_ACCOUNT_FILE: file }).auth.mode,
+    ).toBe('firebase')
+    expect(() =>
+      loadConfig({
+        AUTH_MODE: 'firebase',
+        FIREBASE_SERVICE_ACCOUNT_FILE: join(directory, 'missing.json'),
+      }),
+    ).toThrow('FIREBASE_SERVICE_ACCOUNT_FILE: could not read credential file')
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})

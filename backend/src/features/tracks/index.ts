@@ -26,7 +26,14 @@ export function createTracksFeature(deps: {
     { repository, provider: deps.provider, storage: deps.storage, log: deps.log },
     deps.options.worker,
   )
-  const service = new TracksService(repository, deps.storage, worker, deps.options)
+  const service = new TracksService(
+    repository,
+    deps.storage,
+    worker,
+    deps.options,
+    undefined,
+    deps.provider,
+  )
   const feature: Feature = {
     name: 'tracks',
     routes: tracksRoutes(service, deps.options.publicBaseUrl),

@@ -23,7 +23,15 @@ export type NewTrack = Pick<
   'userId' | 'idempotencyKey' | 'prompt' | 'lengthMs' | 'instrumental' | 'modelId'
 > &
   Partial<
-    Pick<Track, 'customLyrics' | 'remixTrackId' | 'referenceUploadId' | 'variants' | 'quality'>
+    Pick<
+      Track,
+      | 'customLyrics'
+      | 'remixTrackId'
+      | 'referenceUploadId'
+      | 'variants'
+      | 'quality'
+      | 'providerName'
+    >
   >
 
 export type TrackResult = Pick<
@@ -41,6 +49,7 @@ export type CreateOutcome =
   | { kind: 'existing'; track: Track }
   | { kind: 'limit-reached'; used: number }
   | { kind: 'account-deleting' }
+  | { kind: 'upload-not-found' }
 
 /**
  * Failures the provider does not charge for: it refused the request before generating anything.
@@ -64,6 +73,7 @@ const countsTowardLimit = (userId: string, since: Date): SQL | undefined =>
     not(
       and(
         eq(tracks.status, 'failed'),
+        not(eq(tracks.providerName, 'elevenlabs')),
         inArray(sql`coalesce(${tracks.errorCode}, '')`, FREE_FAILURES),
       ) as SQL,
     ),
@@ -102,6 +112,19 @@ export class TracksRepository {
         )
       if (existing) return { kind: 'existing', track: existing }
 
+      if (input.referenceUploadId) {
+        const [upload] = await tx
+          .select({ id: uploads.id })
+          .from(uploads)
+          .where(
+            and(
+              eq(uploads.id, input.referenceUploadId),
+              eq(uploads.userId, input.userId),
+              gte(uploads.createdAt, new Date(now.getTime() - 86400000)),
+            ),
+          )
+        if (!upload) return { kind: 'upload-not-found' }
+      }
       const [{ used = 0 } = {}] = await tx
         .select({ used: countDistinct(tracks.generationId) })
         .from(tracks)
@@ -165,7 +188,13 @@ export class TracksRepository {
     const [upload] = await this.db
       .select({ id: uploads.id })
       .from(uploads)
-      .where(and(eq(uploads.id, id), eq(uploads.userId, userId)))
+      .where(
+        and(
+          eq(uploads.id, id),
+          eq(uploads.userId, userId),
+          gte(uploads.createdAt, new Date(Date.now() - 24 * 60 * 60_000)),
+        ),
+      )
     return Boolean(upload)
   }
 
@@ -292,8 +321,8 @@ export class TracksRepository {
       .update(tracks)
       .set({
         status: 'failed',
-        errorCode: failure.code,
-        errorMessage: failure.message,
+        errorCode: sql`case when ${tracks.providerName} = 'elevenlabs' then 'PROVIDER_OUTCOME_UNKNOWN' else ${failure.code} end`,
+        errorMessage: sql`case when ${tracks.providerName} = 'elevenlabs' then 'Provider outcome unknown after restart; check ElevenLabs request history before creating another generation' else ${failure.message} end`,
         promptSuggestion: failure.promptSuggestion,
         finishedAt: now,
         updatedAt: now,

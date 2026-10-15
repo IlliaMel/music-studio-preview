@@ -89,6 +89,21 @@ export class UsersService {
    */
   async deleteAccount(user: CurrentUser): Promise<void> {
     if (!(await this.repository.requestDeletion(user.id, this.now()))) throw userNotFound()
+    await this.finishDeletion(user)
+  }
+
+  pendingDeletions(): Promise<Pick<User, 'id'>[]> {
+    return this.repository.pendingDeletions()
+  }
+
+  async recoverDeletion(userId: string): Promise<boolean> {
+    const user = await this.repository.findById(userId)
+    if (!user?.deletionRequestedAt) return false
+    await this.finishDeletion({ id: user.id, firebaseUid: user.firebaseUid })
+    return true
+  }
+
+  private async finishDeletion(user: Pick<CurrentUser, 'id' | 'firebaseUid'>): Promise<void> {
     await this.onAccountDeleted(user.id)
     await this.auth.deleteAccount(user.firebaseUid)
     await this.repository.delete(user.id)

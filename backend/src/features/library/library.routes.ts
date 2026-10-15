@@ -4,7 +4,7 @@ import type { AppEnv } from '../../core/http/app-env.js'
 import { ApiError } from '../../core/http/errors.js'
 import { fileResponse } from '../../core/http/file-response.js'
 import { validate } from '../../core/http/validation.js'
-import { demoAudio } from '../tracks/generation/demo-audio.js'
+import { demoAudioFile } from '../tracks/generation/demo-audio.js'
 import { catalogTracks, collections, stations } from './catalog.js'
 import type { LibraryService } from './library.service.js'
 
@@ -29,21 +29,10 @@ export const libraryRoutes = (service: LibraryService, publicBaseUrl?: string) =
     .get('/catalog/tracks/:id/audio', (c) => {
       const track = catalogTracks.find((item) => item.id === c.req.param('id'))
       if (!track) throw new ApiError(404, 'TRACK_NOT_FOUND', 'No such catalog track')
-      const bytes = demoAudio(track.durationMs)
-      return fileResponse(
-        {
-          size: bytes.length,
-          stream: (range) =>
-            new ReadableStream({
-              start(controller) {
-                controller.enqueue(range ? bytes.subarray(range.start, range.end + 1) : bytes)
-                controller.close()
-              },
-            }),
-        },
-        'audio/wav',
-        { method: c.req.method, range: c.req.header('Range') },
-      )
+      return fileResponse(demoAudioFile(track.durationMs), 'audio/wav', {
+        method: c.req.method,
+        range: c.req.header('Range'),
+      })
     })
     .get('/collections/:id', (c) => {
       const collection = collections.find((item) => item.id === c.req.param('id'))
@@ -109,6 +98,10 @@ export const libraryRoutes = (service: LibraryService, publicBaseUrl?: string) =
     .delete('/playlists/:id/tracks/:trackId', validate('param', PlaylistTrackParams), async (c) => {
       const { id, trackId } = c.req.valid('param')
       await service.setPlaylistTrack(c.get('user').id, id, trackId, false)
+      return c.body(null, 204)
+    })
+    .delete('/uploads/:id', validate('param', PlaylistParams), async (c) => {
+      await service.deleteUpload(c.get('user').id, c.req.valid('param').id)
       return c.body(null, 204)
     })
     .post('/uploads', async (c) =>

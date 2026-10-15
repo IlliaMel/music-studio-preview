@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { ApiError } from '../../core/http/errors.js'
+import { validAudio } from '../tracks/generation/elevenlabs-music-provider.js'
 import { catalogTracks } from './catalog.js'
 import type { LibraryRepository } from './library.repository.js'
 import type { playlists } from './library.table.js'
@@ -14,7 +15,13 @@ const audioTypes = new Set([
   'audio/webm',
 ])
 export class LibraryService {
-  constructor(private readonly repository: LibraryRepository) {}
+  constructor(
+    private readonly repository: LibraryRepository,
+    private readonly realProvider = false,
+  ) {}
+  deleteUpload(userId: string, id: string) {
+    return this.repository.deleteUpload(userId, id)
+  }
   likedIds(userId: string) {
     return this.repository.likedIds(userId)
   }
@@ -54,10 +61,17 @@ export class LibraryService {
     if (data.length === 0) throw new ApiError(400, 'VALIDATION', 'The audio file is empty')
     if (data.length > 20 * 1024 * 1024)
       throw new ApiError(413, 'PAYLOAD_TOO_LARGE', 'The audio file exceeds 20 MB')
+    if (this.realProvider && !validAudio(data, contentType))
+      throw new ApiError(
+        422,
+        'INVALID_REFERENCE',
+        'Send a valid MP3, MP4/M4A or WAV audio container',
+      )
     return {
       ...(await this.repository.saveUpload(userId, contentType, data)),
       durationMs: null,
-      provider: 'mock',
+      provider: this.realProvider ? 'elevenlabs' : 'mock',
+      expiresAt: new Date(Date.now() + 86400000).toISOString(),
     }
   }
   private isGeneratedTrack(id: string): boolean {

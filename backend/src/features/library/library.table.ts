@@ -1,4 +1,4 @@
-import { integer, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { boolean, integer, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { users } from '../users/users.table.js'
 
 export const playlists = pgTable('playlists', {
@@ -39,5 +39,8 @@ export const uploads = pgTable('uploads', {
   contentType: text('content_type').notNull(),
   sizeBytes: integer('size_bytes').notNull(),
   data: text('data').notNull(),
+  providerSongId: text('provider_song_id'),
+  providerAttempted: boolean('provider_attempted').notNull().default(false),
+  durationMs: integer('duration_ms'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })

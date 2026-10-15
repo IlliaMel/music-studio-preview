@@ -7,7 +7,9 @@ import { type Config, ConfigError, loadConfig } from './core/config.js'
 import { openDatabase } from './core/db/database.js'
 import { createLogger } from './core/logger.js'
 import { LocalAudioStorage } from './core/storage/audio-storage.js'
+import { ElevenLabsMusicProvider } from './features/tracks/generation/elevenlabs-music-provider.js'
 import { MockMusicProvider } from './features/tracks/generation/mock-music-provider.js'
+import { referenceAccess } from './features/tracks/generation/reference-access.js'
 
 // Reads the configuration, creates the real services and starts the server.
 // The features and their wiring live in compose.ts, which the tests use as well.
@@ -29,12 +31,18 @@ if (config.auth.mode === 'dev') {
 }
 
 const { generation } = config
-const { app, features, worker } = composeApp({
+const { app, features, worker, accountDeletionWorker, purgeExpiredUploads } = composeApp({
   db: database.db,
   log,
   auth,
   storage: new LocalAudioStorage(config.storage.audioDir),
-  provider: new MockMusicProvider(generation.mockDelayMs),
+  provider:
+    generation.provider === 'elevenlabs' && generation.elevenlabs
+      ? new ElevenLabsMusicProvider({
+          ...generation.elevenlabs,
+          access: referenceAccess(database.db),
+        })
+      : new MockMusicProvider(generation.mockDelayMs),
   tracks: {
     dailyLimit: generation.dailyLimit,
     defaultModel: 'music_v2_5',
@@ -47,6 +55,18 @@ const { app, features, worker } = composeApp({
     },
   },
 })
+let uploadCleanup: Promise<void> | undefined
+const cleanUploads = () => {
+  if (!uploadCleanup)
+    uploadCleanup = purgeExpiredUploads()
+      .catch((error) => log.error({ err: error }, 'upload expiry cleanup failed'))
+      .finally(() => {
+        uploadCleanup = undefined
+      })
+}
+cleanUploads()
+const uploadTimer = setInterval(cleanUploads, 60 * 60_000).unref()
+accountDeletionWorker.start()
 worker.start()
 log.info({ provider: generation.provider, concurrency: generation.concurrency }, 'worker started')
 const server = serve(
@@ -66,7 +86,8 @@ const shutdown = (signal: NodeJS.Signals) => {
   // Requests and generations in flight get ten seconds to finish; after that the process exits
   // anyway. A generation cut off here is marked INTERRUPTED once it is clearly abandoned.
   const forceExit = setTimeout(() => process.exit(1), 10_000).unref()
-  const workerStopped = worker.stop()
+  clearInterval(uploadTimer)
+  const workerStopped = Promise.all([worker.stop(), accountDeletionWorker.stop(), uploadCleanup])
   server.close(async () => {
     await workerStopped
     await database.close()

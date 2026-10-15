@@ -4,6 +4,7 @@ export const MODEL_IDS = ['music_v2_5', 'music_v2'] as const
 export type ModelId = (typeof MODEL_IDS)[number]
 
 export type ComposeRequest = {
+  identity?: { trackId: string; userId: string; generationId: string }
   prompt: string
   variantIndex?: number
   quality?: 'auto' | 'deep' | 'fast'
@@ -34,6 +35,9 @@ export type ComposedSong = {
  */
 export interface MusicProvider {
   readonly name: string
+  readonly paid?: boolean
+  readonly capabilities?: { references: boolean }
+  validate?(request: ComposeRequest): void
   compose(request: ComposeRequest, signal: AbortSignal): Promise<ComposedSong>
 }
 
@@ -47,6 +51,9 @@ export type GenerationErrorCode =
   | 'TIMEOUT'
   | 'INTERRUPTED'
   | 'INTERNAL'
+  | 'UNSUPPORTED_MODE'
+  | 'INVALID_REFERENCE'
+  | 'PROVIDER_OUTCOME_UNKNOWN'
 
 /** A failure already translated from the provider's terms into ours. */
 export class ProviderError extends Error {

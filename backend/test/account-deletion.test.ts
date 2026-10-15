@@ -1,8 +1,10 @@
 import { readdir } from 'node:fs/promises'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { InvalidTokenError } from '../src/core/auth/auth-provider.js'
 import { DevAuthProvider } from '../src/core/auth/dev-auth-provider.js'
 import type { DatabaseHandle } from '../src/core/db/database.js'
 import { LocalAudioStorage } from '../src/core/storage/audio-storage.js'
+import { likes, playlists, uploads } from '../src/features/library/library.table.js'
 import { MockMusicProvider } from '../src/features/tracks/generation/mock-music-provider.js'
 import { UsersRepository } from '../src/features/users/users.repository.js'
 import { TERMS_VERSION } from '../src/features/users/users.service.js'
@@ -213,4 +215,54 @@ it('retries a failed file cleanup after a single track is hidden', async () => {
   storage.broken = false
   expect((await app.request(path, signedInAs('alice', { method: 'DELETE' }))).status).toBe(204)
   expect(await readdir(audioDir)).toEqual([])
+})
+
+it('recovers without a valid token after Firebase succeeds and the final SQL delete fails', async () => {
+  class RevokingAuth extends DevAuthProvider {
+    deleted = false
+    override async verifyIdToken(token: string) {
+      if (this.deleted) throw new InvalidTokenError('revoked')
+      return super.verifyIdToken(token)
+    }
+    override async deleteAccount() {
+      this.deleted = true
+    }
+  }
+  const auth = new RevokingAuth()
+  const { app, worker, accountDeletionWorker, audioDir } = await createTestApp(database.db, {
+    auth,
+  })
+  const track = await queueFor(app)
+  await worker.runOnce()
+  await app.request(`/v1/likes/${track.id}`, signedInAs('alice', { method: 'PUT' }))
+  await app.request(
+    '/v1/playlists',
+    signedInAs('alice', { method: 'POST', body: { name: 'Private playlist' } }),
+  )
+  const repository = new UsersRepository(database.db)
+  const deletion = vi
+    .spyOn(UsersRepository.prototype, 'delete')
+    .mockRejectedValueOnce(new Error('SQL temporarily unavailable'))
+  try {
+    expect((await app.request('/v1/me', signedInAs('alice', { method: 'DELETE' }))).status).toBe(
+      500,
+    )
+    expect(auth.deleted).toBe(true)
+    expect((await repository.findByFirebaseUid('dev-alice'))?.deletionRequestedAt).not.toBeNull()
+    expect((await app.request('/v1/me', signedInAs('alice', { method: 'DELETE' }))).status).toBe(
+      401,
+    )
+    accountDeletionWorker.start()
+    await vi.waitFor(async () =>
+      expect(await repository.findByFirebaseUid('dev-alice')).toBeUndefined(),
+    )
+    await accountDeletionWorker.stop()
+    expect(await database.db.select().from(likes)).toEqual([])
+    expect(await database.db.select().from(playlists)).toEqual([])
+    expect(await database.db.select().from(uploads)).toEqual([])
+    expect(await readdir(audioDir)).toEqual([])
+  } finally {
+    await accountDeletionWorker.stop()
+    deletion.mockRestore()
+  }
 })

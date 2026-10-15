@@ -124,6 +124,7 @@ describe('GenerationWorker', () => {
     await worker.runOnce()
 
     expect(provider.requests[0]).toEqual({
+      identity: { trackId: first.id, userId: first.userId, generationId: first.generationId },
       prompt: 'The first song in the queue',
       variantIndex: 0,
       quality: 'auto',

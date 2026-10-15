@@ -43,7 +43,7 @@ export async function createTestApp(
 ) {
   const audioDir = await mkdtemp(join(tmpdir(), 'studio-audio-'))
   const storage = makeStorage(audioDir)
-  const { app, worker } = composeApp(
+  const { app, worker, accountDeletionWorker, purgeExpiredUploads } = composeApp(
     {
       db,
       log: silentLogger,
@@ -59,7 +59,7 @@ export async function createTestApp(
     },
     features,
   )
-  return { app, auth, worker, storage, audioDir }
+  return { app, auth, worker, accountDeletionWorker, purgeExpiredUploads, storage, audioDir }
 }
 
 /** Request options for a user signed in with the dev token `dev:<name>`. */
