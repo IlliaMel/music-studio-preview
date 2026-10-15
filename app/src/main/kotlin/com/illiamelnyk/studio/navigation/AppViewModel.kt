@@ -24,17 +24,13 @@ enum class SessionGate {
     /** Nobody is signed in: the welcome screen. */
     SignedOut,
 
-    /** Signed in, with steps of the profile still missing: onboarding. */
-    Onboarding,
-
     /** Signed in and onboarded: the tabs. */
     SignedIn,
 }
 
-/** The gate a [Session] opens; signing in is mandatory, and so is a complete profile. */
+/** The gate a [Session] opens; signing in opens Create; server onboarding metadata never adds a UI gate. */
 fun Session?.toGate(): SessionGate = when {
     this == null -> SessionGate.SignedOut
-    !onboarding.isComplete -> SessionGate.Onboarding
     else -> SessionGate.SignedIn
 }
 

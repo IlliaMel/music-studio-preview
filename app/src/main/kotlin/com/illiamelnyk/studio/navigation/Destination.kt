@@ -12,10 +12,6 @@ sealed interface Destination : NavKey {
     @Serializable
     data object Welcome : Destination
 
-    /** What a signed-in account still has to fill in: name, age, terms. */
-    @Serializable
-    data object Onboarding : Destination
-
     @Serializable
     data object Create : Destination
 

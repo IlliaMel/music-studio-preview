@@ -11,7 +11,7 @@ import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.presentation.UiText
 import com.illiamelnyk.studio.core.presentation.asString
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
-import com.illiamelnyk.studio.core.ui.components.Cover
+import com.illiamelnyk.studio.core.ui.components.Orb
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.profile.presentation.ProfileUserUi
@@ -26,7 +26,7 @@ fun ProfileHeader(user: ProfileUserUi, credits: UiText?, modifier: Modifier = Mo
         verticalArrangement = Arrangement.spacedBy(dimens.spacing.xxs),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Cover(seed = user.avatarSeed, size = dimens.size.avatar.l, shape = StudioTheme.shapes.full)
+        Orb(active = false)
         StudioText(user.name, StudioTheme.typography.titleLarge, maxLines = 1)
         if (user.email != null) {
             StudioText(user.email, StudioTheme.typography.bodySmall, color = colors.content.secondary)

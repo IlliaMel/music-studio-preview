@@ -11,7 +11,15 @@ class ProfilePreviewData : PreviewParameterProvider<ProfileState> {
         user = ProfileUserUi(name = "Illia Melnyk", email = "illia@dev.local", avatarSeed = "dev-illia"),
         credits = UiText.Plural(R.plurals.profile_credits_left, 8, 7, 8),
         theme = ThemePreference.Dark,
+        name = "Illia Melnyk",
     )
 
-    override val values = sequenceOf(signedIn, signedIn.copy(isSigningOut = true), ProfileState())
+    override val values = sequenceOf(
+        signedIn,
+        signedIn.copy(isSigningOut = true),
+        signedIn.copy(isSaving = true),
+        signedIn.copy(name = "", nameError = UiText.Resource(R.string.profile_name_error)),
+        signedIn.copy(confirmDelete = true),
+        ProfileState(),
+    )
 }

@@ -35,16 +35,21 @@ class FakeSessionRepository : SessionRepository {
      *
      * @param suggestedDisplayName what the sign-in provider calls the user.
      */
-    fun signIn(name: String, method: SignInMethod, suggestedDisplayName: String?) {
+    fun signIn(
+        name: String,
+        method: SignInMethod,
+        suggestedDisplayName: String?,
+        useProviderProfile: Boolean = false,
+    ) {
         val id = UserId("dev-$name")
         val user = accounts.value[id] ?: User(
             id = id,
             email = "$name@dev.local",
             emailVerified = true,
             signInMethod = method,
-            displayName = null,
+            displayName = suggestedDisplayName.takeIf { useProviderProfile },
             ageConfirmed = false,
-            acceptedTermsVersion = null,
+            acceptedTermsVersion = TERMS_VERSION.takeIf { useProviderProfile },
             marketingOptIn = false,
         )
         accounts.update { it + (id to user) }

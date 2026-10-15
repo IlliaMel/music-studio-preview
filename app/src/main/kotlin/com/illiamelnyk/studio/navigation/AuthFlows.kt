@@ -16,7 +16,6 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
-import com.illiamelnyk.studio.feature.auth.presentation.onboarding.OnboardingRoute
 import com.illiamelnyk.studio.feature.auth.presentation.welcome.WelcomeRoute
 
 /** Nobody is signed in: the welcome screen, the start of the sign-in flow. */
@@ -26,21 +25,6 @@ fun SignedOutFlow(modifier: Modifier = Modifier) {
         entryProvider {
             entry<Destination.Welcome> {
                 WelcomeRoute(
-                    modifier = Modifier.destination(StudioTheme.colors.background, contentPadding),
-                    contentPadding = contentPadding,
-                )
-            }
-        }
-    }
-}
-
-/** Signed in, but the profile misses steps: onboarding, until the server has them all. */
-@Composable
-fun OnboardingFlow(modifier: Modifier = Modifier) {
-    AuthFlow(start = Destination.Onboarding, modifier = modifier) { contentPadding ->
-        entryProvider {
-            entry<Destination.Onboarding> {
-                OnboardingRoute(
                     modifier = Modifier.destination(StudioTheme.colors.background, contentPadding),
                     contentPadding = contentPadding,
                 )

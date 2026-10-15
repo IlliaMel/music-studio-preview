@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Backup is off: tracks are large local files and the library only makes sense with them.
          fullBackupContent covers Android 11 and lower, dataExtractionRules covers Android 12+.
          enableOnBackInvokedCallback opts Android 13-15 into predictive back, which sheets preview;

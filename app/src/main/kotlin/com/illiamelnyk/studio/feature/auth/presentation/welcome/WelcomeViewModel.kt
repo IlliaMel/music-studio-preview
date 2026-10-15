@@ -11,14 +11,15 @@ class WelcomeViewModel(private val auth: AuthRepository) :
     MviViewModel<WelcomeState, WelcomeIntent, Nothing>(WelcomeState()) {
 
     override fun onIntent(intent: WelcomeIntent) = when (intent) {
-        WelcomeIntent.ContinueWithGoogleClicked -> signIn()
+        WelcomeIntent.ContinueWithGoogleClicked -> signIn(demo = false)
+        WelcomeIntent.TryDemoClicked -> signIn(demo = true)
     }
 
-    private fun signIn() {
+    private fun signIn(demo: Boolean) {
         if (state.value.isSigningIn) return
         setState { copy(isSigningIn = true, notice = null) }
         viewModelScope.launch {
-            val result = auth.signInWithGoogle()
+            val result = if (demo) auth.signInDemo() else auth.signInWithGoogle()
             // On success the app leaves this screen; until then the button keeps its spinner.
             if (result is Outcome.Failure) setState { copy(isSigningIn = false, notice = result.error.toUiText()) }
         }

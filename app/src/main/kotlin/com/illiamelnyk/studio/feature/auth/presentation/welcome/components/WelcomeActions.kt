@@ -16,6 +16,7 @@ import com.illiamelnyk.studio.core.presentation.asString
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
 import com.illiamelnyk.studio.core.ui.components.StudioButton
 import com.illiamelnyk.studio.core.ui.components.StudioButtonSize
+import com.illiamelnyk.studio.core.ui.components.StudioButtonStyle
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
@@ -26,6 +27,7 @@ fun WelcomeActions(
     notice: UiText?,
     onContinueWithGoogleClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onTryDemoClick: () -> Unit = {},
 ) {
     val dimens = StudioTheme.dimens
     Column(
@@ -50,6 +52,19 @@ fun WelcomeActions(
                 .padding(top = dimens.spacing.m),
             size = StudioButtonSize.Large,
             loading = isSigningIn,
+        )
+        StudioText(
+            stringResource(R.string.welcome_terms),
+            StudioTheme.typography.bodySmall,
+            color = StudioTheme.colors.content.tertiary,
+            textAlign = TextAlign.Center,
+        )
+        // Firebase is not configured in this prototype, so demo is available in release too.
+        StudioButton(
+            text = stringResource(R.string.welcome_try_demo),
+            onClick = onTryDemoClick,
+            style = StudioButtonStyle.Text,
+            enabled = !isSigningIn,
         )
         if (notice != null) {
             StudioText(notice.asString(), StudioTheme.typography.bodySmall, color = StudioTheme.colors.error.content)

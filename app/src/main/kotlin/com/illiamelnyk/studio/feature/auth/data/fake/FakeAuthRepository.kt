@@ -14,9 +14,24 @@ import kotlinx.coroutines.delay
  * Temporary: replaced by the backend-backed implementation (Credential Manager and Firebase Auth).
  */
 class FakeAuthRepository(private val sessions: FakeSessionRepository) : AuthRepository {
+    override suspend fun signInDemo(): Outcome<Unit> {
+        sessions.signIn(
+            name = "demo",
+            method = SignInMethod.Google,
+            suggestedDisplayName = "Demo listener",
+            useProviderProfile = true,
+        )
+        return Outcome.Success(Unit)
+    }
+
     override suspend fun signInWithGoogle(): Outcome<Unit> {
         delay(1.seconds)
-        sessions.signIn(name = "illia", method = SignInMethod.Google, suggestedDisplayName = "Illia Melnyk")
+        sessions.signIn(
+            name = "illia",
+            method = SignInMethod.Google,
+            suggestedDisplayName = "Illia Melnyk",
+            useProviderProfile = true,
+        )
         return Outcome.Success(Unit)
     }
 }

@@ -164,4 +164,23 @@
     <string name="library_action_error">Could not save this change. Try again.</string>
     <string name="listen_model_v2">v2</string>
     <string name="listen_model_v2_5">v2.5</string>
+    <string name="welcome_terms">By continuing you agree to the Terms and Privacy Policy.</string>
+    <string name="welcome_try_demo">Try the demo</string>
+    <string name="profile_close">Close settings</string>
+    <string name="profile_settings">Settings</string>
+    <string name="profile_save">Save</string>
+    <string name="profile_saved">Profile saved</string>
+    <string name="profile_name">Display name</string>
+    <string name="profile_name_error">Enter a name between 1 and 40 characters.</string>
+    <string name="profile_delete">Delete account</string>
+    <string name="profile_delete_title">Delete your account?</string>
+    <string name="profile_delete_message">Your profile and generated tracks will be removed from this demo. This cannot be undone.</string>
+    <string name="profile_cancel">Cancel</string>
+    <string name="profile_backend_mode">Backend mode</string>
+    <string name="profile_backend_mock">Mock: built-in tracks and simulated generation. Live service is not connected.</string>
+    <string name="profile_about">About this prototype</string>
+    <string name="profile_about_detail">Studio is an independent music creation prototype. Google sign-in and generation are simulated in this build.</string>
+    <string name="network_offline">You are offline</string>
+    <string name="network_offline_detail">Demo tracks still work. We will reconnect automatically.</string>
+    <string name="network_retry">Retry</string>
 </resources>

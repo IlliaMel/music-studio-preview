@@ -1,5 +1,10 @@
 package com.illiamelnyk.studio.feature.auth.presentation.welcome.components
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +15,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
@@ -17,17 +25,36 @@ import com.illiamelnyk.studio.core.ui.components.Cover
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
 /**
- * Rows of generated covers at an angle, wider than the screen and cut at its edges. Still for now;
- * the welcome screen of the auth feature sets them in motion.
+ * Rows of generated covers drift diagonally on one graphics layer, without per-frame recomposition.
  */
 @Composable
 fun WelcomeCollage(modifier: Modifier = Modifier) {
+    val drift = rememberInfiniteTransition(label = "collage").animateFloat(
+        initialValue = -1f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            tween(StudioTheme.motion.loop.orb * 4, easing = StudioTheme.motion.loopEasing),
+            RepeatMode.Reverse,
+        ),
+        label = "drift",
+    )
     val dimens = StudioTheme.dimens
-    Box(modifier = modifier.fillMaxWidth().clipToBounds(), contentAlignment = Alignment.Center) {
+    val background = StudioTheme.colors.background
+    Box(
+        modifier = modifier.fillMaxWidth().clipToBounds().drawWithContent {
+            drawContent()
+            drawRect(Brush.verticalGradient(listOf(Color.Transparent, background), startY = size.height / 2))
+        },
+        contentAlignment = Alignment.Center,
+    ) {
         Column(
             modifier = Modifier
                 .wrapContentSize(unbounded = true)
-                .graphicsLayer { rotationZ = COLLAGE_ANGLE },
+                .graphicsLayer {
+                    rotationZ = COLLAGE_ANGLE
+                    translationX = drift.value * dimens.spacing.xl.toPx()
+                    translationY = drift.value * dimens.spacing.xl.toPx()
+                },
             verticalArrangement = Arrangement.spacedBy(dimens.layout.itemGap),
         ) {
             COVER_ROWS.forEach { seeds ->
