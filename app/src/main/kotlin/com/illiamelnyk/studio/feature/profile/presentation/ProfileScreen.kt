@@ -76,4 +76,4 @@ private fun ProfileScreenPreview(@PreviewParameter(ProfilePreviewData::class) st
     PreviewScreen { ProfileScreen(state = state, onIntent = {}) }
 }
 
-private const val SHEET_HEIGHT = 0.9f
+private const val SHEET_HEIGHT = 0.95f

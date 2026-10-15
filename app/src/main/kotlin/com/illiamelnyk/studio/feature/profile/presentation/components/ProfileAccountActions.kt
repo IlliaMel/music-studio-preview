@@ -10,6 +10,7 @@ import androidx.compose.ui.tooling.preview.PreviewLightDark
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
 import com.illiamelnyk.studio.core.ui.components.StudioButton
+import com.illiamelnyk.studio.core.ui.components.StudioButtonSize
 import com.illiamelnyk.studio.core.ui.components.StudioButtonStyle
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
@@ -22,13 +23,14 @@ fun ProfileAccountActions(busy: Boolean, onSignOut: () -> Unit, onDelete: () -> 
             Modifier.fillMaxWidth(),
             enabled = !busy,
             style = StudioButtonStyle.Secondary,
+            size = StudioButtonSize.Large,
         )
         StudioButton(
             stringResource(R.string.profile_delete),
             onDelete,
             Modifier.fillMaxWidth(),
             enabled = !busy,
-            style = StudioButtonStyle.Danger,
+            style = StudioButtonStyle.Text,
         )
     }
 }
