@@ -6,6 +6,8 @@
          fullBackupContent covers Android 11 and lower, dataExtractionRules covers Android 12+.
          enableOnBackInvokedCallback opts Android 13-15 into predictive back, which sheets preview;
          from Android 16 it is on for apps that target it. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".StudioApp"
         android:allowBackup="false"

@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Create and its tools. In a file of their own, so the features' strings change apart. -->
+<resources>
+    <!-- Create: shortcuts, tools and the user's tracks -->
+    <string name="create_chip_styles">Styles</string>
+    <string name="create_chip_sounds">Sounds</string>
+    <string name="create_chip_record">Record</string>
+    <string name="create_tools">Start from a Tool</string>
+    <string name="create_your_tracks">Your tracks</string>
+    <string name="create_drafts">Drafts</string>
+    <string name="create_published">Published</string>
+    <string name="create_published_title">Publishing is coming soon</string>
+    <string name="create_published_message">Drafts are yours alone. Soon you\'ll publish them to an artist profile that everyone can listen to.</string>
+    <string name="create_published_how">How it will work</string>
+    <string name="create_empty_title">Create with Studio</string>
+    <string name="create_empty_message">Transform your ideas into full tracks. Start from one of these, or describe your own below.</string>
+    <string name="create_use_suggestion">Use suggestion</string>
+    <string name="create_edit_prompt">Edit prompt</string>
+
+    <!-- Ideas for a first track: a title, and the prompt that goes into the composer -->
+    <string name="create_idea_rain">Rainy window lo-fi</string>
+    <string name="create_idea_rain_prompt">A slow lo-fi hip hop beat with soft rain, dusty drums and a warm Rhodes, for a quiet evening</string>
+    <string name="create_idea_train">Night train synth-pop</string>
+    <string name="create_idea_train_prompt">Dreamy synth-pop about a night train across the country, with warm pads and a catchy chorus</string>
+    <string name="create_idea_sunrise">Carpathian sunrise</string>
+    <string name="create_idea_sunrise_prompt">Cinematic folk with violin, choir and frame drums, building from a quiet dawn to a big finale</string>
+    <string name="create_idea_kitchen">Kitchen dance party</string>
+    <string name="create_idea_kitchen_prompt">Upbeat funk with slap bass, bright horns and handclaps, made for dancing while you cook</string>
+
+    <!-- The menu of a track -->
+    <string name="create_menu_play_next">Play next</string>
+    <string name="create_menu_share">Share</string>
+    <string name="create_menu_download">Save mp3</string>
+    <string name="create_menu_delete">Delete</string>
+    <string name="create_delete_title">Delete “%1$s”?</string>
+    <string name="create_delete_message">It used a credit and can\'t be restored.</string>
+    <string name="create_delete_cancel">Cancel</string>
+    <string name="create_share_title">Share track</string>
+    <string name="create_share_text">“%1$s”, made with Studio from the prompt: %2$s</string>
+
+    <!-- The composer -->
+    <string name="create_composer_placeholder">Describe your track…</string>
+    <string name="create_composer_upload">Upload audio</string>
+    <string name="create_composer_enhance">Enhance prompt</string>
+    <string name="create_composer_lyrics">Lyrics</string>
+    <string name="create_composer_settings">Settings</string>
+    <string name="create_quality_auto">Auto</string>
+    <string name="create_quality_deep">Deep</string>
+    <string name="create_quality_fast">Fast</string>
+    <string name="create_variants">%1$d×</string>
+    <plurals name="create_variants_description">
+        <item quantity="one">%d track per prompt</item>
+        <item quantity="other">%d tracks per prompt</item>
+    </plurals>
+
+    <!-- The settings sheet -->
+    <string name="create_settings_title">Settings</string>
+    <string name="create_settings_model">Model</string>
+    <string name="create_model_v2_5">Music v2.5</string>
+    <string name="create_model_v2_5_text">The newest model: richer arrangements and clearer vocals.</string>
+    <string name="create_model_v2">Music v2</string>
+    <string name="create_model_v2_text">The previous model, for the sound of earlier tracks.</string>
+    <string name="create_settings_vocals">Vocals</string>
+    <string name="create_settings_with_vocals">Auto</string>
+    <string name="create_settings_instrumental">Instrumental</string>
+    <string name="create_settings_length">Length</string>
+    <string name="create_settings_reset">Reset</string>
+    <string name="create_settings_apply">Apply</string>
+
+    <!-- The styles sheet -->
+
+    <!-- Toasts -->
+    <string name="create_toast_ready">Your track is ready!</string>
+    <string name="create_toast_failed">“%1$s” didn\'t work out</string>
+    <string name="create_toast_error">Something went wrong</string>
+    <string name="create_toast_play_next">Plays next</string>
+    <string name="create_toast_noted">Thanks, noted</string>
+    <string name="create_toast_noted_text">We\'ll count your vote for %1$s.</string>
+
+    <!-- Coming soon sheets: what each feature will be and how it will work through the API -->
+    <string name="create_soon_want">I want this</string>
+    <string name="create_soon_muse">Muse</string>
+    <string name="create_soon_muse_text">Talk about a vibe, a reference or a lyric idea, and turn the conversation into a prompt.</string>
+    <string-array name="create_soon_muse_steps">
+        <item>Describe what you want in your own words</item>
+        <item>A language model drafts a prompt and a `composition_plan`</item>
+        <item>Generate the track with `/v1/music`</item>
+    </string-array>
+    <string name="create_soon_sounds">Sounds</string>
+    <string name="create_soon_sounds_text">Generate short loops and one-shots to build your tracks from.</string>
+    <string-array name="create_soon_sounds_steps">
+        <item>Describe a sound, such as an 808 bass at 101 BPM</item>
+        <item>Generate it with `/v1/sound-generation`, up to 30 s</item>
+        <item>Use it as the `conditioning_ref` of a new track</item>
+    </string-array>
+    <string name="create_soon_record">Record</string>
+    <string name="create_soon_record_text">Hum, sing or play an idea, and turn it into a track.</string>
+    <string-array name="create_soon_record_steps">
+        <item>Record up to 30 s with the microphone</item>
+        <item>Send the recording to `/v1/music/upload`</item>
+        <item>Generate with it as the `conditioning_ref`</item>
+    </string-array>
+    <string name="create_soon_upload">Upload audio</string>
+    <string name="create_soon_upload_text">Start from a file of your own: a demo, a loop or a stem.</string>
+    <string-array name="create_soon_upload_steps">
+        <item>Pick an audio file on your phone</item>
+        <item>Send it to `/v1/music/upload`</item>
+        <item>Reference it with `conditioning_ref` and `condition_strength`</item>
+    </string-array>
+    <string name="create_soon_enhance">Enhance prompt</string>
+    <string name="create_soon_enhance_text">Turn a short idea into a detailed prompt with sections, instruments and a mood.</string>
+    <string-array name="create_soon_enhance_steps">
+        <item>Send your prompt to the free `/v1/music/plan`</item>
+        <item>Review the sections and styles it returns</item>
+        <item>Generate from that `composition_plan`</item>
+    </string-array>
+    <string name="create_soon_lyrics">Your lyrics</string>
+    <string name="create_soon_lyrics_text">Write the words yourself and let the music follow them.</string>
+    <string-array name="create_soon_lyrics_steps">
+        <item>Write the lyrics line by line</item>
+        <item>Place them in the `lines` of a `composition_plan`</item>
+        <item>Generate the track from that plan</item>
+    </string-array>
+    <string name="create_soon_publish">Publishing</string>
+    <string name="create_soon_publish_text">Share your tracks on a public artist profile, where everyone can listen to them.</string>
+    <string-array name="create_soon_publish_steps">
+        <item>Set up your artist profile</item>
+        <item>Publish a draft with `POST /v1/tracks/{id}/publish`</item>
+        <item>It shows up in Listen for everyone</item>
+    </string-array>
+    <string name="create_soon_playlist">Add to playlist</string>
+    <string name="create_soon_playlist_text">Keep your own tracks in the playlists of your Library.</string>
+    <string-array name="create_soon_playlist_steps">
+        <item>Pick a playlist or make a new one</item>
+        <item>The track is saved with it in `playlist_tracks` on your phone</item>
+        <item>Play the playlist from Library</item>
+    </string-array>
+    <string name="create_soon_download">Download</string>
+    <string name="create_soon_download_text">Keep an MP3 of your track on your phone, up to 5 a day.</string>
+    <string-array name="create_soon_download_steps">
+        <item>Fetch the audio with `GET /v1/tracks/{id}/audio`</item>
+        <item>Save it to Music with `MediaStore`</item>
+        <item>Play or share it offline</item>
+    </string-array>
+    <string name="create_soon_voice">Add your voice</string>
+    <string name="create_soon_voice_text">Record a short reference, and the tool turns your voice into a polished song.</string>
+    <string-array name="create_soon_voice_steps">
+        <item>Record up to 30 s of singing or humming</item>
+        <item>Send it to `/v1/music/upload`</item>
+        <item>Use it as the `conditioning_ref`, with `condition_strength` high</item>
+    </string-array>
+    <string name="create_soon_sample">Add your sample</string>
+    <string name="create_soon_sample_text">Record or pick a short loop, and the tool builds a whole track around it.</string>
+    <string-array name="create_soon_sample_steps">
+        <item>Record or pick a loop of up to 30 s</item>
+        <item>Send it to `/v1/music/upload`</item>
+        <item>Use it as the `conditioning_ref` of the tool\'s prompt</item>
+    </string-array>
+
+    <!-- Tools of Create -->
+    <string name="tool_voice_to_song">Voice to Song</string>
+    <string name="tool_voice_to_song_description">Record a rough vocal idea and turn it into a polished song, still recognisably you.</string>
+    <string name="tool_genreshift">Genreshift</string>
+    <string name="tool_genreshift_description">Take a song into a new genre and keep what makes it yours.</string>
+    <string name="tool_sample_to_song">Sample to Song</string>
+    <string name="tool_sample_to_song_description">Build a complete track around a short sample of your own.</string>
+    <string name="tool_unplugged">Unplugged</string>
+    <string name="tool_unplugged_description">Strip a song down to an intimate acoustic version.</string>
+    <string name="tool_badge">Studio</string>
+    <string name="tool_new_track">New track</string>
+    <string name="tool_duration">Duration</string>
+    <string name="tool_add_voice">Add your voice</string>
+    <string name="tool_add_voice_text">Record a short reference so this tool can transform your voice.</string>
+    <string name="tool_add_sample">Add your sample</string>
+    <string name="tool_add_sample_text">Record or upload a short loop for this tool to build on.</string>
+    <string name="tool_use">Use tool</string>
+    <string name="tool_needs_recording">This tool works on your own recording, which is coming soon.</string>
+    <string name="tool_fill_slots">Tap the underlined words to fill them in.</string>
+    <string name="create_mode_create">Create</string>
+    <string name="create_lyrics_custom">Custom</string>
+    <string name="create_menu_rename">Rename</string>
+    <string name="create_menu_use_prompt">Use prompt</string>
+    <string name="create_rename_save">Save</string>
+    <string name="create_soon_styles_text">Build your own sound from audio you choose.</string>
+    <string-array name="create_soon_styles_steps">
+        <item>Choose recordings that capture your sound.</item>
+        <item>Name your style and use it for future tracks.</item>
+    </string-array>
+    <string name="create_today">Today</string>
+    <string name="create_yesterday">Yesterday</string>
+    <string name="create_variations_group">Variations \u00b7 2 tracks</string>
+    <string name="create_variation_number">#%1$d</string>
+    <string name="create_creating_title">Creating title\u2026</string>
+    <string name="create_creating_artwork">Creating artwork\u2026</string>
+    <string name="create_notify_title">Want a ping when your track is ready?</string>
+    <string name="create_notify_message">Tracks take a moment to make. Choose whether Studio may notify you when they are ready.</string>
+    <string name="create_notify_yes">Notify me</string>
+    <string name="create_notify_no">Not now</string>
+    <plurals name="create_quota_title">
+        <item quantity="one">You\'ve used today\'s %1$d track \u2014 come back tomorrow</item>
+        <item quantity="other">You\'ve used today\'s %1$d tracks \u2014 come back tomorrow</item>
+    </plurals>
+    <string name="create_quota_close">Got it</string>
+    <string name="tool_voice_memo">Voice Memo to Song</string>
+    <string name="tool_hum">Hum to Song</string>
+    <string name="tool_voice_memo_description">Turn a recorded idea into a complete song.</string>
+    <string name="tool_hum_description">Build a finished song around a melody you hum.</string>
+    <string name="create_tools_catalog">Tools</string>
+    <string name="create_tools_all">All</string>
+    <string name="create_tools_featured">Featured</string>
+    <string name="create_tools_studio">studio</string>
+    <string name="create_settings_engine">Writing Engine</string>
+    <string name="create_settings_variations">Variations</string>
+</resources>

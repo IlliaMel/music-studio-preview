@@ -29,6 +29,9 @@ sealed interface Destination : NavKey {
     @Serializable
     data class Collection(val id: String) : Destination
 
+    @Serializable
+    data object Tools : Destination
+
     /** A tool of Create, such as Genreshift. */
     @Serializable
     data class Tool(val id: String) : Destination

@@ -1,6 +1,5 @@
 package com.illiamelnyk.studio.feature.create.presentation.tool.components
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,14 +20,14 @@ import com.illiamelnyk.studio.feature.create.domain.Tool
 import com.illiamelnyk.studio.feature.create.presentation.ToolUi
 import com.illiamelnyk.studio.feature.create.presentation.toUi
 
-/** The tool's cover, name and what it does. */
+/** The tool's cover, the "studio" badge, its name and what it does. */
 @Composable
-fun ToolHero(tool: ToolUi, @StringRes description: Int, modifier: Modifier = Modifier) {
+fun ToolHero(tool: ToolUi, modifier: Modifier = Modifier) {
     val dimens = StudioTheme.dimens
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = dimens.layout.screenPadding, vertical = dimens.spacing.xl),
+            .padding(horizontal = dimens.layout.screenPadding),
         verticalArrangement = Arrangement.spacedBy(dimens.spacing.s),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -36,7 +35,7 @@ fun ToolHero(tool: ToolUi, @StringRes description: Int, modifier: Modifier = Mod
         StudioBadge(stringResource(R.string.tool_badge))
         StudioText(stringResource(tool.title), StudioTheme.typography.titleLarge, textAlign = TextAlign.Center)
         StudioText(
-            text = stringResource(description),
+            text = stringResource(tool.description),
             style = StudioTheme.typography.bodyMedium,
             color = StudioTheme.colors.content.secondary,
             textAlign = TextAlign.Center,
@@ -47,5 +46,5 @@ fun ToolHero(tool: ToolUi, @StringRes description: Int, modifier: Modifier = Mod
 @PreviewLightDark
 @Composable
 private fun ToolHeroPreview() {
-    PreviewScreen { ToolHero(tool = Tool.Genreshift.toUi(), description = R.string.tool_genreshift_description) }
+    PreviewScreen { ToolHero(tool = Tool.Genreshift.toUi()) }
 }

@@ -5,6 +5,7 @@ import com.illiamelnyk.studio.feature.auth.presentation.welcome.WelcomeViewModel
 import com.illiamelnyk.studio.feature.create.domain.Tool
 import com.illiamelnyk.studio.feature.create.presentation.CreateViewModel
 import com.illiamelnyk.studio.feature.create.presentation.tool.ToolViewModel
+import com.illiamelnyk.studio.feature.create.presentation.tools.ToolsViewModel
 import com.illiamelnyk.studio.feature.library.presentation.LibraryViewModel
 import com.illiamelnyk.studio.feature.listen.presentation.ListenViewModel
 import com.illiamelnyk.studio.feature.listen.presentation.collection.CollectionViewModel
@@ -55,6 +56,7 @@ class KoinGraphTest {
         koin.get<WelcomeViewModel>()
         koin.get<OnboardingViewModel>()
         koin.get<CreateViewModel>()
+        koin.get<ToolsViewModel>()
         koin.get<ToolViewModel> { parametersOf(Tool.Genreshift) }
         koin.get<ListenViewModel>()
         koin.get<CollectionViewModel> { parametersOf("trending") }

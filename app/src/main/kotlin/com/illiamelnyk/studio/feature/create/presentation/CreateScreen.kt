@@ -1,52 +1,60 @@
 package com.illiamelnyk.studio.feature.create.presentation
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.plus
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
+import com.illiamelnyk.studio.core.presentation.withoutTop
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
-import com.illiamelnyk.studio.feature.create.presentation.components.DemoSection
-import com.illiamelnyk.studio.feature.create.presentation.components.ToolsSection
-import com.illiamelnyk.studio.feature.create.presentation.components.yourTracks
+import com.illiamelnyk.studio.feature.create.presentation.common.ToastHost
+import com.illiamelnyk.studio.feature.create.presentation.common.ToastHostState
+import com.illiamelnyk.studio.feature.create.presentation.components.ComposerAwarePadding
+import com.illiamelnyk.studio.feature.create.presentation.components.ComposerLayout
+import com.illiamelnyk.studio.feature.create.presentation.components.onlyTop
 
-/** The Create tab: lays out its sections and turns their callbacks into intents. */
+/**
+ * The Create tab: the feed with the composer pinned under it, above the keyboard, and toasts and
+ * sheets over both. The parts map their sections' callbacks to intents.
+ *
+ * The screen consumes [contentPadding] (see the shell), so the composer's `imePadding()` adds only
+ * the part of the keyboard that rises above the bars.
+ */
 @Composable
 fun CreateScreen(
     state: CreateState,
     onIntent: (CreateIntent) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
+    listState: LazyListState = rememberLazyListState(),
+    toasts: ToastHostState = remember { ToastHostState() },
 ) {
-    val dimens = StudioTheme.dimens
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = contentPadding + PaddingValues(vertical = dimens.spacing.m),
-        verticalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
-    ) {
-        item(key = "tools", contentType = "tools") {
-            ToolsSection(tools = state.tools, onToolClick = { onIntent(CreateIntent.ToolClicked(it)) })
-        }
-        item(key = "demo", contentType = "demo") {
-            DemoSection(
-                isSubmitting = state.isSubmitting,
-                notice = state.notice,
-                onGenerateClick = { onIntent(CreateIntent.GenerateDemoClicked(nameAnArtist = false)) },
-                onGenerateRejectedClick = { onIntent(CreateIntent.GenerateDemoClicked(nameAnArtist = true)) },
+    val gap = StudioTheme.dimens.spacing.xs
+    Box(modifier.fillMaxSize()) {
+        ComposerLayout(
+            composer = {
+                CreateComposer(state.composer, onIntent, Modifier.padding(contentPadding.withoutTop()).imePadding())
+            },
+        ) { space ->
+            CreateFeed(
+                state = state.feed,
+                onIntent = onIntent,
+                listState = listState,
+                contentPadding = remember(contentPadding, space, gap) {
+                    ComposerAwarePadding(contentPadding, space, gap)
+                },
             )
         }
-        yourTracks(
-            tracks = state.tracks,
-            isLoading = state.isLoading,
-            playingTrackId = state.playingTrackId,
-            onTrackClick = { onIntent(CreateIntent.TrackClicked(it)) },
-            onRetryClick = { onIntent(CreateIntent.RetryClicked(it)) },
-        )
+        ToastHost(toasts, Modifier.padding(contentPadding.onlyTop()))
+        CreateOverlays(state, onIntent)
     }
 }
 
