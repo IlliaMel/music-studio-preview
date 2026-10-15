@@ -3,6 +3,7 @@ package com.illiamelnyk.studio.feature.create.presentation.components
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewLightDark
@@ -20,9 +22,11 @@ import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
 import com.illiamelnyk.studio.core.ui.components.StudioButton
 import com.illiamelnyk.studio.core.ui.components.StudioButtonStyle
 import com.illiamelnyk.studio.core.ui.components.StudioChip
+import com.illiamelnyk.studio.core.ui.components.StudioIconButton
 import com.illiamelnyk.studio.core.ui.components.StudioSegmentedControl
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
+import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.feature.create.presentation.CreatePreviewData
 import com.illiamelnyk.studio.feature.create.presentation.SettingsUi
 import com.illiamelnyk.studio.feature.create.presentation.common.ComingSoonFeature
@@ -56,7 +60,7 @@ fun SettingsSheet(
 ) {
     val shown = rememberLatest(draft)
     OverlaySheet(visible = draft != null, onDismissRequest = onDismissRequest, modifier = modifier) {
-        if (shown != null) SettingsContent(shown, callbacks)
+        if (shown != null) SettingsContent(shown, callbacks, onDismissRequest)
     }
 }
 
@@ -64,6 +68,7 @@ fun SettingsSheet(
 private fun SettingsContent(
     draft: SettingsUi,
     callbacks: SettingsCallbacks,
+    onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val dimens = StudioTheme.dimens
@@ -71,7 +76,15 @@ private fun SettingsContent(
         modifier = modifier.verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(dimens.spacing.l),
     ) {
-        StudioText(stringResource(R.string.create_settings_title), StudioTheme.typography.titleMedium)
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            StudioText(stringResource(R.string.create_settings_title), StudioTheme.typography.titleMedium)
+            StudioIconButton(
+                StudioIcons.Close,
+                stringResource(R.string.ui_close_sheet),
+                onDismissRequest,
+                Modifier.align(Alignment.CenterEnd),
+            )
+        }
         SettingsGroup(R.string.create_settings_length) {
             ComposerDurationMenu(draft.duration, callbacks.onDurationSelect)
         }
@@ -144,6 +157,7 @@ private fun SettingsContentPreview() {
         SettingsContent(
             draft = CreatePreviewData.settingsDraft,
             callbacks = SettingsCallbacks({}, {}, {}, {}, {}, {}),
+            onDismissRequest = {},
             modifier = Modifier.padding(StudioTheme.dimens.spacing.m),
         )
     }

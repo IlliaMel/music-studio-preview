@@ -55,13 +55,10 @@
 
     <!-- The settings sheet -->
     <string name="create_settings_title">Settings</string>
-    <string name="create_settings_model">Model</string>
     <string name="create_model_v2_5">Music v2.5</string>
     <string name="create_model_v2_5_text">The newest model: richer arrangements and clearer vocals.</string>
     <string name="create_model_v2">Music v2</string>
     <string name="create_model_v2_text">The previous model, for the sound of earlier tracks.</string>
-    <string name="create_settings_vocals">Vocals</string>
-    <string name="create_settings_with_vocals">Auto</string>
     <string name="create_settings_instrumental">Instrumental</string>
     <string name="create_settings_length">Duration</string>
     <string name="create_settings_reset">Reset</string>
