@@ -1,6 +1,10 @@
 package com.illiamelnyk.studio.feature.listen.presentation
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -14,38 +18,32 @@ import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
+import com.illiamelnyk.studio.core.ui.components.ComingSoonSheetContent
 import com.illiamelnyk.studio.core.ui.components.StudioBadge
 import com.illiamelnyk.studio.core.ui.components.StudioBadgeStyle
+import com.illiamelnyk.studio.core.ui.components.StudioBottomSheet
+import com.illiamelnyk.studio.core.ui.components.StudioIconButton
+import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
-import com.illiamelnyk.studio.feature.listen.presentation.components.CollectionRow
+import com.illiamelnyk.studio.feature.listen.presentation.components.CatalogSectionRow
 
-/** The Listen tab: the demo catalog's collections, one row each. */
 @Composable
-fun ListenScreen(
-    state: ListenState,
-    onIntent: (ListenIntent) -> Unit,
-    modifier: Modifier = Modifier,
-    contentPadding: PaddingValues = PaddingValues(),
-) {
+fun ListenScreen(state: ListenState, onIntent: (ListenIntent) -> Unit, modifier: Modifier = Modifier, contentPadding: PaddingValues = PaddingValues()) {
     val dimens = StudioTheme.dimens
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = contentPadding + PaddingValues(vertical = dimens.spacing.m),
-        verticalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
-    ) {
-        item(key = "badge", contentType = "badge") {
-            StudioBadge(
-                text = stringResource(R.string.listen_demo_catalog),
-                modifier = Modifier.padding(horizontal = dimens.layout.screenPadding),
-                style = StudioBadgeStyle.Demo,
-            )
+    Box(modifier.fillMaxSize()) {
+        LazyColumn(contentPadding = contentPadding + PaddingValues(vertical = dimens.spacing.m)) {
+            item(key = "badge") {
+                Row(Modifier.fillMaxWidth().padding(horizontal = dimens.layout.screenPadding), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    StudioBadge(stringResource(R.string.listen_demo_catalog), style = StudioBadgeStyle.Demo)
+                    StudioIconButton(StudioIcons.Search, stringResource(R.string.listen_search), onClick = { onIntent(ListenIntent.SearchClicked) })
+                }
+            }
+            items(state.sections, key = { it.kind.name }, contentType = { "section" }) { section ->
+                CatalogSectionRow(section, onOpen = { onIntent(ListenIntent.CollectionClicked(it)) }, onRetry = { onIntent(ListenIntent.RetrySection(section.kind)) }, modifier = Modifier.padding(vertical = dimens.spacing.s))
+            }
         }
-        items(state.collections, key = { it.id }, contentType = { "collection" }) { collection ->
-            CollectionRow(
-                collection = collection,
-                onClick = { onIntent(ListenIntent.CollectionClicked(collection.id)) },
-                modifier = Modifier.animateItem(),
-            )
+        StudioBottomSheet(state.searchVisible, onDismissRequest = { onIntent(ListenIntent.DismissSearch) }) {
+            ComingSoonSheetContent(stringResource(R.string.listen_search), stringResource(R.string.listen_search_soon), emptyList(), stringResource(R.string.listen_close), onAction = { onIntent(ListenIntent.DismissSearch) })
         }
     }
 }

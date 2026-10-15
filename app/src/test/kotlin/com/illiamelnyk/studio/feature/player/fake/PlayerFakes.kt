@@ -42,7 +42,8 @@ class InMemoryTrackRepository(mine: List<Track> = emptyList()) : TrackRepository
         list.find { it.id == id }
     }.distinctUntilChanged()
 
-    override suspend fun create(request: GenerationRequest): Outcome<Track> = Outcome.Failure(AppError.Unknown)
+    override suspend fun create(request: GenerationRequest, variants: Int): Outcome<List<Track>> =
+        Outcome.Failure(AppError.Unknown)
 
     override suspend fun retry(id: TrackId): Outcome<Track> = Outcome.Failure(AppError.Unknown)
 
