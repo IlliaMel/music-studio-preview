@@ -40,7 +40,7 @@ const patchProfile = (name: string, body: unknown) =>
   app.request('/v1/me', signedInAs(name, { method: 'PATCH', body }))
 
 describe('GET /v1/me', () => {
-  it('returns a new profile with every onboarding step still to do', async () => {
+  it('returns the provider name and only requests current terms', async () => {
     const response = await app.request('/v1/me', signedInAs('alice'))
 
     expect(response.status).toBe(200)
@@ -49,13 +49,13 @@ describe('GET /v1/me', () => {
       email: 'alice@dev.local',
       emailVerified: true,
       signInProvider: 'dev',
-      displayName: null,
+      displayName: 'alice',
       ageConfirmed: false,
       termsVersion: null,
       marketingOptIn: false,
       onboarding: {
         complete: false,
-        missing: ['displayName', 'age', 'terms'],
+        missing: ['terms'],
         termsVersion: TERMS_VERSION,
       },
       createdAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
@@ -65,19 +65,19 @@ describe('GET /v1/me', () => {
   it('keeps each user to their own profile', async () => {
     await patchProfile('alice', { displayName: 'Alice' })
 
-    expect((await getProfile('bob')).displayName).toBeNull()
+    expect((await getProfile('bob')).displayName).toBe('bob')
   })
 })
 
 describe('PATCH /v1/me', () => {
-  it('saves the steps one at a time, as the onboarding screens send them', async () => {
+  it('preserves legacy age consent without requiring it for onboarding', async () => {
     await patchProfile('alice', { displayName: '  Alice  ' })
     const afterName = await getProfile('alice')
     await patchProfile('alice', { ageConfirmed: true, marketingOptIn: true })
     const afterAge = await getProfile('alice')
 
     expect(afterName.displayName).toBe('Alice')
-    expect(afterName.onboarding.missing).toEqual(['age', 'terms'])
+    expect(afterName.onboarding.missing).toEqual(['terms'])
     expect(afterAge).toMatchObject({ ageConfirmed: true, marketingOptIn: true })
     expect(afterAge.onboarding.missing).toEqual(['terms'])
   })

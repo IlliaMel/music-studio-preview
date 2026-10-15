@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { DatabaseHandle } from '../src/core/db/database.js'
+import { LibraryRepository } from '../src/features/library/library.repository.js'
+import { LibraryService } from '../src/features/library/library.service.js'
 import { TracksRepository } from '../src/features/tracks/tracks.repository.js'
 import type { Track } from '../src/features/tracks/tracks.table.js'
 import { UsersRepository } from '../src/features/users/users.repository.js'
@@ -53,6 +55,23 @@ async function failWith(code: string): Promise<void> {
 }
 
 describe('the daily limit', () => {
+  it('blocks generation after account deletion has been requested', async () => {
+    await new UsersRepository(database.db).requestDeletion(userId, new Date())
+    const outcome = await tracks.create(
+      {
+        userId,
+        idempotencyKey: 'blocked-deletion',
+        prompt: 'A generation must not recreate account audio',
+        lengthMs: null,
+        instrumental: true,
+        modelId: 'music_v2_5',
+      },
+      { since: today, max: 100 },
+      new Date(),
+    )
+    expect(outcome.kind).toBe('account-deleting')
+    expect(await tracks.listIdsForUser(userId)).toEqual([])
+  })
   it('counts queued, running and finished tracks of today only', async () => {
     await create()
     await create()
@@ -79,6 +98,45 @@ describe('the daily limit', () => {
       expect(await tracks.countTowardLimit(userId, today)).toBe(0)
     },
   )
+})
+
+describe('deleted jobs and library references', () => {
+  it('does not requeue a running track after deletion', async () => {
+    const track = await create()
+    await tracks.claimNext(new Date())
+    await tracks.softDeleteForUser(userId, track.id, new Date())
+    expect(await tracks.requeue(track.id, new Date())).toBe(false)
+    expect(await tracks.claimNext(new Date())).toBeUndefined()
+  })
+  it('never leaves a like after racing addition with track deletion', async () => {
+    const library = new LibraryService(new LibraryRepository(database.db))
+    const track = await create()
+    const outcomes = await Promise.allSettled([
+      library.setLiked(userId, track.id, true),
+      tracks.softDeleteForUser(userId, track.id, new Date()),
+    ])
+    for (const outcome of outcomes)
+      if (outcome.status === 'rejected') expect(outcome.reason.code).toBe('TRACK_NOT_FOUND')
+    expect(await library.likedIds(userId)).toEqual([])
+    await expect(library.setLiked(userId, track.id, true)).rejects.toMatchObject({
+      code: 'TRACK_NOT_FOUND',
+    })
+  })
+  it('never leaves a playlist member after racing addition with track deletion', async () => {
+    const library = new LibraryService(new LibraryRepository(database.db))
+    const playlist = await library.createPlaylist(userId, 'Race playlist')
+    const track = await create()
+    const outcomes = await Promise.allSettled([
+      library.setPlaylistTrack(userId, playlist.id, track.id, true),
+      tracks.softDeleteForUser(userId, track.id, new Date()),
+    ])
+    for (const outcome of outcomes)
+      if (outcome.status === 'rejected') expect(outcome.reason.code).toBe('TRACK_NOT_FOUND')
+    expect((await library.playlist(userId, playlist.id)).trackIds).toEqual([])
+    await expect(
+      library.setPlaylistTrack(userId, playlist.id, track.id, true),
+    ).rejects.toMatchObject({ code: 'TRACK_NOT_FOUND' })
+  })
 })
 
 describe('softDeleteForUser', () => {

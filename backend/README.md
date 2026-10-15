@@ -19,7 +19,7 @@ npm run dev            # http://127.0.0.1:8787, restarts on changes
 curl -H "Authorization: Bearer dev:alice" http://127.0.0.1:8787/v1/me
 ```
 
-`requests.http` has the whole sign-in and onboarding flow for the HTTP client in Android Studio.
+`requests.http` has example sign-in and profile requests for the HTTP client in Android Studio.
 
 Nothing else to install: without `DATABASE_URL` the server uses PGlite, a real Postgres compiled to WebAssembly that runs inside the Node process and keeps its files in `data/`. Delete that folder to start from an empty database.
 
@@ -49,7 +49,7 @@ src/
 │  ├─ auth/          AuthProvider (Firebase or dev), the authenticate and requireOnboarding middleware
 │  ├─ db/            database client (Postgres or PGlite), migrations, schema index
 │  ├─ http/          request context, error format, zod validation, request logging, file responses
-│  └─ storage/       AudioStorage: MP3 files on disk (a mounted volume when deployed)
+│  └─ storage/       AudioStorage: audio files on disk (a mounted volume when deployed)
 └─ features/<name>/  one folder per feature
    ├─ <name>.table.ts       Drizzle table: the shape of the data
    ├─ <name>.repository.ts  SQL for that table, nothing else
@@ -74,7 +74,7 @@ A token that is missing, malformed or expired gets `401 UNAUTHORIZED` with `WWW-
 
 | Endpoint | What it does |
 |---|---|
-| `GET /v1/me` | The profile and which onboarding steps are left: `displayName`, `age`, `terms` |
+| `GET /v1/me` | The profile and current terms acceptance status |
 | `PATCH /v1/me` | Saves onboarding answers: `displayName`, `ageConfirmed: true`, `acceptedTermsVersion`, `marketingOptIn` |
 | `DELETE /v1/me` | Deletes the account: our data first, then the Firebase user. Safe to retry |
 
@@ -99,14 +99,14 @@ The app creates a track and polls `GET /v1/tracks/:id` every few seconds until i
 
 | Endpoint | What it does |
 |---|---|
-| `POST /v1/tracks` | Queue a generation: `prompt`, `lengthMs` (omit for Auto), `instrumental`, `modelId`. Needs a finished onboarding |
+| `POST /v1/tracks` | Queue a generation: `prompt`, `lengthMs` (omit for Auto), `instrumental`, `modelId`. Needs accepted current terms; age/name onboarding is not required |
 | `GET /v1/tracks?limit&cursor` | The user's tracks, newest first, a page at a time |
 | `GET /v1/tracks/:id` | One track, with the timing of every sung word |
-| `GET /v1/tracks/:id/audio` | The MP3; `409 NOT_READY` until it is done |
+| `GET /v1/tracks/:id/audio` | The audio file (WAV for mock, MP3 for a future provider); `409 NOT_READY` until it is done |
 | `DELETE /v1/tracks/:id` | Delete a track and its audio, in any state |
 | `GET /v1/me/quota` | Generations used and left today |
 
-**Mock provider.** Answers after `MOCK_DELAY_MS` with a silent MP3 of the requested length, a title from the prompt and evenly spaced lyrics. A marker in the prompt plays out a failure, to try every error screen of the app: `[mock:bad_prompt]`, `[mock:credits]`, `[mock:rate_limit]`, `[mock:server]`, `[mock:slow]`.
+**Mock provider.** Answers after `MOCK_DELAY_MS` with an audible WAV of the requested length, a title from the prompt and evenly spaced lyrics. A marker in the prompt plays out a failure, to try every error screen of the app: `[mock:bad_prompt]`, `[mock:credits]`, `[mock:rate_limit]`, `[mock:server]`, `[mock:slow]`.
 
 ## Adding a feature
 
@@ -125,3 +125,39 @@ Say, playlists:
 - **Locally and in tests:** PGlite, nothing to install and no Docker.
 - **Deployed:** any Postgres through `DATABASE_URL` (for example Railway's). In production the server also requires `PUBLIC_BASE_URL` (the HTTPS address the app uses, for audio links) and `AUDIO_DIR` (a persistent volume), and refuses to start without them.
 - **Migrations** are plain SQL files generated from the schema and reviewed in pull requests. The server applies the pending ones at start, so a deploy is a single step.
+
+## API contract
+
+After Firebase/Google sign-in, GET /v1/me returns a provider/default display name. Accept the displayed terms with PATCH /v1/me {"acceptedTermsVersion":"2026-10-14"}. Age confirmation and name onboarding are not required. Existing age-consent fields remain backward compatible.
+
+POST /v1/tracks requires Idempotency-Key (8–100 characters) and accepts:
+
+```json
+{"prompt":"A bright electronic melody","instrumental":false,"variants":2,"quality":"auto","lengthMs":30000,"modelId":"music_v2_5","customLyrics":"Hello Kyiv tonight"}
+```
+
+Quality accepts auto/deep/fast and is persisted/passed to the provider; the mock does not change rendering quality. Optional reference fields: referenceUploadId (owned upload UUID), remixTrackId (catalog ID or owned ready track UUID). Remix-of-remix is rejected. The response preserves the first track DTO and adds generationId, variantIndex, variants, and tracks containing all variants. Two variants reserve ONE daily generation atomically; the default limit is 25. Repeating the same key/body returns the same group; changing the body returns 422. Retry failed generations with a new key.
+
+POST /v1/uploads accepts raw audio/mpeg, audio/mp4, audio/wav, audio/x-wav, audio/aac, audio/ogg or audio/webm up to 20 MiB and returns {id,contentType,sizeBytes,durationMs:null,provider:"mock"}. Upload ownership is checked on generation. Reference bytes are persisted in PGlite/Postgres; object storage and audio inspection belong with the real provider adapter.
+
+| Method | Path | Response |
+|---|---|---|
+| GET | /v1/catalog | {collections,stations,tracks} |
+| GET | /v1/collections/:id | Collection with tracks |
+| GET | /v1/stations/:id | Station with tracks |
+| GET | /v1/likes | {trackIds} |
+| PUT / DELETE | /v1/likes/:trackId | 204 |
+| GET | /v1/playlists | {playlists} |
+| POST | /v1/playlists | Playlist; body {name} |
+| GET / PATCH / DELETE | /v1/playlists/:id | Playlist / 204; PATCH body {name} |
+| PUT / DELETE | /v1/playlists/:id/tracks/:trackId | 204 |
+
+Playlist DTO: {id,name,createdAt,trackIds}. Track IDs match the 12-track Android built-in demo catalog. Likes, playlists and uploads persist in the database and are deleted with the account. Deleting a generated track also removes its library references.
+
+The mock generates audible PCM WAV of exactly the requested duration (Auto:30 seconds), maps supplied words to synthetic lyric timings, and varies melodies between variants. Audio endpoints return Content-Type:audio/wav and support byte ranges. These are deterministic demo tones, not ElevenLabs music or synthesized singing. Remix/upload contracts are stored; the mock does not interpret or transform reference audio. Real ElevenLabs and live Firebase credentials remain unvalidated.
+
+PATCH /v1/tracks/:id accepts {title:string} (trimmed, 1–80 characters) and returns the persisted track DTO. Only owned done/failed tracks can be renamed; queued/running returns 409 NOT_READY, foreign/deleted returns 404. This prevents a finishing provider from overwriting an in-flight rename.
+
+Idempotency-Key values reserve the substring `:variant:` for internal variant rows; client keys containing it are rejected with 400. Deleted queued tracks are never sent to the provider. Library membership additions lock the referenced owned track in the same transaction as insertion, so concurrent track deletion cannot leave orphan references.
+
+Account deletion uses a durable deletionRequestedAt marker (migration0003). Other requests receive409 ACCOUNT_DELETING while DELETE /v1/me remains retryable. Tombstoned tracks cannot save new audio; workers hold a track row lock through audio save and completion, so cleanup either waits for that save or prevents it. Single-track DELETE also marks first and can retry failed file cleanup after the track is hidden. Catalog audio links honor PUBLIC_BASE_URL.

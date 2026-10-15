@@ -36,18 +36,15 @@ export function createApp({ db, log, authenticate, features }: AppDependencies):
   })
 
   const api = new Hono<AppEnv>()
-  api.use(
-    bodyLimit({
-      maxSize: MAX_BODY_BYTES,
+  api.use((c, next) => {
+    const maxSize = c.req.path === '/v1/uploads' ? 20 * 1024 * 1024 : MAX_BODY_BYTES
+    return bodyLimit({
+      maxSize,
       onError: () => {
-        throw new ApiError(
-          413,
-          'PAYLOAD_TOO_LARGE',
-          `The body is larger than ${MAX_BODY_BYTES} bytes`,
-        )
+        throw new ApiError(413, 'PAYLOAD_TOO_LARGE', `The body is larger than ${maxSize} bytes`)
       },
-    }),
-  )
+    })(c, next)
+  })
   api.use(authenticate)
   for (const feature of features) {
     api.route('/', feature.routes)

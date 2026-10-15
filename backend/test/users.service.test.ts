@@ -54,6 +54,14 @@ describe('resolve', () => {
     expect(afterTheHour?.lastSeenAt).toEqual(now)
   })
 
+  it('keeps an edited display name when refreshing provider claims', async () => {
+    const user = await service.resolve({ ...alice, displayName: 'Google Name' })
+    await service.updateProfile(user.id, { displayName: 'Edited Name' })
+    now = minutesLater(61)
+    await service.resolve({ ...alice, displayName: 'Google Name', email: 'new@example.com' })
+    expect((await repository.findById(user.id))?.displayName).toBe('Edited Name')
+  })
+
   it('picks up a changed email right away', async () => {
     const user = await service.resolve(alice)
 

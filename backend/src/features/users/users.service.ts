@@ -10,7 +10,7 @@ export const TERMS_VERSION = '2026-10-14'
 /** `last_seen_at` is refreshed at most this often, so reading a profile does not write each time. */
 const LAST_SEEN_INTERVAL_MS = 60 * 60 * 1000
 
-export type OnboardingStep = 'displayName' | 'age' | 'terms'
+export type OnboardingStep = 'terms'
 
 export type ProfileUpdate = {
   displayName?: string
@@ -34,6 +34,10 @@ export class UsersService {
   async resolve(identity: VerifiedIdentity): Promise<CurrentUser> {
     const signIn: SignInIdentity = {
       firebaseUid: identity.uid,
+      displayName:
+        identity.displayName?.trim().slice(0, 40) ||
+        identity.email?.split('@')[0]?.slice(0, 40) ||
+        'Music lover',
       email: identity.email,
       emailVerified: identity.emailVerified,
       signInProvider: identity.signInProvider,
@@ -46,6 +50,7 @@ export class UsersService {
       id: user.id,
       firebaseUid: user.firebaseUid,
       onboarded: missingOnboardingSteps(user).length === 0,
+      deleting: user.deletionRequestedAt !== null,
     }
   }
 
@@ -79,14 +84,14 @@ export class UsersService {
   }
 
   /**
-   * Deletes our data first, then the Firebase account. Personal data going away is what matters
-   * most, so it never waits on Firebase. If the second step fails, the client gets a 500 and
-   * retries: the token is still valid then, and both steps ignore what is already gone.
+   * Keep a durable deletion marker until storage cleanup and Firebase deletion succeed.
+   * Other requests are blocked while DELETE /me can retry a failed cleanup.
    */
   async deleteAccount(user: CurrentUser): Promise<void> {
+    if (!(await this.repository.requestDeletion(user.id, this.now()))) throw userNotFound()
     await this.onAccountDeleted(user.id)
-    await this.repository.delete(user.id)
     await this.auth.deleteAccount(user.firebaseUid)
+    await this.repository.delete(user.id)
   }
 
   private async refreshSignIn(user: User, signIn: SignInIdentity): Promise<User> {
@@ -103,8 +108,6 @@ export class UsersService {
 
 export function missingOnboardingSteps(user: User): OnboardingStep[] {
   const missing: OnboardingStep[] = []
-  if (!user.displayName) missing.push('displayName')
-  if (!user.ageConfirmedAt) missing.push('age')
   if (user.termsVersion !== TERMS_VERSION) missing.push('terms')
   return missing
 }

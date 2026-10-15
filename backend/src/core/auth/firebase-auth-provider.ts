@@ -38,6 +38,7 @@ export class FirebaseAuthProvider implements AuthProvider {
       const decoded = await this.auth.verifyIdToken(token, true)
       return {
         uid: decoded.uid,
+        displayName: typeof decoded.name === 'string' ? decoded.name : undefined,
         email: decoded.email ?? null,
         emailVerified: decoded.email_verified ?? false,
         signInProvider: decoded.firebase.sign_in_provider,

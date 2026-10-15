@@ -5,6 +5,7 @@ import type { Database } from './core/db/database.js'
 import type { Feature } from './core/http/app-env.js'
 import type { Logger } from './core/logger.js'
 import type { AudioStorage } from './core/storage/audio-storage.js'
+import { createLibraryFeature } from './features/library/index.js'
 import type { MusicProvider } from './features/tracks/generation/music-provider.js'
 import { createTracksFeature, type TracksFeatureOptions } from './features/tracks/index.js'
 import { createUsersFeature } from './features/users/index.js'
@@ -37,7 +38,12 @@ export function composeApp(services: AppServices, extraFeatures: readonly Featur
     auth,
     onAccountDeleted: (userId) => tracks.service.deleteAllForUser(userId),
   })
-  const features = [users.feature, tracks.feature, ...extraFeatures]
+  const features = [
+    users.feature,
+    tracks.feature,
+    createLibraryFeature(db, services.tracks.publicBaseUrl),
+    ...extraFeatures,
+  ]
 
   const app = createApp({
     db,

@@ -6,7 +6,7 @@ import { type User, users } from './users.table.js'
 export type SignInIdentity = Pick<
   User,
   'firebaseUid' | 'email' | 'emailVerified' | 'signInProvider'
->
+> & { displayName?: string }
 
 /** Onboarding answers to save; anything left undefined stays as it is. */
 export type OnboardingAnswers = {
@@ -46,7 +46,8 @@ export class UsersRepository {
   }
 
   async updateSignIn(id: string, identity: SignInIdentity, now: Date): Promise<User | undefined> {
-    return this.update(id, { ...identity, lastSeenAt: now, updatedAt: now })
+    const { displayName: _displayName, ...verified } = identity
+    return this.update(id, { ...verified, lastSeenAt: now, updatedAt: now })
   }
 
   /**
@@ -76,6 +77,21 @@ export class UsersRepository {
       .where(eq(users.id, id))
       .returning()
     return user
+  }
+
+  async requestDeletion(id: string, now: Date): Promise<boolean> {
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${id}, 0))`)
+      const changed = await tx
+        .update(users)
+        .set({
+          deletionRequestedAt: sql`coalesce(${users.deletionRequestedAt}, ${now})`,
+          updatedAt: now,
+        })
+        .where(eq(users.id, id))
+        .returning({ id: users.id })
+      return changed.length > 0
+    })
   }
 
   /** Returns false when there was no such user, so deleting twice is not an error. */

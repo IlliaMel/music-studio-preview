@@ -106,6 +106,15 @@ describe('GenerationWorker', () => {
     expect(await worker.runOnce()).toBe(false)
   })
 
+  it('does not call a provider for a queued track deleted before processing', async () => {
+    const provider = new ScriptedProvider([])
+    const { worker } = await workerWith(provider)
+    const track = await queue()
+    await tracks.softDeleteForUser(userId, track.id, new Date())
+    expect(await worker.runOnce()).toBe(false)
+    expect(provider.requests).toEqual([])
+  })
+
   it('takes the oldest queued track first and passes on what was asked for', async () => {
     const provider = new ScriptedProvider([succeed('First'), succeed('Second')])
     const { worker } = await workerWith(provider)
@@ -116,6 +125,8 @@ describe('GenerationWorker', () => {
 
     expect(provider.requests[0]).toEqual({
       prompt: 'The first song in the queue',
+      variantIndex: 0,
+      quality: 'auto',
       lengthMs: undefined,
       instrumental: false,
       modelId: 'music_v2_5',

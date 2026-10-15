@@ -154,7 +154,7 @@ export function loadConfig(environment: Record<string, string | undefined>): Con
       mockDelayMs: env.MOCK_DELAY_MS ?? 8_000,
       concurrency: env.GENERATION_CONCURRENCY ?? 2,
       timeoutMs: env.GENERATION_TIMEOUT_MS ?? 5 * 60_000,
-      dailyLimit: env.DAILY_GENERATIONS_PER_USER ?? 8,
+      dailyLimit: env.DAILY_GENERATIONS_PER_USER ?? 25,
     },
     storage: { audioDir: env.AUDIO_DIR ?? `${env.DATA_DIR ?? './data'}/audio` },
   }

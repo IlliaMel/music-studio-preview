@@ -21,12 +21,18 @@ export const authenticate =
       throw error
     })
     const user = await resolveUser(identity)
+    if (user.deleting && !(c.req.method === 'DELETE' && c.req.path === '/v1/me'))
+      throw new ApiError(
+        409,
+        'ACCOUNT_DELETING',
+        'Retry account deletion to finish removing this account',
+      )
     c.set('user', user)
     c.set('log', c.get('log').child({ userId: user.id }))
     await next()
   }
 
-/** For actions that need a finished profile: a public name, age confirmed and terms accepted. */
+/** For actions requiring acceptance of the current terms. */
 export const requireOnboarding: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (!c.get('user').onboarded) {
     throw new ApiError(403, 'ONBOARDING_REQUIRED', 'Finish onboarding first')

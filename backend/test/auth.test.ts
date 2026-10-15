@@ -60,7 +60,12 @@ describe('authenticate', () => {
       await app.request('/v1/guarded/whoami', signedInAs('alice'))
     ).json()) as CurrentUser
 
-    expect(first).toEqual({ id: expect.any(String), firebaseUid: 'dev-alice', onboarded: false })
+    expect(first).toEqual({
+      id: expect.any(String),
+      firebaseUid: 'dev-alice',
+      onboarded: false,
+      deleting: false,
+    })
     expect(second.id).toBe(first.id)
   })
 

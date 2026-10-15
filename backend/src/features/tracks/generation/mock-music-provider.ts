@@ -1,12 +1,12 @@
-import type { Word } from '../tracks.table.js'
+import type { Word } from '../tracks.model.js'
 import { abortableDelay } from './abortable-delay.js'
+import { demoAudio } from './demo-audio.js'
 import {
   type ComposedSong,
   type ComposeRequest,
   type MusicProvider,
   ProviderError,
 } from './music-provider.js'
-import { silentMp3 } from './silent-mp3.js'
 
 const LYRICS =
   'neon lights are calling through the rain tonight we drive until the city fades away and every street remembers'.split(
@@ -46,12 +46,13 @@ export class MockMusicProvider implements MusicProvider {
 
     const durationMs = request.lengthMs ?? DEFAULT_LENGTH_MS
     return {
-      audio: silentMp3(durationMs),
-      title: titleFrom(request.prompt),
+      audio: demoAudio(durationMs, (request.prompt.length + (request.variantIndex ?? 0) * 3) % 8),
+      title:
+        titleFrom(request.prompt) + (request.variantIndex ? ` (${request.variantIndex + 1})` : ''),
       durationMs,
       genres: ['mock'],
       explicit: false,
-      words: request.instrumental ? [] : spreadLyrics(durationMs),
+      words: request.instrumental ? [] : spreadLyrics(durationMs, request.customLyrics),
       songId: null,
     }
   }
@@ -67,11 +68,21 @@ function titleFrom(prompt: string): string {
   return title || 'Untitled'
 }
 
-/** The same lines over and over, one word every 600 ms after a 4-second intro. */
-function spreadLyrics(durationMs: number): Word[] {
+function spreadLyrics(durationMs: number, customLyrics?: string): Word[] {
+  const customWords = customLyrics?.split(/\s+/).filter(Boolean)
+  if (customWords?.length) {
+    const introMs = Math.min(4_000, Math.floor(durationMs / 4))
+    const stepMs = (durationMs - introMs - 1_000) / customWords.length
+    return customWords.map((word, index) => ({
+      word,
+      startMs: Math.floor(introMs + index * stepMs),
+      endMs: Math.floor(introMs + (index + 0.85) * stepMs),
+    }))
+  }
+  const lyrics = LYRICS
   const words: Word[] = []
   for (let startMs = 4_000, index = 0; startMs + 500 < durationMs; startMs += 600, index++) {
-    words.push({ word: LYRICS[index % LYRICS.length] ?? '', startMs, endMs: startMs + 500 })
+    words.push({ word: lyrics[index % lyrics.length] ?? '', startMs, endMs: startMs + 500 })
   }
   return words
 }

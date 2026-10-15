@@ -11,6 +11,10 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
+import type { Word } from './tracks.model.js'
+
+export type { Word } from './tracks.model.js'
+
 import { users } from '../users/users.table.js'
 
 const timestampTz = (name: string) => timestamp(name, { withTimezone: true })
@@ -18,9 +22,6 @@ const timestampTz = (name: string) => timestamp(name, { withTimezone: true })
 /** queued → running → done | failed. The table is the job queue too: the worker claims rows. */
 export const trackStatus = pgEnum('track_status', ['queued', 'running', 'done', 'failed'])
 export type TrackStatus = (typeof trackStatus.enumValues)[number]
-
-/** When each sung word starts and ends, for lyrics that follow the music. */
-export type Word = { word: string; startMs: number; endMs: number }
 
 export const tracks = pgTable(
   'tracks',
@@ -32,6 +33,12 @@ export const tracks = pgTable(
     // Chosen by the app per attempt and reused on network retries, so a retried request
     // returns the same track instead of starting, and paying for, a second generation.
     idempotencyKey: text('idempotency_key').notNull(),
+    generationId: uuid('generation_id').notNull().defaultRandom(),
+    variantIndex: integer('variant_index').notNull().default(0),
+    variants: integer('variants').notNull().default(1),
+    customLyrics: text('custom_lyrics'),
+    referenceUploadId: uuid('reference_upload_id'),
+    remixTrackId: text('reference_track_id'),
     status: trackStatus('status').notNull().default('queued'),
 
     // What was asked for.
@@ -40,6 +47,7 @@ export const tracks = pgTable(
     lengthMs: integer('length_ms'),
     instrumental: boolean('instrumental').notNull(),
     modelId: text('model_id').notNull(),
+    quality: text('quality').notNull().default('auto'),
 
     // What came back.
     title: text('title'),

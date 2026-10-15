@@ -60,6 +60,13 @@ describe('creating a track', () => {
     expect(await errorCode(response)).toBe('ONBOARDING_REQUIRED')
   })
 
+  it('reserves variant-derived idempotency keys before they can collide', async () => {
+    await onboard('alice')
+    expect((await createTrack('alice', SONG, 'batch-key:variant:1')).status).toBe(400)
+    expect((await createTrack('alice', { ...SONG, variants: 2 }, 'batch-key')).status).toBe(202)
+    expect((await createTrack('alice', { ...SONG, variants: 2 }, 'batch-key')).status).toBe(200)
+  })
+
   it('needs an idempotency key', async () => {
     await onboard('alice')
 
@@ -145,7 +152,7 @@ describe('a generated track', () => {
     expect(track.words).toEqual([])
   })
 
-  it('streams the MP3, and a part of it for seeking', async () => {
+  it('streams audible demo audio, and a part of it for seeking', async () => {
     await onboard('alice')
     const { id } = await json<TrackJson>(await createTrack('alice', SONG))
     await testApp.worker.runOnce()
@@ -158,8 +165,9 @@ describe('a generated track', () => {
     const bytes = new Uint8Array(await whole.arrayBuffer())
 
     expect(whole.status).toBe(200)
-    expect(whole.headers.get('Content-Type')).toBe('audio/mpeg')
-    expect([bytes[0], bytes[1]]).toEqual([0xff, 0xfb])
+    expect(whole.headers.get('Content-Type')).toBe('audio/wav')
+    expect(Buffer.from(bytes).toString('ascii', 0, 4)).toBe('RIFF')
+    expect(bytes.slice(44).some((value) => value !== 0)).toBe(true)
     expect(part.status).toBe(206)
     expect(part.headers.get('Content-Range')).toBe(`bytes 0-99/${bytes.length}`)
     expect((await part.arrayBuffer()).byteLength).toBe(100)
@@ -195,6 +203,40 @@ describe('a generated track', () => {
     const { id } = await json<TrackJson>(await createTrack('alice', SONG))
 
     expect((await request(`/v1/tracks/${id}`, signedInAs('bob'))).status).toBe(404)
+  })
+})
+
+describe('renaming a track', () => {
+  it('persists the trimmed title and prevents another user changing it', async () => {
+    await onboard('alice')
+    const { id } = await json<TrackJson>(await createTrack('alice', SONG))
+    await testApp.worker.runOnce()
+    const rename = await request(
+      `/v1/tracks/${id}`,
+      signedInAs('alice', { method: 'PATCH', body: { title: '  New title  ' } }),
+    )
+    expect(rename.status).toBe(200)
+    expect((await json<TrackJson>(rename)).title).toBe('New title')
+    expect(
+      (await json<TrackJson>(await request(`/v1/tracks/${id}`, signedInAs('alice')))).title,
+    ).toBe('New title')
+    expect(
+      (
+        await request(
+          `/v1/tracks/${id}`,
+          signedInAs('bob', { method: 'PATCH', body: { title: 'Wrong owner' } }),
+        )
+      ).status,
+    ).toBe(404)
+  })
+  it('rejects blank, oversized titles and generation in progress', async () => {
+    await onboard('alice')
+    const { id } = await json<TrackJson>(await createTrack('alice', SONG))
+    const rename = (title: string) =>
+      request(`/v1/tracks/${id}`, signedInAs('alice', { method: 'PATCH', body: { title } }))
+    expect((await rename('   ')).status).toBe(400)
+    expect((await rename('a'.repeat(81))).status).toBe(400)
+    expect((await rename('Pending title')).status).toBe(409)
   })
 })
 
@@ -313,7 +355,7 @@ describe('deleting', () => {
 
     expect(response.status).toBe(204)
     expect((await request(`/v1/tracks/${id}`, signedInAs('alice'))).status).toBe(404)
-    expect(await readdir(testApp.audioDir)).not.toContain(`${id}.mp3`)
+    expect(await readdir(testApp.audioDir)).not.toContain(`${id}.audio`)
   })
 
   it('the account removes every track and audio file', async () => {

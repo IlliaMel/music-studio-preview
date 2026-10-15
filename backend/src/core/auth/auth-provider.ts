@@ -1,6 +1,7 @@
 /** Who a sign-in token belongs to, as the identity provider vouches for it. */
 export type VerifiedIdentity = {
   uid: string
+  displayName?: string
   email: string | null
   emailVerified: boolean
   /** As the provider reports it: `google.com`, `password`, `apple.com`… */

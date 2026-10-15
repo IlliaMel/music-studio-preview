@@ -5,8 +5,9 @@ import type { Logger } from '../logger.js'
 export type CurrentUser = {
   id: string
   firebaseUid: string
-  /** Public name set, age confirmed and the current terms accepted. */
+  /** The current terms have been accepted. */
   onboarded: boolean
+  deleting?: boolean
 }
 
 /** Values every request carries through the middleware chain, read with `c.get(...)`. */

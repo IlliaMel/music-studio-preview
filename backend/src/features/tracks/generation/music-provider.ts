@@ -1,10 +1,15 @@
-import type { Word } from '../tracks.table.js'
+import type { Word } from '../tracks.model.js'
 
 export const MODEL_IDS = ['music_v2_5', 'music_v2'] as const
 export type ModelId = (typeof MODEL_IDS)[number]
 
 export type ComposeRequest = {
   prompt: string
+  variantIndex?: number
+  quality?: 'auto' | 'deep' | 'fast'
+  customLyrics?: string
+  referenceUploadId?: string
+  remixTrackId?: string
   /** Undefined lets the model choose the length. */
   lengthMs?: number
   instrumental: boolean
@@ -12,7 +17,7 @@ export type ComposeRequest = {
 }
 
 export type ComposedSong = {
-  /** MP3 bytes. */
+  /** Encoded audio bytes; the mock returns WAV and a remote provider can return MP3. */
   audio: Uint8Array
   title: string | null
   durationMs: number

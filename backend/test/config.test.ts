@@ -25,7 +25,7 @@ describe('loadConfig', () => {
         mockDelayMs: 8_000,
         concurrency: 2,
         timeoutMs: 300_000,
-        dailyLimit: 8,
+        dailyLimit: 25,
       },
       storage: { audioDir: './data/audio' },
     })

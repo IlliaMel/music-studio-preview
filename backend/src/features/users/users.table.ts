@@ -22,6 +22,7 @@ export const users = pgTable('users', {
   createdAt: timestampTz('created_at').notNull().defaultNow(),
   updatedAt: timestampTz('updated_at').notNull().defaultNow(),
   lastSeenAt: timestampTz('last_seen_at').notNull().defaultNow(),
+  deletionRequestedAt: timestampTz('deletion_requested_at'),
 })
 
 export type User = typeof users.$inferSelect

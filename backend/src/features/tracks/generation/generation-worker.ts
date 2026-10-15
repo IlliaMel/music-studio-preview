@@ -119,6 +119,11 @@ export class GenerationWorker {
           this.deps.provider.compose(
             {
               prompt: track.prompt,
+              variantIndex: track.variantIndex,
+              quality: track.quality as 'auto' | 'deep' | 'fast',
+              customLyrics: track.customLyrics ?? undefined,
+              referenceUploadId: track.referenceUploadId ?? undefined,
+              remixTrackId: track.remixTrackId ?? undefined,
               lengthMs: track.lengthMs ?? undefined,
               instrumental: track.instrumental,
               modelId: track.modelId as ModelId,
@@ -142,9 +147,10 @@ export class GenerationWorker {
 
     // The song exists and is paid for; from here on a failure is ours, not the provider's.
     try {
-      await this.deps.storage.save(track.id, song.audio)
       const { audio: _, ...result } = song
-      const saved = await this.deps.repository.complete(track.id, result, this.now())
+      const saved = await this.deps.repository.complete(track.id, result, this.now(), () =>
+        this.deps.storage.save(track.id, song.audio),
+      )
       // Deleted while it was being generated: the credits are spent, the file is not needed.
       if (!saved) await this.deps.storage.delete(track.id)
       log.info({ durationMs: Math.round(performance.now() - startedAt) }, 'track generated')

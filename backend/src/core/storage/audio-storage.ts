@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, open, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import type { ReadableStream } from 'node:stream/web'
@@ -9,6 +9,7 @@ export type ByteRange = { start: number; end: number }
 
 export type StoredFile = {
   size: number
+  contentType?: string
   /** The whole file, or the inclusive byte range a player asked for when seeking. */
   stream(range?: ByteRange): ReadableStream<Uint8Array>
 }
@@ -38,11 +39,29 @@ export class LocalAudioStorage implements AudioStorage {
   }
 
   async open(key: string): Promise<StoredFile | undefined> {
-    const path = this.path(key)
+    let path = this.path(key)
     try {
+      try {
+        await stat(path)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        path = join(this.directory, `${key}.mp3`)
+      }
       const { size } = await stat(path)
+      const handle = await open(path, 'r')
+      const header = Buffer.alloc(12)
+      try {
+        await handle.read(header, 0, 12, 0)
+      } finally {
+        await handle.close()
+      }
+      const contentType =
+        header.toString('ascii', 0, 4) === 'RIFF' && header.toString('ascii', 8, 12) === 'WAVE'
+          ? 'audio/wav'
+          : 'audio/mpeg'
       return {
         size,
+        contentType,
         stream: (range) =>
           Readable.toWeb(createReadStream(path, range)) as ReadableStream<Uint8Array>,
       }
@@ -53,12 +72,16 @@ export class LocalAudioStorage implements AudioStorage {
   }
 
   async delete(key: string): Promise<void> {
-    await rm(this.path(key), { force: true })
+    const path = this.path(key)
+    await Promise.all([
+      rm(path, { force: true }),
+      rm(join(this.directory, `${key}.mp3`), { force: true }),
+    ])
   }
 
   private path(key: string): string {
     // Keys are our own track ids; refusing anything else rules out paths like ../../etc.
     if (!SAFE_KEY.test(key)) throw new Error(`Unsafe storage key: ${key}`)
-    return join(this.directory, `${key}.mp3`)
+    return join(this.directory, `${key}.audio`)
   }
 }

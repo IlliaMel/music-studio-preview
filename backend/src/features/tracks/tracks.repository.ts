@@ -1,7 +1,7 @@
 import {
   and,
   asc,
-  count,
+  countDistinct,
   desc,
   eq,
   gte,
@@ -14,12 +14,17 @@ import {
   sql,
 } from 'drizzle-orm'
 import type { Database } from '../../core/db/database.js'
+import { likes, playlistTracks, uploads } from '../library/library.table.js'
+import { users } from '../users/users.table.js'
 import { type Track, tracks } from './tracks.table.js'
 
 export type NewTrack = Pick<
   Track,
   'userId' | 'idempotencyKey' | 'prompt' | 'lengthMs' | 'instrumental' | 'modelId'
->
+> &
+  Partial<
+    Pick<Track, 'customLyrics' | 'remixTrackId' | 'referenceUploadId' | 'variants' | 'quality'>
+  >
 
 export type TrackResult = Pick<
   Track,
@@ -35,6 +40,7 @@ export type CreateOutcome =
   | { kind: 'created'; track: Track }
   | { kind: 'existing'; track: Track }
   | { kind: 'limit-reached'; used: number }
+  | { kind: 'account-deleting' }
 
 /**
  * Failures the provider does not charge for: it refused the request before generating anything.
@@ -82,6 +88,12 @@ export class TracksRepository {
     return this.db.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${input.userId}, 0))`)
 
+      const [owner] = await tx
+        .select({ deletionRequestedAt: users.deletionRequestedAt })
+        .from(users)
+        .where(eq(users.id, input.userId))
+      if (!owner || owner.deletionRequestedAt) return { kind: 'account-deleting' }
+
       const [existing] = await tx
         .select()
         .from(tracks)
@@ -91,25 +103,91 @@ export class TracksRepository {
       if (existing) return { kind: 'existing', track: existing }
 
       const [{ used = 0 } = {}] = await tx
-        .select({ used: count() })
+        .select({ used: countDistinct(tracks.generationId) })
         .from(tracks)
         .where(countsTowardLimit(input.userId, limit.since))
       if (used >= limit.max) return { kind: 'limit-reached', used }
 
+      const generationId = crypto.randomUUID()
+      const variants = input.variants ?? 1
       const [track] = await tx
         .insert(tracks)
-        .values({ ...input, createdAt: now, updatedAt: now })
+        .values(
+          Array.from({ length: variants }, (_, variantIndex) => ({
+            ...input,
+            generationId,
+            variants,
+            variantIndex,
+            idempotencyKey:
+              variantIndex === 0
+                ? input.idempotencyKey
+                : `${input.idempotencyKey}:variant:${variantIndex}`,
+            createdAt: now,
+            updatedAt: now,
+          })),
+        )
         .returning()
       if (!track) throw new Error('Insert returned no row')
       return { kind: 'created', track }
     })
   }
 
-  async findForUser(userId: string, id: string): Promise<Track | undefined> {
+  async renameForUser(
+    userId: string,
+    id: string,
+    title: string,
+    now: Date,
+  ): Promise<Track | undefined> {
+    const [track] = await this.db
+      .update(tracks)
+      .set({ title, updatedAt: now })
+      .where(
+        and(
+          eq(tracks.userId, userId),
+          eq(tracks.id, id),
+          inArray(tracks.status, ['done', 'failed']),
+          visible,
+        ),
+      )
+      .returning()
+    return track
+  }
+
+  async findByKey(userId: string, key: string): Promise<Track | undefined> {
     const [track] = await this.db
       .select()
       .from(tracks)
-      .where(and(eq(tracks.userId, userId), eq(tracks.id, id), visible))
+      .where(and(eq(tracks.userId, userId), eq(tracks.idempotencyKey, key)))
+    return track
+  }
+
+  async ownsUpload(userId: string, id: string): Promise<boolean> {
+    const [upload] = await this.db
+      .select({ id: uploads.id })
+      .from(uploads)
+      .where(and(eq(uploads.id, id), eq(uploads.userId, userId)))
+    return Boolean(upload)
+  }
+
+  async siblings(userId: string, generationId: string): Promise<Track[]> {
+    return this.db
+      .select()
+      .from(tracks)
+      .where(and(eq(tracks.userId, userId), eq(tracks.generationId, generationId), visible))
+      .orderBy(asc(tracks.variantIndex))
+  }
+
+  async findForUser(
+    userId: string,
+    id: string,
+    includeDeleted = false,
+  ): Promise<Track | undefined> {
+    const [track] = await this.db
+      .select()
+      .from(tracks)
+      .where(
+        and(eq(tracks.userId, userId), eq(tracks.id, id), includeDeleted ? undefined : visible),
+      )
     return track
   }
 
@@ -134,7 +212,7 @@ export class TracksRepository {
 
   async countTowardLimit(userId: string, since: Date): Promise<number> {
     const [{ used = 0 } = {}] = await this.db
-      .select({ used: count() })
+      .select({ used: countDistinct(tracks.generationId) })
       .from(tracks)
       .where(countsTowardLimit(userId, since))
     return used
@@ -148,7 +226,7 @@ export class TracksRepository {
     const oldestQueued = this.db
       .select({ id: tracks.id })
       .from(tracks)
-      .where(eq(tracks.status, 'queued'))
+      .where(and(eq(tracks.status, 'queued'), visible))
       .orderBy(asc(tracks.createdAt))
       .limit(1)
       .for('update', { skipLocked: true })
@@ -161,8 +239,28 @@ export class TracksRepository {
   }
 
   /** False when the track was deleted meanwhile: its audio is no longer wanted. */
-  async complete(id: string, result: TrackResult, now: Date): Promise<boolean> {
-    return this.finish(id, { ...result, status: 'done' }, now)
+  async complete(
+    id: string,
+    result: TrackResult,
+    now: Date,
+    saveAudio?: () => Promise<void>,
+  ): Promise<boolean> {
+    if (!saveAudio) return this.finish(id, { ...result, status: 'done' }, now)
+    return this.db.transaction(async (tx) => {
+      const [active] = await tx
+        .select({ id: tracks.id })
+        .from(tracks)
+        .where(and(eq(tracks.id, id), eq(tracks.status, 'running'), visible))
+        .for('update')
+      if (!active) return false
+      await saveAudio()
+      const updated = await tx
+        .update(tracks)
+        .set({ ...result, status: 'done', finishedAt: now, updatedAt: now })
+        .where(eq(tracks.id, id))
+        .returning({ id: tracks.id })
+      return updated.length > 0
+    })
   }
 
   async fail(id: string, failure: TrackFailure, now: Date): Promise<boolean> {
@@ -183,7 +281,7 @@ export class TracksRepository {
     const requeued = await this.db
       .update(tracks)
       .set({ status: 'queued', startedAt: null, updatedAt: now })
-      .where(and(eq(tracks.id, id), eq(tracks.status, 'running')))
+      .where(and(eq(tracks.id, id), eq(tracks.status, 'running'), visible))
       .returning({ id: tracks.id })
     return requeued.length > 0
   }
@@ -210,21 +308,29 @@ export class TracksRepository {
    * limit; it disappears with the account.
    */
   async softDeleteForUser(userId: string, id: string, now: Date): Promise<boolean> {
-    const deleted = await this.db
-      .update(tracks)
-      .set({
-        prompt: '',
-        title: null,
-        genres: null,
-        words: null,
-        errorMessage: null,
-        promptSuggestion: null,
-        deletedAt: now,
-        updatedAt: now,
-      })
-      .where(and(eq(tracks.userId, userId), eq(tracks.id, id), visible))
-      .returning({ id: tracks.id })
-    return deleted.length > 0
+    return this.db.transaction(async (tx) => {
+      const deleted = await tx
+        .update(tracks)
+        .set({
+          prompt: '',
+          title: null,
+          genres: null,
+          words: null,
+          customLyrics: null,
+          referenceUploadId: null,
+          remixTrackId: null,
+          errorMessage: null,
+          promptSuggestion: null,
+          deletedAt: now,
+          updatedAt: now,
+        })
+        .where(and(eq(tracks.userId, userId), eq(tracks.id, id), visible))
+        .returning({ id: tracks.id })
+      if (deleted.length === 0) return false
+      await tx.delete(likes).where(and(eq(likes.userId, userId), eq(likes.trackId, id)))
+      await tx.delete(playlistTracks).where(eq(playlistTracks.trackId, id))
+      return true
+    })
   }
 
   /** Every track of a user, deleted ones included: account deletion removes their files first. */
@@ -234,6 +340,13 @@ export class TracksRepository {
       .from(tracks)
       .where(eq(tracks.userId, userId))
     return rows.map(({ id }) => id)
+  }
+
+  async markAllDeletedForUser(userId: string, now: Date): Promise<void> {
+    await this.db
+      .update(tracks)
+      .set({ deletedAt: now, updatedAt: now })
+      .where(and(eq(tracks.userId, userId), visible))
   }
 
   async deleteAllForUser(userId: string): Promise<void> {
