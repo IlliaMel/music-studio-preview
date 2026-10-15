@@ -1,12 +1,12 @@
 package com.illiamelnyk.studio.feature.create.presentation.tool
 
 import androidx.activity.ComponentActivity
-import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.presentation.UiText
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
@@ -40,20 +40,17 @@ class ToolScreenTest {
     }
 
     @Test
-    fun `a ready tool is used with the button`() {
+    fun `filling the prompt still requires a recording`() {
         val filled = Tool.Unplugged.template.toParts(mapOf("genre" to "Folk", "instrument" to "Piano"))
-        show(ToolState(Tool.Unplugged).copy(template = filled, canUse = true))
-
-        composeRule.onNodeWithText(string(R.string.tool_use)).assertIsEnabled().performClick()
-
-        assertEquals(ToolIntent.UseToolClicked, intents.last())
+        show(ToolState(Tool.Unplugged).copy(template = filled))
+        composeRule.onNodeWithText(string(R.string.tool_use)).assertIsNotEnabled()
     }
 
     @Test
     fun `a tool that needs a recording explains it from its row`() {
         show(ToolState(Tool.VoiceToSong).copy(hint = UiText.Resource(R.string.tool_needs_recording)))
 
-        composeRule.onNodeWithText(string(R.string.tool_add_voice)).performClick()
+        composeRule.onNodeWithText(string(R.string.tool_add_voice)).performScrollTo().performClick()
 
         assertEquals(ToolIntent.AddRecordingClicked, intents.last())
         composeRule.onNodeWithText(string(R.string.tool_use)).assertIsNotEnabled()

@@ -44,7 +44,7 @@ import com.illiamelnyk.studio.core.ui.theme.StudioTheme
  *
  * It is stateless: the caller owns [value] and decides when it is [expanded], typically while it has
  * focus or text. The send button is disabled until [sendEnabled], and when the text is over
- * [characterLimit]; a counter shows how much is left.
+ * [characterLimit]; a counter shows how much is left. Set [showSend] to false for a collapsed toolbar.
  *
  * It doesn't move out of the keyboard's way by itself: put it in a container with `imePadding()`
  * (the activity resizes with the keyboard, edge to edge), so the insets are applied once.
@@ -63,6 +63,7 @@ fun Composer(
     options: (@Composable () -> Unit)? = null,
     leadingActions: @Composable RowScope.() -> Unit = {},
     trailingActions: @Composable RowScope.() -> Unit = {},
+    showSend: Boolean = true,
 ) {
     val colors = StudioTheme.colors
     val dimens = StudioTheme.dimens
@@ -70,7 +71,7 @@ fun Composer(
     val source = interactionSource ?: remember { MutableInteractionSource() }
     val focused by source.collectIsFocusedAsState()
     val overLimit = characterLimit != null && value.length > characterLimit
-    val shape = StudioTheme.shapes.xl
+    val shape = if (expanded) StudioTheme.shapes.xl else StudioTheme.shapes.full
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(dimens.spacing.xs)) {
         if (options != null) {
             AnimatedVisibility(
@@ -81,19 +82,20 @@ fun Composer(
                     fadeOut(tween(motion.duration.short, easing = motion.easing.standard)),
             ) { options() }
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs), verticalAlignment = Alignment.CenterVertically) {
         Column(
-            modifier = Modifier
+            modifier = Modifier.weight(1f)
                 // The box grows line by line as the text wraps.
                 .animateContentSize(tween(motion.duration.medium, easing = motion.easing.standard))
                 .fillMaxWidth()
-                .heightIn(min = dimens.size.component.composerMin)
+                .heightIn(min = if (expanded) dimens.size.component.composerMin else dimens.size.touchTarget)
                 .background(colors.surface.level2, shape)
                 .border(
                     dimens.stroke.hairline,
                     if (focused) colors.outline.strong else colors.outline.subtle,
                     shape,
                 )
-                .padding(dimens.spacing.s),
+                .padding(if (expanded) dimens.spacing.s else dimens.spacing.xxs),
             verticalArrangement = Arrangement.spacedBy(dimens.spacing.s),
         ) {
             BasicTextField(
@@ -103,24 +105,27 @@ fun Composer(
                     .fillMaxWidth()
                     .padding(horizontal = dimens.spacing.xxs),
                 textStyle = StudioTheme.typography.bodyLarge.copy(color = colors.content.primary),
-                maxLines = ComposerDefaults.MAX_LINES,
+                maxLines = if (expanded) ComposerDefaults.MAX_LINES else 1,
                 interactionSource = source,
                 cursorBrush = SolidColor(colors.content.primary),
                 decorationBox = { innerTextField ->
-                    Box {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (!expanded) leadingActions()
+                        Box(Modifier.weight(1f)) {
                         if (value.isEmpty()) {
-                            StudioText(placeholder, StudioTheme.typography.bodyLarge, color = colors.content.tertiary)
+                            StudioText(placeholder, StudioTheme.typography.bodyLarge, color = colors.content.tertiary, maxLines = if (expanded) ComposerDefaults.MAX_LINES else 1)
                         }
                         innerTextField()
+                        }
                     }
                 },
             )
-            Row(
+            if (expanded || showSend) Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                leadingActions()
+                if (expanded) leadingActions()
                 Spacer(Modifier.weight(1f))
                 if (characterLimit != null) {
                     StudioText(
@@ -129,16 +134,20 @@ fun Composer(
                         color = if (overLimit) colors.error.content else colors.content.tertiary,
                     )
                 }
-                trailingActions()
-                StudioIconButton(
-                    icon = StudioIcons.ArrowUpward,
-                    contentDescription = stringResource(R.string.ui_send),
-                    onClick = onSend,
-                    style = StudioIconButtonStyle.Primary,
-                    size = StudioIconButtonSize.Small,
-                    enabled = sendEnabled && !overLimit,
-                )
+                if (expanded) trailingActions()
+                if (showSend) {
+                    StudioIconButton(
+                        icon = StudioIcons.ArrowUpward,
+                        contentDescription = stringResource(R.string.ui_send),
+                        onClick = onSend,
+                        style = StudioIconButtonStyle.Primary,
+                        size = StudioIconButtonSize.Small,
+                        enabled = sendEnabled && !overLimit,
+                    )
+                }
             }
+        }
+        if (!expanded) Row(verticalAlignment = Alignment.CenterVertically, content = trailingActions)
         }
     }
 }
@@ -174,6 +183,27 @@ private fun ComposerPreview() {
                     style = StudioIconButtonStyle.Surface,
                     size = StudioIconButtonSize.Small,
                 )
+            },
+        )
+    }
+}
+
+@PreviewLightDark
+@Composable
+private fun ComposerCollapsedPreview() {
+    PreviewSurface {
+        Composer(
+            value = "",
+            onValueChange = {},
+            onSend = {},
+            expanded = false,
+            placeholder = "Describe your track...",
+            showSend = false,
+            leadingActions = {
+                StudioIconButton(StudioIcons.Add, "Attach", onClick = {}, size = StudioIconButtonSize.Small)
+            },
+            trailingActions = {
+                StudioIconButton(StudioIcons.Tune, "Settings", onClick = {}, size = StudioIconButtonSize.Small)
             },
         )
     }

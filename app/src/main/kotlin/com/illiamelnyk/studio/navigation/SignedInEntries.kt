@@ -10,6 +10,7 @@ import com.illiamelnyk.studio.debug.debugSettings
 import com.illiamelnyk.studio.feature.create.domain.Tool
 import com.illiamelnyk.studio.feature.create.presentation.CreateRoute
 import com.illiamelnyk.studio.feature.create.presentation.tool.ToolRoute
+import com.illiamelnyk.studio.feature.create.presentation.tools.ToolsRoute
 import com.illiamelnyk.studio.feature.library.presentation.LibraryRoute
 import com.illiamelnyk.studio.feature.listen.presentation.ListenRoute
 import com.illiamelnyk.studio.feature.listen.presentation.collection.CollectionRoute
@@ -32,6 +33,7 @@ fun signedInEntries(
         val contentPadding = padding.value.tabRoot
         CreateRoute(
             onOpenTool = { tool -> navigator.navigate(Destination.Tool(tool.name)) },
+            onOpenTools = { navigator.navigate(Destination.Tools) },
             modifier = Modifier.destination(StudioTheme.colors.background, contentPadding),
             contentPadding = contentPadding,
         )
@@ -60,6 +62,15 @@ fun signedInEntries(
         CollectionRoute(
             collectionId = key.id,
             onClose = navigator::goBack,
+            modifier = Modifier.destination(StudioTheme.colors.background, contentPadding),
+            contentPadding = contentPadding,
+        )
+    }
+    entry<Destination.Tools> {
+        val contentPadding = padding.value.screen
+        ToolsRoute(
+            onClose = navigator::goBack,
+            onOpenTool = { tool -> navigator.navigate(Destination.Tool(tool.name)) },
             modifier = Modifier.destination(StudioTheme.colors.background, contentPadding),
             contentPadding = contentPadding,
         )

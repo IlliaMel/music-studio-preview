@@ -11,6 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import com.illiamelnyk.studio.core.presentation.BackTopBar
@@ -39,7 +40,7 @@ fun ToolScreen(
     val dismiss = { onIntent(ToolIntent.SheetDismissed) }
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(contentPadding)) {
-            BackTopBar(onBack = { onIntent(ToolIntent.BackClicked) })
+            BackTopBar(onBack = { onIntent(ToolIntent.BackClicked) }, title = stringResource(state.tool.title))
             Column(
                 modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.l),

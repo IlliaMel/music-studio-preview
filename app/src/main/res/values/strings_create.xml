@@ -2,7 +2,6 @@
 <!-- Create and its tools. In a file of their own, so the features' strings change apart. -->
 <resources>
     <!-- Create: shortcuts, tools and the user's tracks -->
-    <string name="create_chip_muse">Muse</string>
     <string name="create_chip_styles">Styles</string>
     <string name="create_chip_sounds">Sounds</string>
     <string name="create_chip_record">Record</string>
@@ -30,11 +29,8 @@
 
     <!-- The menu of a track -->
     <string name="create_menu_play_next">Play next</string>
-    <string name="create_menu_like">Like</string>
-    <string name="create_menu_unlike">Unlike</string>
-    <string name="create_menu_add_to_playlist">Add to playlist</string>
     <string name="create_menu_share">Share</string>
-    <string name="create_menu_download">Download</string>
+    <string name="create_menu_download">Save mp3</string>
     <string name="create_menu_delete">Delete</string>
     <string name="create_delete_title">Delete “%1$s”?</string>
     <string name="create_delete_message">It used a credit and can\'t be restored.</string>
@@ -51,15 +47,10 @@
     <string name="create_quality_auto">Auto</string>
     <string name="create_quality_deep">Deep</string>
     <string name="create_quality_fast">Fast</string>
-    <string name="create_length_description">Length %1$s</string>
     <string name="create_variants">%1$d×</string>
     <plurals name="create_variants_description">
         <item quantity="one">%d track per prompt</item>
         <item quantity="other">%d tracks per prompt</item>
-    </plurals>
-    <plurals name="create_credits_short">
-        <item quantity="one">Only %d track left today: switch to 1× to make it.</item>
-        <item quantity="other">Only %d tracks left today.</item>
     </plurals>
 
     <!-- The settings sheet -->
@@ -70,20 +61,16 @@
     <string name="create_model_v2">Music v2</string>
     <string name="create_model_v2_text">The previous model, for the sound of earlier tracks.</string>
     <string name="create_settings_vocals">Vocals</string>
-    <string name="create_settings_with_vocals">With vocals</string>
+    <string name="create_settings_with_vocals">Auto</string>
     <string name="create_settings_instrumental">Instrumental</string>
     <string name="create_settings_length">Length</string>
-    <string name="create_settings_style">Style</string>
-    <string name="create_settings_no_style">None</string>
     <string name="create_settings_reset">Reset</string>
     <string name="create_settings_apply">Apply</string>
 
     <!-- The styles sheet -->
-    <string name="create_styles_title">Styles</string>
-    <string name="create_styles_message">A style joins your prompt for every track until you remove it.</string>
 
     <!-- Toasts -->
-    <string name="create_toast_ready">Your track is ready</string>
+    <string name="create_toast_ready">Your track is ready!</string>
     <string name="create_toast_failed">“%1$s” didn\'t work out</string>
     <string name="create_toast_error">Something went wrong</string>
     <string name="create_toast_play_next">Plays next</string>
@@ -189,4 +176,39 @@
     <string name="tool_use">Use tool</string>
     <string name="tool_needs_recording">This tool works on your own recording, which is coming soon.</string>
     <string name="tool_fill_slots">Tap the underlined words to fill them in.</string>
+    <string name="create_mode_create">Create</string>
+    <string name="create_lyrics_custom">Custom</string>
+    <string name="create_menu_rename">Rename</string>
+    <string name="create_menu_use_prompt">Use prompt</string>
+    <string name="create_rename_save">Save</string>
+    <string name="create_soon_styles_text">Build your own sound from audio you choose.</string>
+    <string-array name="create_soon_styles_steps">
+        <item>Choose recordings that capture your sound.</item>
+        <item>Name your style and use it for future tracks.</item>
+    </string-array>
+    <string name="create_today">Today</string>
+    <string name="create_yesterday">Yesterday</string>
+    <string name="create_variations_group">Variations \u00b7 2 tracks</string>
+    <string name="create_variation_number">#%1$d</string>
+    <string name="create_creating_title">Creating title\u2026</string>
+    <string name="create_creating_artwork">Creating artwork\u2026</string>
+    <string name="create_notify_title">Want a ping when your track is ready?</string>
+    <string name="create_notify_message">Tracks take a moment to make. Choose whether Studio may notify you when they are ready.</string>
+    <string name="create_notify_yes">Notify me</string>
+    <string name="create_notify_no">Not now</string>
+    <plurals name="create_quota_title">
+        <item quantity="one">You\'ve used today\'s %1$d track \u2014 come back tomorrow</item>
+        <item quantity="other">You\'ve used today\'s %1$d tracks \u2014 come back tomorrow</item>
+    </plurals>
+    <string name="create_quota_close">Got it</string>
+    <string name="tool_voice_memo">Voice Memo to Song</string>
+    <string name="tool_hum">Hum to Song</string>
+    <string name="tool_voice_memo_description">Turn a recorded idea into a complete song.</string>
+    <string name="tool_hum_description">Build a finished song around a melody you hum.</string>
+    <string name="create_tools_catalog">Tools</string>
+    <string name="create_tools_all">All</string>
+    <string name="create_tools_featured">Featured</string>
+    <string name="create_tools_studio">studio</string>
+    <string name="create_settings_engine">Writing Engine</string>
+    <string name="create_settings_variations">Variations</string>
 </resources>

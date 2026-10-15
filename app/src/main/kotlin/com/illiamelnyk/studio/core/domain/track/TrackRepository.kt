@@ -15,7 +15,17 @@ interface TrackRepository {
      * Starts generating a track. It is added right away as queued or generating and changes
      * status by itself; observe it to follow. Fails at once when, for example, no credits are left.
      */
-    suspend fun create(request: GenerationRequest): Outcome<Track>
+    suspend fun create(request: GenerationRequest): Outcome<Track> = when (val result = create(request, variants = 1)) {
+        is Outcome.Success -> Outcome.Success(result.value.single())
+        is Outcome.Failure -> result
+    }
+
+    /**
+     * Starts one prompt with one or two variants, spending exactly one credit for the whole batch.
+     * All variants are added together; quota failure adds none. Results keep variant order.
+     * [variants] must be in 1..2.
+     */
+    suspend fun create(request: GenerationRequest, variants: Int): Outcome<List<Track>>
 
     /** Generates a failed track again from the same request. */
     suspend fun retry(id: TrackId): Outcome<Track>

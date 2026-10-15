@@ -5,12 +5,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
+import com.illiamelnyk.studio.R
+import com.illiamelnyk.studio.core.presentation.asString
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
 import com.illiamelnyk.studio.core.presentation.track.TrackUi
 import com.illiamelnyk.studio.core.presentation.track.TrackUiRow
+import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.create.presentation.CreatePreviewData
 import com.illiamelnyk.studio.feature.create.presentation.CreateTrackUi
@@ -36,6 +40,15 @@ fun CreateTrackItem(
 ) {
     val dimens = StudioTheme.dimens
     Column(modifier.padding(horizontal = dimens.layout.screenPadding)) {
+        track.dayLabel?.let {
+            StudioText(it.asString(), StudioTheme.typography.labelLarge, Modifier.padding(vertical = dimens.spacing.s))
+        }
+        if (track.variation == 1) {
+            StudioText(stringResource(R.string.create_variations_group), StudioTheme.typography.labelLarge)
+        }
+        track.variation?.let {
+            StudioText(stringResource(R.string.create_variation_number, it), StudioTheme.typography.bodySmall)
+        }
         // The menu anchors to the row and opens under its end, by the "more" button.
         Box {
             if (track.row.status == TrackUi.Status.Generating) {
@@ -50,7 +63,6 @@ fun CreateTrackItem(
             }
             TrackMenu(
                 expanded = menuExpanded,
-                isLiked = track.isLiked,
                 onAction = onMenuAction,
                 onDismissRequest = onMenuDismiss,
             )

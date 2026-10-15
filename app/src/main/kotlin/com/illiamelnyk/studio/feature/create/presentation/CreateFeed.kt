@@ -62,7 +62,11 @@ fun CreateFeed(
             )
         }
         item(key = "tools", contentType = "tools") {
-            ToolsGrid(state.tools, onToolClick = { onIntent(CreateIntent.ToolClicked(it)) })
+            ToolsGrid(
+                state.tools,
+                onToolClick = { onIntent(CreateIntent.ToolClicked(it)) },
+                onCatalogClick = { onIntent(CreateIntent.ToolsClicked) },
+            )
         }
         item(key = "tracksHeader", contentType = "tracksHeader") {
             YourTracksHeader(state.filter, onFilterSelect = { onIntent(CreateIntent.FilterSelected(it)) })

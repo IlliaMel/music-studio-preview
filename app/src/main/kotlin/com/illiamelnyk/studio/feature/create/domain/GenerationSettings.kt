@@ -2,7 +2,6 @@ package com.illiamelnyk.studio.feature.create.domain
 
 import com.illiamelnyk.studio.core.domain.track.MusicModel
 import com.illiamelnyk.studio.core.domain.track.Quality
-import com.illiamelnyk.studio.core.domain.track.Style
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -31,23 +30,24 @@ object Prompt {
     fun isValid(text: String): Boolean = text.isNotBlank() && text.length <= MAX_LENGTH
 }
 
+enum class LyricsMode { Auto, Instrumental }
+
 /**
  * How the composer generates: the options row and the settings sheet change these, and every track
  * sent from the composer uses them.
  *
- * @param duration one of [TrackLengths.all].
- * @param variants how many tracks one prompt makes at once: each is a generation of its own.
+ * @param duration one of [TrackLengths.all], or null for the engine to choose.
+ * @param variants how many tracks one prompt makes with one credit.
  */
 data class GenerationSettings(
     val model: MusicModel = MusicModel.V2_5,
     val quality: Quality = Quality.Auto,
-    val instrumental: Boolean = false,
-    val duration: Duration = TrackLengths.default,
-    val style: Style? = null,
+    val lyricsMode: LyricsMode = LyricsMode.Auto,
+    val duration: Duration? = null,
     val variants: Int = 1,
 ) {
     init {
-        require(duration in TrackLengths.all) { "$duration is not one of the track lengths" }
+        require(duration == null || duration in TrackLengths.all) { "$duration is not one of the track lengths" }
         require(variants in 1..MAX_VARIANTS) { "Variants must be between 1 and $MAX_VARIANTS, was $variants" }
     }
 

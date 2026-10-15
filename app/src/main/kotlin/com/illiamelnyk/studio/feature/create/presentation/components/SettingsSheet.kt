@@ -15,10 +15,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.domain.track.MusicModel
+import com.illiamelnyk.studio.core.domain.track.Quality
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
 import com.illiamelnyk.studio.core.ui.components.DurationPicker
 import com.illiamelnyk.studio.core.ui.components.StudioButton
 import com.illiamelnyk.studio.core.ui.components.StudioButtonStyle
+import com.illiamelnyk.studio.core.ui.components.StudioChip
 import com.illiamelnyk.studio.core.ui.components.StudioSegmentedControl
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
@@ -26,10 +28,11 @@ import com.illiamelnyk.studio.feature.create.presentation.CreatePreviewData
 import com.illiamelnyk.studio.feature.create.presentation.CreateState
 import com.illiamelnyk.studio.feature.create.presentation.ModelUi
 import com.illiamelnyk.studio.feature.create.presentation.SettingsUi
-import com.illiamelnyk.studio.feature.create.presentation.StyleUi
+import com.illiamelnyk.studio.feature.create.presentation.common.ComingSoonFeature
 import com.illiamelnyk.studio.feature.create.presentation.common.DurationOptionUi
 import com.illiamelnyk.studio.feature.create.presentation.common.OverlaySheet
 import com.illiamelnyk.studio.feature.create.presentation.common.rememberLatest
+import com.illiamelnyk.studio.feature.create.presentation.label
 import kotlin.time.Duration
 import kotlinx.collections.immutable.ImmutableList
 
@@ -37,30 +40,31 @@ import kotlinx.collections.immutable.ImmutableList
 @Stable
 class SettingsCallbacks(
     val onModelSelect: (MusicModel) -> Unit,
+    val onQualitySelect: (Quality) -> Unit,
+    val onVariantsSelect: (Int) -> Unit,
     val onInstrumentalChange: (Boolean) -> Unit,
-    val onDurationSelect: (Duration) -> Unit,
-    val onStyleSelect: (String?) -> Unit,
+    val onDurationSelect: (Duration?) -> Unit,
     val onReset: () -> Unit,
     val onApply: () -> Unit,
+    val onComingSoon: (ComingSoonFeature) -> Unit = {},
 )
 
 /**
  * The composer's settings, open while [draft] isn't `null`: the model, vocals or not, the length
- * and the style. Choices apply to the composer only with Apply; Reset brings back the defaults.
+ * and the writing engine. Choices apply to the composer only with Apply; Reset brings back the defaults.
  */
 @Composable
 fun SettingsSheet(
     draft: SettingsUi?,
     models: ImmutableList<ModelUi>,
     durations: ImmutableList<DurationOptionUi>,
-    styles: ImmutableList<StyleUi>?,
     callbacks: SettingsCallbacks,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val shown = rememberLatest(draft)
     OverlaySheet(visible = draft != null, onDismissRequest = onDismissRequest, modifier = modifier) {
-        if (shown != null) SettingsContent(shown, models, durations, styles, callbacks)
+        if (shown != null) SettingsContent(shown, models, durations, callbacks)
     }
 }
 
@@ -69,7 +73,6 @@ private fun SettingsContent(
     draft: SettingsUi,
     models: ImmutableList<ModelUi>,
     durations: ImmutableList<DurationOptionUi>,
-    styles: ImmutableList<StyleUi>?,
     callbacks: SettingsCallbacks,
     modifier: Modifier = Modifier,
 ) {
@@ -82,6 +85,16 @@ private fun SettingsContent(
         SettingsGroup(R.string.create_settings_model) {
             ModelCards(models, selected = draft.model, onSelect = callbacks.onModelSelect)
         }
+        SettingsGroup(R.string.create_settings_engine) {
+            StudioSegmentedControl(Quality.entries, draft.quality, callbacks.onQualitySelect) {
+                stringResource(it.label)
+            }
+        }
+        SettingsGroup(R.string.create_settings_variations) {
+            StudioSegmentedControl(listOf(1, 2), draft.variants, callbacks.onVariantsSelect) {
+                stringResource(R.string.create_variants, it)
+            }
+        }
         SettingsGroup(R.string.create_settings_vocals) {
             StudioSegmentedControl(
                 options = listOf(false, true),
@@ -93,16 +106,21 @@ private fun SettingsContent(
                 )
             }
         }
+        StudioChip(
+            stringResource(R.string.create_lyrics_custom),
+            { callbacks.onComingSoon(ComingSoonFeature.Lyrics) },
+        )
         SettingsGroup(R.string.create_settings_length) {
-            DurationPicker(durations, selected = draft.duration, onSelect = {
-                callbacks.onDurationSelect(it.duration)
+            DurationPicker(listOf(null) + durations, selected = draft.duration, onSelect = {
+                callbacks.onDurationSelect(it?.duration)
             }) {
-                it.label
+                it?.label ?: stringResource(R.string.create_quality_auto)
             }
         }
-        SettingsGroup(R.string.create_settings_style) {
-            StylePicker(styles, selectedId = draft.styleId, onSelect = callbacks.onStyleSelect)
-        }
+        StudioChip(
+            stringResource(R.string.create_chip_styles),
+            { callbacks.onComingSoon(ComingSoonFeature.Styles) },
+        )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs)) {
             StudioButton(
                 text = stringResource(R.string.create_settings_reset),
@@ -135,14 +153,13 @@ private fun SettingsGroup(@StringRes label: Int, modifier: Modifier = Modifier, 
 @PreviewLightDark
 @Composable
 private fun SettingsContentPreview() {
-    val state = CreateState(styles = CreatePreviewData.styles)
+    val state = CreateState()
     PreviewScreen {
         SettingsContent(
             draft = CreatePreviewData.settingsDraft,
             models = state.models,
             durations = state.durations,
-            styles = state.styles,
-            callbacks = SettingsCallbacks({}, {}, {}, {}, {}, {}),
+            callbacks = SettingsCallbacks({}, {}, {}, {}, {}, {}, {}),
             modifier = Modifier.padding(StudioTheme.dimens.spacing.m),
         )
     }

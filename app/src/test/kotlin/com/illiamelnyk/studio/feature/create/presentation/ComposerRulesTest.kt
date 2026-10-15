@@ -50,11 +50,11 @@ class ComposerRulesTest {
     }
 
     @Test
-    fun `two variants with one credit left can't be sent, and it says to switch to one`() {
+    fun `two variants are allowed with the last credit`() {
         val composer = ComposerUi(prompt = "Lo-fi", variants = 2).checked(creditsLeft = 1)
 
         assertEquals(
-            ComposerUi(prompt = "Lo-fi", variants = 2, notice = UiText.Plural(R.plurals.create_credits_short, 1, 1)),
+            ComposerUi(prompt = "Lo-fi", variants = 2, canSend = true),
             composer,
         )
     }

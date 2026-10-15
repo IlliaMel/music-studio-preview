@@ -8,6 +8,7 @@ import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +35,7 @@ import com.illiamelnyk.studio.core.ui.components.Composer
 import com.illiamelnyk.studio.core.ui.components.StudioIconButton
 import com.illiamelnyk.studio.core.ui.components.StudioIconButtonSize
 import com.illiamelnyk.studio.core.ui.components.StudioIconButtonStyle
+import com.illiamelnyk.studio.core.ui.components.StudioSegmentedControl
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
@@ -43,7 +45,7 @@ import com.illiamelnyk.studio.feature.create.presentation.CreatePreviewData
 
 /**
  * The composer at the bottom of Create, over a fade of the screen color so the list scrolls away
- * under it. It expands while it has focus, a prompt or a style: then the [options] row shows above
+ * under it. It expands while it has focus or a prompt: then the [options] row shows above
  * the field, with Enhance, Lyrics and the character count in the actions. [ComposerUi.notice] says
  * why a prompt can't be sent, such as no credits left.
  *
@@ -58,13 +60,15 @@ fun ComposerBar(
     onEnhanceClick: () -> Unit,
     onLyricsClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onMuseClick: () -> Unit,
+    onNoticeClick: () -> Unit,
     modifier: Modifier = Modifier,
     options: @Composable () -> Unit = {},
 ) {
     val dimens = StudioTheme.dimens
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
-    val expanded = focused || composer.prompt.isNotEmpty() || composer.style != null
+    val expanded = focused || composer.prompt.isNotEmpty()
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -77,8 +81,21 @@ fun ComposerBar(
             StudioText(
                 text = notice.asString(),
                 style = StudioTheme.typography.bodySmall,
-                modifier = Modifier.padding(horizontal = dimens.spacing.xs),
+                modifier = Modifier.clickable(onClick = onNoticeClick).padding(horizontal = dimens.spacing.xs),
                 color = StudioTheme.colors.content.secondary,
+            )
+        }
+        if (composer.prompt.length >= Prompt.MAX_LENGTH - 100) {
+            StudioText(
+                stringResource(R.string.ui_character_count, composer.prompt.length, Prompt.MAX_LENGTH),
+                StudioTheme.typography.bodySmall,
+                color = if (composer.prompt.length >
+                    Prompt.MAX_LENGTH
+                ) {
+                    StudioTheme.colors.error.content
+                } else {
+                    StudioTheme.colors.content.secondary
+                },
             )
         }
         Composer(
@@ -88,7 +105,8 @@ fun ComposerBar(
             expanded = expanded,
             placeholder = stringResource(R.string.create_composer_placeholder),
             sendEnabled = composer.canSend,
-            characterLimit = if (expanded) Prompt.MAX_LENGTH else null,
+            showSend = expanded,
+            characterLimit = null,
             interactionSource = interactionSource,
             options = options,
             leadingActions = {
@@ -98,6 +116,14 @@ fun ComposerBar(
                     onAttachClick,
                     StudioIconButtonStyle.Surface,
                 )
+                if (expanded) {
+                    StudioSegmentedControl(
+                        options = listOf(R.string.create_mode_create, R.string.create_soon_muse),
+                        selected = R.string.create_mode_create,
+                        onSelect = { if (it == R.string.create_soon_muse) onMuseClick() },
+                        compact = true,
+                    ) { stringResource(it) }
+                }
             },
             trailingActions = {
                 AnimatedVisibility(
@@ -110,7 +136,9 @@ fun ComposerBar(
                         ComposerAction(StudioIcons.Notes, R.string.create_composer_lyrics, onLyricsClick)
                     }
                 }
-                ComposerAction(StudioIcons.Tune, R.string.create_composer_settings, onSettingsClick)
+                if (!expanded) {
+                    ComposerAction(StudioIcons.Tune, R.string.create_composer_settings, onSettingsClick, StudioIconButtonStyle.Surface)
+                }
             },
         )
     }
@@ -157,16 +185,18 @@ private fun ComposerBarPreview(@PreviewParameter(ComposerPreviewData::class) com
             onEnhanceClick = {},
             onLyricsClick = {},
             onSettingsClick = {},
+            onMuseClick = {},
+            onNoticeClick = {},
             options = {
                 ComposerOptions(
                     quality = composer.quality,
-                    style = composer.style,
-                    duration = composer.duration.label,
+                    lyricsMode = composer.lyricsMode,
+                    duration = composer.duration,
                     variants = composer.variants,
                     onQualitySelect = {},
                     onStylesClick = {},
-                    onStyleRemove = {},
-                    onDurationClick = {},
+                    onInstrumentalRemove = {},
+                    onDurationSelect = {},
                     onVariantsClick = {},
                 )
             },

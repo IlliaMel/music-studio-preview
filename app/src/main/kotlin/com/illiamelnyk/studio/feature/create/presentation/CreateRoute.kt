@@ -1,7 +1,11 @@
 package com.illiamelnyk.studio.feature.create.presentation
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -30,6 +34,8 @@ import org.koin.compose.viewmodel.koinViewModel
 fun CreateRoute(
     onOpenTool: (Tool) -> Unit,
     modifier: Modifier = Modifier,
+    onOpenPlayer: () -> Unit = {},
+    onOpenTools: () -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(),
     viewModel: CreateViewModel = koinViewModel(),
 ) {
@@ -39,8 +45,17 @@ fun CreateRoute(
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
+    val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     ObserveEffects(viewModel.effects) { effect ->
         when (effect) {
+            CreateEffect.RequestNotifications -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+
+            CreateEffect.OpenTools -> onOpenTools()
+
+            CreateEffect.OpenPlayer -> onOpenPlayer()
+
             is CreateEffect.OpenTool -> onOpenTool(effect.tool)
 
             is CreateEffect.ShowToast -> scope.launch { toasts.show(effect.toast) }

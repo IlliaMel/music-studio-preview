@@ -18,6 +18,12 @@ enum class ComingSoonFeature(
     @param:ArrayRes val steps: Int,
     @param:DrawableRes val icon: Int,
 ) {
+    Styles(
+        R.string.create_chip_styles,
+        R.string.create_soon_styles_text,
+        R.array.create_soon_styles_steps,
+        StudioIcons.AutoAwesome,
+    ),
     Muse(
         R.string.create_soon_muse,
         R.string.create_soon_muse_text,

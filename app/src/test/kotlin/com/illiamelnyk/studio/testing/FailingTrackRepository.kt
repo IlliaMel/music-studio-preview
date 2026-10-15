@@ -16,6 +16,9 @@ class FailingTrackRepository(private val delegate: TrackRepository) : TrackRepos
 
     override suspend fun create(request: GenerationRequest): Outcome<Track> = failure() ?: delegate.create(request)
 
+    override suspend fun create(request: GenerationRequest, variants: Int): Outcome<List<Track>> =
+        failure() ?: delegate.create(request, variants)
+
     override suspend fun retry(id: TrackId): Outcome<Track> = failure() ?: delegate.retry(id)
 
     override suspend fun delete(id: TrackId): Outcome<Unit> = failure() ?: delegate.delete(id)

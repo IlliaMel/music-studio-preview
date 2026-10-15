@@ -6,7 +6,6 @@ import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.credits.CreditsRepository
 import com.illiamelnyk.studio.core.domain.playback.PlaybackController
-import com.illiamelnyk.studio.core.domain.track.Style
 import com.illiamelnyk.studio.core.domain.track.Track
 import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.core.domain.track.TrackRepository
@@ -19,14 +18,16 @@ import com.illiamelnyk.studio.core.ui.components.StudioToastKind
 import com.illiamelnyk.studio.feature.create.domain.GenerateTracks
 import com.illiamelnyk.studio.feature.create.domain.GenerationOutcome
 import com.illiamelnyk.studio.feature.create.domain.GenerationSettings
+import com.illiamelnyk.studio.feature.create.domain.LyricsMode
+import com.illiamelnyk.studio.feature.create.domain.NotificationChoice
 import com.illiamelnyk.studio.feature.create.domain.PlayNext
-import com.illiamelnyk.studio.feature.create.domain.StyleCatalog
+import com.illiamelnyk.studio.feature.create.domain.TrackRenames
 import com.illiamelnyk.studio.feature.create.domain.endedGenerations
 import com.illiamelnyk.studio.feature.create.presentation.common.ComingSoonFeature
 import com.illiamelnyk.studio.feature.create.presentation.common.ToastUi
 import com.illiamelnyk.studio.feature.create.presentation.common.toOptionUi
-import kotlinx.collections.immutable.toImmutableList
-import kotlinx.coroutines.Job
+import java.time.ZoneId
+import kotlin.time.Clock
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
@@ -36,22 +37,23 @@ import kotlinx.coroutines.launch
 class CreateViewModel(
     private val tracks: TrackRepository,
     credits: CreditsRepository,
-    private val styleCatalog: StyleCatalog,
     private val playback: PlaybackController,
     private val generateTracks: GenerateTracks,
     private val playNext: PlayNext,
+    private val clock: Clock,
+    private val notificationChoice: NotificationChoice,
+    private val renames: TrackRenames,
 ) : MviViewModel<CreateState, CreateIntent, CreateEffect>(CreateState()) {
 
     /** The tracks as the repository last sent them: to play, to share, and to see generations end. */
     private var myTracks: List<Track> = emptyList()
-    private var styles: List<Style> = emptyList()
-    private var stylesLoading: Job? = null
 
     /** What the composer generates with; the composer's state shows it. */
     private var settings = GenerationSettings()
 
     /** `null` until the credits are known. */
     private var creditsLeft: Int? = null
+    private var dailyLimit = 0
 
     init {
         tracks.observeMine().onEach(::showTracks).launchIn(viewModelScope)
@@ -60,16 +62,20 @@ class CreateViewModel(
             .onEach { id -> setState { copy(playingTrackId = id) } }
             .launchIn(viewModelScope)
         credits.credits.onEach { credits ->
+            val exhausted = creditsLeft != null && creditsLeft != 0 && credits.remaining == 0
             creditsLeft = credits.remaining
+            dailyLimit = credits.dailyLimit
             updateComposer()
+            if (exhausted) openQuota()
         }.launchIn(viewModelScope)
-        loadStyles()
     }
 
     override fun onIntent(intent: CreateIntent) = when (intent) {
         is CreateIntent.ComingSoonClicked -> setState { copy(sheet = CreateSheet.ComingSoon(intent.feature)) }
 
-        CreateIntent.StylesClicked -> openStyles()
+        CreateIntent.StylesClicked -> openComingSoon(ComingSoonFeature.Styles)
+
+        CreateIntent.ToolsClicked -> sendEffect(CreateEffect.OpenTools)
 
         is CreateIntent.ToolClicked -> sendEffect(CreateEffect.OpenTool(intent.tool))
 
@@ -99,9 +105,29 @@ class CreateViewModel(
 
         CreateIntent.SendClicked -> send()
 
+        CreateIntent.QuotaClicked -> openQuota()
+
+        is CreateIntent.NotificationAnswered -> answerNotifications(intent.notify)
+
         is CreateIntent.QualitySelected -> changeSettings { copy(quality = intent.quality) }
 
-        CreateIntent.StyleRemoved -> changeSettings { copy(style = null) }
+        CreateIntent.InstrumentalRemoved -> changeSettings { copy(lyricsMode = LyricsMode.Auto) }
+
+        CreateIntent.LyricsClicked -> setState { copy(sheet = CreateSheet.Lyrics) }
+
+        is CreateIntent.LyricsSelected -> {
+            setState { copy(sheet = null) }
+            changeSettings { copy(lyricsMode = if (intent.instrumental) LyricsMode.Instrumental else LyricsMode.Auto) }
+        }
+
+        is CreateIntent.DurationSelected -> changeSettings { copy(duration = intent.duration) }
+
+        is CreateIntent.RenameChanged -> setState {
+            val open = sheet as? CreateSheet.Rename ?: return@setState this
+            copy(sheet = open.copy(title = intent.title))
+        }
+
+        CreateIntent.RenameConfirmed -> rename()
 
         CreateIntent.VariantsClicked -> changeSettings {
             copy(variants = if (variants == 1) GenerationSettings.MAX_VARIANTS else 1)
@@ -109,15 +135,15 @@ class CreateViewModel(
 
         CreateIntent.SettingsClicked -> openSettings()
 
-        is CreateIntent.StyleSelected -> selectStyle(intent.id)
+        is CreateIntent.SettingsQualitySelected -> editDraft { copy(quality = intent.quality) }
+
+        is CreateIntent.SettingsVariantsSelected -> editDraft { copy(variants = intent.variants) }
 
         is CreateIntent.SettingsModelSelected -> editDraft { copy(model = intent.model) }
 
         is CreateIntent.SettingsInstrumentalChanged -> editDraft { copy(instrumental = intent.instrumental) }
 
-        is CreateIntent.SettingsDurationSelected -> editDraft { copy(duration = intent.duration.toOptionUi()) }
-
-        is CreateIntent.SettingsStyleSelected -> editDraft { copy(styleId = intent.id) }
+        is CreateIntent.SettingsDurationSelected -> editDraft { copy(duration = intent.duration?.toOptionUi()) }
 
         CreateIntent.SettingsReset -> editDraft { GenerationSettings().toSettingsUi() }
 
@@ -133,7 +159,12 @@ class CreateViewModel(
         myTracks = list
         setState {
             copy(
-                tracks = list.map(Track::toCreateUi).toImmutableList(),
+                tracks = list.map(renames::apply).toGroupedCreateUi(
+                    today = java.time.Instant.ofEpochMilli(
+                        clock.now().toEpochMilliseconds(),
+                    ).atZone(ZoneId.systemDefault()).toLocalDate(),
+                    zone = ZoneId.systemDefault(),
+                ),
                 isLoading = false,
                 // A track that went away takes its menu with it.
                 menuTrackId = menuTrackId?.takeIf { id -> list.any { it.id == id } },
@@ -144,9 +175,12 @@ class CreateViewModel(
 
     /** Plays the ready tracks from the one tapped; tracks still composing or failed can't play. */
     private fun play(id: TrackId) {
-        val ready = myTracks.filter { it.status == TrackStatus.Ready }
+        val ready = myTracks.filter { it.status == TrackStatus.Ready }.map(renames::apply)
         val index = ready.indexOfFirst { it.id == id }
-        if (index >= 0) playback.play(ready, index)
+        if (index >= 0) {
+            playback.play(ready, index)
+            sendEffect(CreateEffect.OpenPlayer)
+        }
     }
 
     private fun retry(id: TrackId) {
@@ -164,19 +198,16 @@ class CreateViewModel(
     private fun onMenuAction(action: TrackMenuAction) {
         val id = state.value.menuTrackId ?: return
         setState { copy(menuTrackId = null) }
-        val track = myTracks.find { it.id == id } ?: return
+        val track = myTracks.find { it.id == id }?.let(renames::apply) ?: return
         when (action) {
             TrackMenuAction.PlayNext -> {
                 playNext(track)
                 toast(UiText.Resource(R.string.create_toast_play_next), UiText.Raw(track.title))
             }
 
-            TrackMenuAction.Like -> viewModelScope.launch {
-                val result = tracks.setLiked(id, liked = !track.isLiked)
-                if (result is Outcome.Failure) showError(result.error)
-            }
+            TrackMenuAction.Rename -> setState { copy(sheet = CreateSheet.Rename(id, track.title)) }
 
-            TrackMenuAction.AddToPlaylist -> openComingSoon(ComingSoonFeature.AddToPlaylist)
+            TrackMenuAction.UsePrompt -> updateComposer { copy(prompt = track.prompt) }
 
             TrackMenuAction.Share -> sendEffect(CreateEffect.ShareTrack(track.title, track.prompt))
 
@@ -188,20 +219,33 @@ class CreateViewModel(
 
     private fun askToDelete(id: TrackId) {
         val row = state.value.tracks.find { it.row.id == id }?.row ?: return
-        setState { copy(deleting = row) }
+        if (row.status is com.illiamelnyk.studio.core.presentation.track.TrackUi.Status.Failed) {
+            deleteTrack(id)
+        } else {
+            setState { copy(deleting = row) }
+        }
     }
 
     private fun delete() {
         val id = state.value.deleting?.id ?: return
         setState { copy(deleting = null) }
+        deleteTrack(id)
+    }
+
+    private fun deleteTrack(id: TrackId) {
         viewModelScope.launch {
             val result = tracks.delete(id)
+            if (result is Outcome.Success) renames.remove(id)
             if (result is Outcome.Failure) showError(result.error)
         }
     }
 
     private fun send() {
         val composer = state.value.composer
+        if (creditsLeft == 0) {
+            openQuota()
+            return
+        }
         if (!composer.canSend) return
         updateComposer { copy(isSending = true) }
         viewModelScope.launch {
@@ -213,6 +257,9 @@ class CreateViewModel(
                 is Outcome.Success -> {
                     setState { copy(filter = TracksFilter.Drafts) }
                     sendEffect(CreateEffect.TracksStarted)
+                    if (!notificationChoice.hasAnswered() && state.value.sheet !is CreateSheet.Quota) {
+                        setState { copy(sheet = CreateSheet.Notify) }
+                    }
                 }
 
                 is Outcome.Failure -> showError(result.error)
@@ -220,20 +267,17 @@ class CreateViewModel(
         }
     }
 
-    private fun openStyles() {
-        setState { copy(sheet = CreateSheet.Styles) }
-        if (state.value.styles == null) loadStyles()
-    }
-
-    private fun selectStyle(id: String) {
-        val style = styles.find { it.id == id } ?: return
+    private fun rename() {
+        val draft = state.value.sheet as? CreateSheet.Rename ?: return
+        val title = draft.title.trim()
+        if (title.isBlank()) return
+        renames.rename(draft.id, title)
         setState { copy(sheet = null) }
-        changeSettings { copy(style = style) }
+        showTracks(myTracks)
     }
 
     private fun openSettings() {
         setState { copy(sheet = CreateSheet.Settings(settings.toSettingsUi())) }
-        if (state.value.styles == null) loadStyles()
     }
 
     private fun editDraft(edit: SettingsUi.() -> SettingsUi) {
@@ -249,9 +293,10 @@ class CreateViewModel(
         changeSettings {
             copy(
                 model = draft.model,
-                instrumental = draft.instrumental,
-                duration = draft.duration.duration,
-                style = styles.find { it.id == draft.styleId },
+                quality = draft.quality,
+                variants = draft.variants,
+                lyricsMode = if (draft.instrumental) LyricsMode.Instrumental else LyricsMode.Auto,
+                duration = draft.duration?.duration,
             )
         }
     }
@@ -267,21 +312,6 @@ class CreateViewModel(
 
     private fun openComingSoon(feature: ComingSoonFeature) = setState { copy(sheet = CreateSheet.ComingSoon(feature)) }
 
-    private fun loadStyles() {
-        if (stylesLoading?.isActive == true) return
-        stylesLoading = viewModelScope.launch {
-            when (val result = styleCatalog.styles()) {
-                is Outcome.Success -> {
-                    styles = result.value
-                    setState { copy(styles = result.value.map(Style::toUi).toImmutableList()) }
-                }
-
-                // The sheets keep their placeholders; opening one asks again.
-                is Outcome.Failure -> showError(result.error)
-            }
-        }
-    }
-
     private fun changeSettings(change: GenerationSettings.() -> GenerationSettings) {
         settings = settings.change()
         updateComposer()
@@ -292,8 +322,24 @@ class CreateViewModel(
         setState { copy(composer = composer.change().withSettings(settings).checked(creditsLeft)) }
     }
 
-    private fun showError(error: AppError) =
-        toast(UiText.Resource(R.string.create_toast_error), error.toUiText(), StudioToastKind.Error)
+    private fun openQuota() = setState { copy(sheet = CreateSheet.Quota(dailyLimit)) }
+
+    private fun answerNotifications(notify: Boolean) {
+        if (state.value.sheet != CreateSheet.Notify) return
+        setState { copy(sheet = null) }
+        viewModelScope.launch {
+            notificationChoice.answer()
+            if (notify) sendEffect(CreateEffect.RequestNotifications)
+        }
+    }
+
+    private fun showError(error: AppError) {
+        if (error == AppError.QuotaExceeded) {
+            openQuota()
+        } else {
+            toast(UiText.Resource(R.string.create_toast_error), error.toUiText(), StudioToastKind.Error)
+        }
+    }
 
     private fun toast(title: UiText, message: UiText, kind: StudioToastKind = StudioToastKind.Info) =
         sendEffect(CreateEffect.ShowToast(ToastUi(title, message, kind)))

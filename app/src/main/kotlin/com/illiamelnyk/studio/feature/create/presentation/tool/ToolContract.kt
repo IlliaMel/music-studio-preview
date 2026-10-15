@@ -15,6 +15,7 @@ import com.illiamelnyk.studio.feature.create.presentation.common.ToastUi
 import com.illiamelnyk.studio.feature.create.presentation.common.toOptionUi
 import com.illiamelnyk.studio.feature.create.presentation.common.trackLengthOptions
 import com.illiamelnyk.studio.feature.create.presentation.toUi
+import kotlin.time.Duration.Companion.minutes
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 
@@ -35,11 +36,13 @@ data class ToolState(
     val template: ImmutableList<PromptPart>,
     val duration: DurationOptionUi,
     val recording: RecordingUi?,
-    val durations: ImmutableList<DurationOptionUi> = trackLengthOptions,
+    val durations: ImmutableList<DurationOptionUi> = trackLengthOptions.filter {
+        it.duration <= 3.minutes
+    }.toImmutableList(),
     val slotSheet: SlotSheetUi? = null,
     val comingSoon: ComingSoonFeature? = null,
     val canUse: Boolean = false,
-    val hint: UiText? = null,
+    val hint: UiText? = UiText.Resource(R.string.tool_needs_recording),
     val isSubmitting: Boolean = false,
 ) {
     constructor(tool: Tool) : this(
@@ -74,20 +77,6 @@ fun ToolTemplate.toParts(values: Map<String, String>): ImmutableList<PromptPart>
         is ToolTemplate.Part.Slot -> PromptPart.Slot(part.slot.id, part.slot.label, values[part.slot.id])
     }
 }.toImmutableList()
-
-/**
- * Whether [tool] can be used with [values] in its slots, and if not why: it needs a recording
- * first, then every slot filled, then a credit. Until the credits are known it waits silently.
- */
-fun ToolState.checked(tool: Tool, values: Map<String, String>, creditsLeft: Int?): ToolState {
-    val hint = when {
-        tool.recording != null -> UiText.Resource(R.string.tool_needs_recording)
-        tool.template.fill(values) == null -> UiText.Resource(R.string.tool_fill_slots)
-        creditsLeft == 0 -> UiText.Resource(R.string.error_quota_exceeded)
-        else -> null
-    }
-    return copy(hint = hint, canUse = hint == null && creditsLeft != null && !isSubmitting)
-}
 
 sealed interface ToolIntent {
     data object BackClicked : ToolIntent

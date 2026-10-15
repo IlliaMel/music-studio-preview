@@ -76,21 +76,12 @@ class CreatePreviewData : PreviewParameterProvider<CreateState> {
             ),
         )
 
-        val styles: ImmutableList<StyleUi> = persistentListOf(
-            StyleUi("lofi", "Lo-fi", "Dusty drums · Rhodes · Vinyl", "Lo-fi"),
-            StyleUi("synthwave", "Synthwave", "Arpeggios · Retro · Night drive", "Synthwave"),
-            StyleUi("indie-folk", "Indie folk", "Acoustic · Harmonies · Warm", "Indie folk"),
-            StyleUi("dnb", "Drum and bass", "Breakbeats · Sub bass · Fast", "Drum and bass"),
-            StyleUi("cinematic", "Cinematic", "Strings · Choir · Epic", "Cinematic"),
-        )
-
         /** Collapsed and empty; expanded with options; over the limit; out of credits. */
         val composers: ImmutableList<ComposerUi> = persistentListOf(
             ComposerUi(),
             ComposerUi(
                 prompt = "A slow lo-fi beat for a rainy morning, with soft piano",
                 quality = Quality.Deep,
-                style = styles[1],
                 duration = 1.minutes.toOptionUi(),
                 variants = 2,
                 canSend = true,
@@ -106,7 +97,6 @@ class CreatePreviewData : PreviewParameterProvider<CreateState> {
             model = MusicModel.V2_5,
             instrumental = true,
             duration = 3.minutes.toOptionUi(),
-            styleId = "synthwave",
         )
 
         private const val SUGGESTION = "Indie rock song with an original sound of its own"

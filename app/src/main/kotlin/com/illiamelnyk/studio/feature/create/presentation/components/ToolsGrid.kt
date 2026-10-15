@@ -33,7 +33,12 @@ import kotlinx.collections.immutable.toImmutableList
  * with a large font, the tools stack one per row instead of being cut off.
  */
 @Composable
-fun ToolsGrid(tools: ImmutableList<ToolUi>, onToolClick: (Tool) -> Unit, modifier: Modifier = Modifier) {
+fun ToolsGrid(
+    tools: ImmutableList<ToolUi>,
+    onToolClick: (Tool) -> Unit,
+    modifier: Modifier = Modifier,
+    onCatalogClick: () -> Unit = {},
+) {
     val dimens = StudioTheme.dimens
     val names = tools.map { stringResource(it.title) }
     val measurer = rememberTextMeasurer()
@@ -43,7 +48,7 @@ fun ToolsGrid(tools: ImmutableList<ToolUi>, onToolClick: (Tool) -> Unit, modifie
         modifier = modifier.padding(horizontal = dimens.layout.screenPadding, vertical = dimens.spacing.s),
         verticalArrangement = Arrangement.spacedBy(dimens.layout.itemGap),
     ) {
-        SectionHeader(stringResource(R.string.create_tools))
+        SectionHeader(stringResource(R.string.create_tools), onTitleClick = onCatalogClick)
         BoxWithConstraints {
             // A tile's name gets what its picture, the gap after it and the end padding leave.
             val halfTileText = (maxWidth - dimens.layout.itemGap) / COLUMNS - dimens.size.cover.m - dimens.spacing.s * 2

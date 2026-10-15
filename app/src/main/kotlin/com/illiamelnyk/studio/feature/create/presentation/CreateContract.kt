@@ -19,21 +19,19 @@ import kotlinx.collections.immutable.toImmutableList
  * The Create tab: shortcuts, tools, the user's tracks and the composer that makes new ones.
  *
  * @param playingTrackId the track the player has loaded, marked in the list.
- * @param styles `null` until the catalog has loaded.
  * @param sheet the sheet that is open, if any.
  * @param menuTrackId the track whose menu is open.
  * @param deleting the track the user is asked to confirm deleting.
  */
 @Immutable
 data class CreateState(
-    val tools: ImmutableList<ToolUi> = Tool.entries.map(Tool::toUi).toImmutableList(),
+    val tools: ImmutableList<ToolUi> = Tool.entries.filter(Tool::featured).map(Tool::toUi).toImmutableList(),
     val filter: TracksFilter = TracksFilter.Drafts,
     val tracks: ImmutableList<CreateTrackUi> = persistentListOf(),
     val playingTrackId: TrackId? = null,
     val isLoading: Boolean = true,
     val ideas: ImmutableList<PromptIdeaUi> = promptIdeas,
     val composer: ComposerUi = ComposerUi(),
-    val styles: ImmutableList<StyleUi>? = null,
     val models: ImmutableList<ModelUi> = MusicModel.entries.map(MusicModel::toUi).toImmutableList(),
     val durations: ImmutableList<DurationOptionUi> = trackLengthOptions,
     val sheet: CreateSheet? = null,
@@ -44,7 +42,13 @@ data class CreateState(
 /** The sheets of Create; one is open at a time. */
 @Immutable
 sealed interface CreateSheet {
-    data object Styles : CreateSheet
+    data object Notify : CreateSheet
+
+    data class Quota(val dailyLimit: Int) : CreateSheet
+
+    data object Lyrics : CreateSheet
+
+    data class Rename(val id: TrackId, val title: String) : CreateSheet
 
     /** The settings, with the choices made in the sheet so far. */
     data class Settings(val draft: SettingsUi) : CreateSheet
@@ -53,12 +57,14 @@ sealed interface CreateSheet {
 }
 
 /** What the menu of a track can do. */
-enum class TrackMenuAction { PlayNext, Like, AddToPlaylist, Share, Download, Delete }
+enum class TrackMenuAction { PlayNext, Share, Download, Rename, UsePrompt, Delete }
 
 sealed interface CreateIntent {
     data class ComingSoonClicked(val feature: ComingSoonFeature) : CreateIntent
 
     data object StylesClicked : CreateIntent
+
+    data object ToolsClicked : CreateIntent
 
     data class ToolClicked(val tool: Tool) : CreateIntent
 
@@ -74,7 +80,7 @@ sealed interface CreateIntent {
     /** "Use suggestion" or "Edit prompt" under a track whose prompt was refused. */
     data class FixClicked(val id: TrackId) : CreateIntent
 
-    /** Delete under a failed track; finished ones delete from their menu. Either asks first. */
+    /** Delete under a failed track; finished ones delete from their menu. Only Ready asks first. */
     data class DeleteClicked(val id: TrackId) : CreateIntent
 
     data class MoreClicked(val id: TrackId) : CreateIntent
@@ -92,25 +98,38 @@ sealed interface CreateIntent {
 
     data object SendClicked : CreateIntent
 
+    data object QuotaClicked : CreateIntent
+
+    data class NotificationAnswered(val notify: Boolean) : CreateIntent
+
     data class QualitySelected(val quality: Quality) : CreateIntent
 
-    data object StyleRemoved : CreateIntent
+    data object InstrumentalRemoved : CreateIntent
+
+    data object LyricsClicked : CreateIntent
+
+    data class LyricsSelected(val instrumental: Boolean) : CreateIntent
+
+    data class DurationSelected(val duration: Duration?) : CreateIntent
+
+    data class RenameChanged(val title: String) : CreateIntent
+
+    data object RenameConfirmed : CreateIntent
 
     /** Switches between one and two tracks per prompt. */
     data object VariantsClicked : CreateIntent
 
     data object SettingsClicked : CreateIntent
 
-    data class StyleSelected(val id: String) : CreateIntent
+    data class SettingsQualitySelected(val quality: Quality) : CreateIntent
+
+    data class SettingsVariantsSelected(val variants: Int) : CreateIntent
 
     data class SettingsModelSelected(val model: MusicModel) : CreateIntent
 
     data class SettingsInstrumentalChanged(val instrumental: Boolean) : CreateIntent
 
-    data class SettingsDurationSelected(val duration: Duration) : CreateIntent
-
-    /** A style in the settings, or `null` for none. */
-    data class SettingsStyleSelected(val id: String?) : CreateIntent
+    data class SettingsDurationSelected(val duration: Duration?) : CreateIntent
 
     data object SettingsReset : CreateIntent
 
@@ -123,6 +142,12 @@ sealed interface CreateIntent {
 }
 
 sealed interface CreateEffect {
+    data object RequestNotifications : CreateEffect
+
+    data object OpenTools : CreateEffect
+
+    data object OpenPlayer : CreateEffect
+
     data class OpenTool(val tool: Tool) : CreateEffect
 
     data class ShowToast(val toast: ToastUi) : CreateEffect

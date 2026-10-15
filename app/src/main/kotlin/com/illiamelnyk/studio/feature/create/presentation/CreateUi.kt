@@ -6,14 +6,14 @@ import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.track.MusicModel
 import com.illiamelnyk.studio.core.domain.track.Quality
-import com.illiamelnyk.studio.core.domain.track.Style
 import com.illiamelnyk.studio.core.domain.track.Track
 import com.illiamelnyk.studio.core.domain.track.TrackStatus
 import com.illiamelnyk.studio.core.presentation.UiText
+import com.illiamelnyk.studio.core.presentation.toClockText
 import com.illiamelnyk.studio.core.presentation.track.TrackUi
 import com.illiamelnyk.studio.core.presentation.track.toUi
 import com.illiamelnyk.studio.feature.create.domain.GenerationSettings
-import com.illiamelnyk.studio.feature.create.domain.TrackLengths
+import com.illiamelnyk.studio.feature.create.domain.LyricsMode
 import com.illiamelnyk.studio.feature.create.presentation.common.DurationOptionUi
 import com.illiamelnyk.studio.feature.create.presentation.common.toOptionUi
 import kotlinx.collections.immutable.ImmutableList
@@ -33,6 +33,8 @@ data class CreateTrackUi(
     val fix: PromptFix? = null,
     val canRetry: Boolean = false,
     val progress: Float? = null,
+    val dayLabel: UiText? = null,
+    val variation: Int? = null,
 )
 
 /**
@@ -45,22 +47,28 @@ data class PromptFix(val prompt: String, val isSuggestion: Boolean)
 fun Track.toCreateUi(): CreateTrackUi {
     val error = (status as? TrackStatus.Failed)?.error
     return CreateTrackUi(
-        row = toUi(),
+        row = toUi().copy(
+            subtitle = when (val phase = status) {
+                is TrackStatus.Generating -> UiText.Resource(
+                    if (phase.progress < 0.5f) R.string.create_creating_title else R.string.create_creating_artwork,
+                )
+
+                TrackStatus.Ready -> UiText.Raw(
+                    listOf(
+                        duration.toClockText(),
+                        genres.joinToString(", "),
+                    ).filter(String::isNotBlank).joinToString(" \u00b7 "),
+                )
+
+                else -> toUi().subtitle
+            },
+        ),
         isLiked = isLiked,
         fix = (error as? AppError.InvalidPrompt)?.let { PromptFix(it.suggestion ?: prompt, it.suggestion != null) },
         canRetry = error != null && error !is AppError.InvalidPrompt,
         progress = (status as? TrackStatus.Generating)?.progress,
     )
 }
-
-/** A style as its tile and the composer's chip show it. */
-@Immutable
-data class StyleUi(val id: String, val name: String, val tags: String, val coverSeed: String)
-
-fun Style.toUi(): StyleUi =
-    StyleUi(id = id, name = name, tags = tags.joinToString(TAG_SEPARATOR), coverSeed = coverSeed.value)
-
-private const val TAG_SEPARATOR = " · "
 
 /** A music model as its card in the settings shows it. */
 @Immutable
@@ -82,7 +90,7 @@ val Quality.label: Int
 /**
  * The composer: the prompt and the options it is sent with.
  *
- * @param style `null` until the user picks one.
+ * @param lyricsMode whether the engine may add lyrics or must remain instrumental.
  * @param canSend the prompt can be sent now: valid, enough credits, nothing being sent.
  * @param notice why it can't be sent although it is filled in, such as no credits left.
  */
@@ -90,8 +98,8 @@ val Quality.label: Int
 data class ComposerUi(
     val prompt: String = "",
     val quality: Quality = Quality.Auto,
-    val style: StyleUi? = null,
-    val duration: DurationOptionUi = TrackLengths.default.toOptionUi(),
+    val lyricsMode: LyricsMode = LyricsMode.Auto,
+    val duration: DurationOptionUi? = null,
     val variants: Int = 1,
     val canSend: Boolean = false,
     val notice: UiText? = null,
@@ -103,12 +111,18 @@ data class ComposerUi(
 data class SettingsUi(
     val model: MusicModel,
     val instrumental: Boolean,
-    val duration: DurationOptionUi,
-    val styleId: String?,
+    val duration: DurationOptionUi?,
+    val quality: Quality = Quality.Auto,
+    val variants: Int = 1,
 )
 
-fun GenerationSettings.toSettingsUi(): SettingsUi =
-    SettingsUi(model = model, instrumental = instrumental, duration = duration.toOptionUi(), styleId = style?.id)
+fun GenerationSettings.toSettingsUi(): SettingsUi = SettingsUi(
+    model = model,
+    instrumental = lyricsMode == LyricsMode.Instrumental,
+    duration = duration?.toOptionUi(),
+    quality = quality,
+    variants = variants,
+)
 
 /** An idea for a first track, offered while the list is empty: tapping it fills the composer. */
 @Immutable

@@ -6,17 +6,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.isPopup
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import com.illiamelnyk.studio.R
@@ -25,6 +28,7 @@ import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.create.domain.Tool
 import kotlinx.collections.immutable.persistentListOf
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,7 +49,7 @@ class CreateScreenTest {
     fun `typing reports the prompt, and send sends it once it can`() {
         show()
         val send = composeRule.onNodeWithContentDescription(string(R.string.ui_send))
-        send.assertIsNotEnabled()
+        send.assertDoesNotExist()
 
         composeRule.onNode(hasSetTextAction()).performTextInput("Lo-fi beat")
         assertEquals(CreateIntent.PromptChanged("Lo-fi beat"), intents.last())
@@ -97,6 +101,48 @@ class CreateScreenTest {
         composeRule.onNodeWithText(prompt).performClick()
 
         assertEquals(CreateIntent.IdeaClicked(prompt), intents.last())
+    }
+
+    @Test
+    fun `settings expose Custom lyrics and Styles as coming soon actions`() {
+        state = state.copy(
+            sheet = CreateSheet.Settings(
+                SettingsUi(com.illiamelnyk.studio.core.domain.track.MusicModel.V2_5, false, null),
+            ),
+        )
+        show()
+        composeRule.onNodeWithText(string(R.string.create_lyrics_custom)).performScrollTo().performClick()
+        assertEquals(
+            CreateIntent.ComingSoonClicked(
+                com.illiamelnyk.studio.feature.create.presentation.common.ComingSoonFeature.Lyrics,
+            ),
+            intents.last(),
+        )
+        composeRule.onNode(hasText(string(R.string.create_chip_styles)) and hasAnyAncestor(isDialog()))
+            .performScrollTo().performClick()
+        assertEquals(
+            CreateIntent.ComingSoonClicked(
+                com.illiamelnyk.studio.feature.create.presentation.common.ComingSoonFeature.Styles,
+            ),
+            intents.last(),
+        )
+    }
+
+    @Test
+    fun `collapsed composer keeps attach field and settings on one line then retains focus when expanded`() {
+        show()
+        val field = composeRule.onNode(hasSetTextAction())
+        val fieldBounds = field.fetchSemanticsNode().boundsInRoot
+        val attachBounds = composeRule.onNodeWithContentDescription(string(R.string.create_composer_upload))
+            .fetchSemanticsNode().boundsInRoot
+        val settingsBounds = composeRule.onNodeWithContentDescription(string(R.string.create_composer_settings))
+            .fetchSemanticsNode().boundsInRoot
+        assertTrue(kotlin.math.abs(attachBounds.center.y - fieldBounds.center.y) < attachBounds.height)
+        assertTrue(kotlin.math.abs(settingsBounds.center.y - fieldBounds.center.y) < settingsBounds.height)
+        assertTrue(settingsBounds.left >= fieldBounds.right)
+        field.performTextInput("Keep focus")
+        field.assertIsFocused()
+        composeRule.onNodeWithContentDescription(string(R.string.create_composer_lyrics)).assertExists()
     }
 
     private fun show() {

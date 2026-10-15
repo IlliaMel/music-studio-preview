@@ -27,11 +27,15 @@ fun Tool.toUi(): ToolUi = ToolUi(
         Tool.Genreshift -> R.string.tool_genreshift
         Tool.SampleToSong -> R.string.tool_sample_to_song
         Tool.Unplugged -> R.string.tool_unplugged
+        Tool.VoiceMemoToSong -> R.string.tool_voice_memo
+        Tool.HumToSong -> R.string.tool_hum
     },
     description = when (this) {
         Tool.VoiceToSong -> R.string.tool_voice_to_song_description
         Tool.Genreshift -> R.string.tool_genreshift_description
         Tool.SampleToSong -> R.string.tool_sample_to_song_description
+        Tool.VoiceMemoToSong -> R.string.tool_voice_memo_description
+        Tool.HumToSong -> R.string.tool_hum_description
         Tool.Unplugged -> R.string.tool_unplugged_description
     },
     coverSeed = name,

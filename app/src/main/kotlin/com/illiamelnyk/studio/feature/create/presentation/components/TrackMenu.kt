@@ -15,15 +15,13 @@ import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.feature.create.presentation.TrackMenuAction
 
 /**
- * The menu of one of the user's tracks. Adding to a playlist and downloading are marked as coming
- * soon and explain themselves; Delete asks first.
+ * The MVP menu of one of the user's tracks; saving audio is coming soon and Delete asks first.
  */
 // The root is the menu's popup window; the modifier is for the menu inside it.
 @Suppress("ktlint:compose:modifier-not-used-at-root")
 @Composable
 fun TrackMenu(
     expanded: Boolean,
-    isLiked: Boolean,
     onAction: (TrackMenuAction) -> Unit,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
@@ -36,17 +34,6 @@ fun TrackMenu(
             icon = StudioIcons.PlaylistPlay,
         )
         ContextMenuItem(
-            label = stringResource(if (isLiked) R.string.create_menu_unlike else R.string.create_menu_like),
-            onClick = { onAction(TrackMenuAction.Like) },
-            icon = if (isLiked) StudioIcons.FavoriteFilled else StudioIcons.Favorite,
-        )
-        ContextMenuItem(
-            label = stringResource(R.string.create_menu_add_to_playlist),
-            onClick = { onAction(TrackMenuAction.AddToPlaylist) },
-            icon = StudioIcons.PlaylistAdd,
-            hint = soon,
-        )
-        ContextMenuItem(
             label = stringResource(R.string.create_menu_share),
             onClick = { onAction(TrackMenuAction.Share) },
             icon = StudioIcons.IosShare,
@@ -56,6 +43,16 @@ fun TrackMenu(
             onClick = { onAction(TrackMenuAction.Download) },
             icon = StudioIcons.Download,
             hint = soon,
+        )
+        ContextMenuItem(
+            label = stringResource(R.string.create_menu_rename),
+            onClick = { onAction(TrackMenuAction.Rename) },
+            icon = StudioIcons.Edit,
+        )
+        ContextMenuItem(
+            label = stringResource(R.string.create_menu_use_prompt),
+            onClick = { onAction(TrackMenuAction.UsePrompt) },
+            icon = StudioIcons.Notes,
         )
         ContextMenuDivider()
         ContextMenuItem(
@@ -73,7 +70,7 @@ private fun TrackMenuPreview() {
     PreviewScreen {
         Box {
             StudioIconButton(StudioIcons.MoreHoriz, contentDescription = "", onClick = {})
-            TrackMenu(expanded = true, isLiked = true, onAction = {}, onDismissRequest = {})
+            TrackMenu(expanded = true, onAction = {}, onDismissRequest = {})
         }
     }
 }

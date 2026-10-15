@@ -1,47 +1,34 @@
 package com.illiamelnyk.studio.feature.create.presentation.tool
 
-import androidx.lifecycle.viewModelScope
 import com.illiamelnyk.studio.R
-import com.illiamelnyk.studio.core.domain.Outcome
-import com.illiamelnyk.studio.core.domain.credits.CreditsRepository
 import com.illiamelnyk.studio.core.presentation.MviViewModel
 import com.illiamelnyk.studio.core.presentation.UiText
-import com.illiamelnyk.studio.core.presentation.toUiText
-import com.illiamelnyk.studio.core.ui.components.StudioToastKind
-import com.illiamelnyk.studio.feature.create.domain.GenerateTracks
-import com.illiamelnyk.studio.feature.create.domain.GenerationSettings
 import com.illiamelnyk.studio.feature.create.domain.Tool
 import com.illiamelnyk.studio.feature.create.presentation.common.ToastUi
 import kotlinx.collections.immutable.toImmutableList
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
 
-class ToolViewModel(private val tool: Tool, private val generateTracks: GenerateTracks, credits: CreditsRepository) :
-    MviViewModel<ToolState, ToolIntent, ToolEffect>(ToolState(tool)) {
+class ToolViewModel(private val tool: Tool) : MviViewModel<ToolState, ToolIntent, ToolEffect>(ToolState(tool)) {
 
-    /** What the user picked for each slot, by slot id. */
     private var values: Map<String, String> = emptyMap()
-
-    /** `null` until the credits are known. */
-    private var creditsLeft: Int? = null
-
-    init {
-        credits.credits.onEach { credits ->
-            creditsLeft = credits.remaining
-            refresh()
-        }.launchIn(viewModelScope)
-    }
 
     override fun onIntent(intent: ToolIntent) = when (intent) {
         ToolIntent.BackClicked -> sendEffect(ToolEffect.Close)
+
         is ToolIntent.SlotClicked -> openSlot(intent.slotId)
+
         is ToolIntent.SlotValueSelected -> fillSlot(intent.value)
-        is ToolIntent.DurationSelected -> setState { copy(duration = intent.duration) }
+
+        is ToolIntent.DurationSelected -> setState {
+            if (intent.duration in durations) copy(duration = intent.duration) else this
+        }
+
         ToolIntent.AddRecordingClicked -> setState { copy(comingSoon = recording?.feature) }
+
         ToolIntent.WantClicked -> want()
+
         ToolIntent.SheetDismissed -> setState { copy(slotSheet = null, comingSoon = null) }
-        ToolIntent.UseToolClicked -> useTool()
+
+        ToolIntent.UseToolClicked -> Unit
     }
 
     private fun openSlot(id: String) {
@@ -51,6 +38,7 @@ class ToolViewModel(private val tool: Tool, private val generateTracks: Generate
 
     private fun fillSlot(value: String) {
         val slotId = state.value.slotSheet?.slotId ?: return
+        if (tool.template.slots.first { it.id == slotId }.options.none { it == value }) return
         values = values + (slotId to value)
         setState { copy(slotSheet = null) }
         refresh()
@@ -66,33 +54,8 @@ class ToolViewModel(private val tool: Tool, private val generateTracks: Generate
         sendEffect(ToolEffect.ShowToast(toast))
     }
 
-    private fun useTool() {
-        if (!state.value.canUse) return
-        val prompt = tool.template.fill(values) ?: return
-        val settings = GenerationSettings(duration = state.value.duration.duration)
-        setState { copy(isSubmitting = true) }
-        refresh()
-        viewModelScope.launch {
-            when (val result = generateTracks(prompt, settings)) {
-                is Outcome.Success -> sendEffect(ToolEffect.Close)
-
-                is Outcome.Failure -> {
-                    setState { copy(isSubmitting = false) }
-                    refresh()
-                    val toast = ToastUi(
-                        title = UiText.Resource(R.string.create_toast_error),
-                        message = result.error.toUiText(),
-                        kind = StudioToastKind.Error,
-                    )
-                    sendEffect(ToolEffect.ShowToast(toast))
-                }
-            }
-        }
-    }
-
-    /** Shows the slots' values and works out whether the tool can be used. */
     private fun refresh() {
-        val tool = this.tool // in the state's scope, `tool` is the state's ToolUi
-        setState { copy(template = tool.template.toParts(values)).checked(tool, values, creditsLeft) }
+        val template = tool.template.toParts(values)
+        setState { copy(template = template) }
     }
 }

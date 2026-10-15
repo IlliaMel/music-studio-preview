@@ -17,30 +17,31 @@ import androidx.compose.ui.tooling.preview.PreviewLightDark
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.domain.track.Quality
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
-import com.illiamelnyk.studio.core.ui.components.Cover
 import com.illiamelnyk.studio.core.ui.components.StudioChip
 import com.illiamelnyk.studio.core.ui.components.StudioSegmentedControl
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
-import com.illiamelnyk.studio.feature.create.presentation.StyleUi
+import com.illiamelnyk.studio.feature.create.domain.LyricsMode
+import com.illiamelnyk.studio.feature.create.presentation.common.DurationOptionUi
 import com.illiamelnyk.studio.feature.create.presentation.common.bleed
 import com.illiamelnyk.studio.feature.create.presentation.label
+import kotlin.time.Duration
 
 /**
- * The options row of the expanded composer: quality, the style (a chip with the style's art and a
- * remove button once one is picked), the track length and how many tracks a prompt makes. It
+ * The options row of the expanded composer: quality, styles coming soon, the removable instrumental
+ * chip, the track length and how many tracks a prompt makes. It
  * scrolls sideways under the screen edges when it doesn't fit.
  */
 @Composable
 fun ComposerOptions(
     quality: Quality,
-    style: StyleUi?,
-    duration: String,
+    lyricsMode: LyricsMode,
+    duration: DurationOptionUi?,
     variants: Int,
     onQualitySelect: (Quality) -> Unit,
     onStylesClick: () -> Unit,
-    onStyleRemove: () -> Unit,
-    onDurationClick: () -> Unit,
+    onInstrumentalRemove: () -> Unit,
+    onDurationSelect: (Duration?) -> Unit,
     onVariantsClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -61,27 +62,19 @@ fun ComposerOptions(
             onSelect = onQualitySelect,
             compact = true,
         ) { option -> stringResource(option.label) }
-        if (style == null) {
+        StudioChip(
+            stringResource(R.string.create_chip_styles),
+            onStylesClick,
+            leadingIcon = StudioIcons.AutoAwesome,
+        )
+        if (lyricsMode == LyricsMode.Instrumental) {
             StudioChip(
-                stringResource(R.string.create_chip_styles),
-                onStylesClick,
-                leadingIcon = StudioIcons.AutoAwesome,
-            )
-        } else {
-            StudioChip(
-                text = style.name,
-                onClick = onStylesClick,
-                leadingAvatar = { Cover(style.coverSeed, dimens.size.avatar.xs, shape = StudioTheme.shapes.full) },
-                onRemove = onStyleRemove,
+                text = stringResource(R.string.create_settings_instrumental),
+                onClick = onInstrumentalRemove,
+                onRemove = onInstrumentalRemove,
             )
         }
-        val durationDescription = stringResource(R.string.create_length_description, duration)
-        StudioChip(
-            text = duration,
-            onClick = onDurationClick,
-            modifier = Modifier.semantics { contentDescription = durationDescription },
-            leadingIcon = StudioIcons.Schedule,
-        )
+        ComposerDurationMenu(duration, onDurationSelect)
         val variantsDescription = pluralStringResource(R.plurals.create_variants_description, variants, variants)
         StudioChip(
             text = stringResource(R.string.create_variants, variants),
@@ -98,13 +91,13 @@ private fun ComposerOptionsPreview() {
     PreviewScreen {
         ComposerOptions(
             quality = Quality.Deep,
-            style = StyleUi("lofi", "Lo-fi", "Dusty drums · Rhodes", "Lo-fi"),
-            duration = "2:00",
+            lyricsMode = LyricsMode.Instrumental,
+            duration = null,
             variants = 2,
             onQualitySelect = {},
             onStylesClick = {},
-            onStyleRemove = {},
-            onDurationClick = {},
+            onInstrumentalRemove = {},
+            onDurationSelect = {},
             onVariantsClick = {},
         )
     }

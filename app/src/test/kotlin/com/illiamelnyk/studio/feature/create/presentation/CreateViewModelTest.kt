@@ -13,10 +13,12 @@ import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.core.presentation.UiText
 import com.illiamelnyk.studio.core.presentation.track.TrackUi
 import com.illiamelnyk.studio.core.ui.components.StudioToastKind
-import com.illiamelnyk.studio.feature.create.data.fake.FakeStyleCatalog
 import com.illiamelnyk.studio.feature.create.domain.GenerateTracks
+import com.illiamelnyk.studio.feature.create.domain.LyricsMode
+import com.illiamelnyk.studio.feature.create.domain.NotificationChoice
 import com.illiamelnyk.studio.feature.create.domain.PlayNext
 import com.illiamelnyk.studio.feature.create.domain.Prompt
+import com.illiamelnyk.studio.feature.create.domain.TrackRenames
 import com.illiamelnyk.studio.feature.create.presentation.common.ComingSoonFeature
 import com.illiamelnyk.studio.feature.create.presentation.common.ToastUi
 import com.illiamelnyk.studio.feature.create.presentation.common.toOptionUi
@@ -45,6 +47,13 @@ class CreateViewModelTest {
     private val credits = FakeCreditsRepository()
     private val clock = object : Clock {
         override fun now() = Instant.parse("2026-10-14T09:00:00Z")
+    }
+    private var answered = false
+    private val notificationChoice = object : NotificationChoice {
+        override suspend fun hasAnswered() = answered
+        override suspend fun answer() {
+            answered = true
+        }
     }
     private lateinit var tracks: FailingTrackRepository
     private lateinit var playback: FakePlaybackController
@@ -164,7 +173,7 @@ class CreateViewModelTest {
     }
 
     @Test
-    fun `two tracks per prompt need two credits`() = runTest(mainDispatcherRule.testDispatcher) {
+    fun `two tracks per prompt need only one credit`() = runTest(mainDispatcherRule.testDispatcher) {
         repeat(FakeCreditsRepository.DAILY_LIMIT - 1) { credits.trySpend() }
         val viewModel = viewModel()
         viewModel.onIntent(CreateIntent.PromptChanged("Lo-fi beat"))
@@ -172,8 +181,8 @@ class CreateViewModelTest {
         viewModel.onIntent(CreateIntent.VariantsClicked)
 
         assertEquals(2, viewModel.state.value.composer.variants)
-        assertEquals(false, viewModel.state.value.composer.canSend)
-        assertEquals(UiText.Plural(R.plurals.create_credits_short, 1, 1), viewModel.state.value.composer.notice)
+        assertEquals(true, viewModel.state.value.composer.canSend)
+        assertNull(viewModel.state.value.composer.notice)
 
         viewModel.onIntent(CreateIntent.VariantsClicked)
 
@@ -190,7 +199,7 @@ class CreateViewModelTest {
         send(viewModel, "Lo-fi beat")
 
         assertEquals(8, viewModel.state.value.tracks.size)
-        assertEquals(6, credits.credits.first().remaining)
+        assertEquals(7, credits.credits.first().remaining)
     }
 
     @Test
@@ -212,32 +221,28 @@ class CreateViewModelTest {
         viewModel.onIntent(CreateIntent.SettingsModelSelected(MusicModel.V2))
         viewModel.onIntent(CreateIntent.SettingsInstrumentalChanged(true))
         viewModel.onIntent(CreateIntent.SettingsDurationSelected(3.minutes))
-        viewModel.onIntent(CreateIntent.SettingsStyleSelected("synthwave"))
         val draft =
-            SettingsUi(MusicModel.V2, instrumental = true, duration = 3.minutes.toOptionUi(), styleId = "synthwave")
+            SettingsUi(MusicModel.V2, instrumental = true, duration = 3.minutes.toOptionUi())
         assertEquals(CreateSheet.Settings(draft), viewModel.state.value.sheet)
-        assertEquals("2:00", viewModel.state.value.composer.duration.label)
+        assertNull(viewModel.state.value.composer.duration)
 
         // Closing the sheet drops the choices.
         viewModel.onIntent(CreateIntent.SheetDismissed)
         viewModel.onIntent(CreateIntent.SettingsClicked)
         val defaults =
-            SettingsUi(MusicModel.V2_5, instrumental = false, duration = 2.minutes.toOptionUi(), styleId = null)
+            SettingsUi(MusicModel.V2_5, instrumental = false, duration = null)
         assertEquals(CreateSheet.Settings(defaults), viewModel.state.value.sheet)
 
         viewModel.onIntent(CreateIntent.SettingsDurationSelected(3.minutes))
         viewModel.onIntent(CreateIntent.SettingsInstrumentalChanged(true))
-        viewModel.onIntent(CreateIntent.SettingsStyleSelected("synthwave"))
         viewModel.onIntent(CreateIntent.SettingsApplied)
 
         assertNull(viewModel.state.value.sheet)
-        assertEquals("3:00", viewModel.state.value.composer.duration.label)
-        assertEquals("synthwave", viewModel.state.value.composer.style?.id)
+        assertEquals("3:00", viewModel.state.value.composer.duration?.label)
         send(viewModel, "Night drive")
         val track = tracks.observeMine().first().first()
         assertEquals(3.minutes, track.duration)
         assertEquals(true, track.instrumental)
-        assertEquals("synthwave", track.style?.id)
     }
 
     @Test
@@ -251,29 +256,21 @@ class CreateViewModelTest {
         viewModel.onIntent(CreateIntent.SettingsReset)
 
         val defaults =
-            SettingsUi(MusicModel.V2_5, instrumental = false, duration = 2.minutes.toOptionUi(), styleId = null)
+            SettingsUi(MusicModel.V2_5, instrumental = false, duration = null)
         assertEquals(CreateSheet.Settings(defaults), viewModel.state.value.sheet)
-        assertEquals("5:00", viewModel.state.value.composer.duration.label)
+        assertEquals("5:00", viewModel.state.value.composer.duration?.label)
     }
 
     @Test
-    fun `quality and a style from the styles sheet go with the prompt until the style is removed`() =
-        runTest(mainDispatcherRule.testDispatcher) {
-            val viewModel = viewModel()
-
-            viewModel.onIntent(CreateIntent.QualitySelected(Quality.Deep))
-            viewModel.onIntent(CreateIntent.StylesClicked)
-            assertEquals(CreateSheet.Styles, viewModel.state.value.sheet)
-            viewModel.onIntent(CreateIntent.StyleSelected("lofi"))
-
-            assertNull(viewModel.state.value.sheet)
-            assertEquals(Quality.Deep, viewModel.state.value.composer.quality)
-            assertEquals("Lo-fi", viewModel.state.value.composer.style?.name)
-
-            viewModel.onIntent(CreateIntent.StyleRemoved)
-
-            assertNull(viewModel.state.value.composer.style)
-        }
+    fun `lyrics mode is removable and styles are coming soon`() = runTest(mainDispatcherRule.testDispatcher) {
+        val viewModel = viewModel()
+        viewModel.onIntent(CreateIntent.LyricsSelected(true))
+        assertEquals(LyricsMode.Instrumental, viewModel.state.value.composer.lyricsMode)
+        viewModel.onIntent(CreateIntent.InstrumentalRemoved)
+        assertEquals(LyricsMode.Auto, viewModel.state.value.composer.lyricsMode)
+        viewModel.onIntent(CreateIntent.StylesClicked)
+        assertEquals(CreateSheet.ComingSoon(ComingSoonFeature.Styles), viewModel.state.value.sheet)
+    }
 
     @Test
     fun `tapping a ready track plays the ready tracks from it, and a failed one doesn't play`() =
@@ -292,6 +289,30 @@ class CreateViewModelTest {
         }
 
     @Test
+    fun `only a ready track asks to expand the player`() = runTest(mainDispatcherRule.testDispatcher) {
+        val viewModel = viewModel()
+        viewModel.effects.test {
+            viewModel.onIntent(CreateIntent.TrackClicked(TrackId("seed-3")))
+            expectNoEvents()
+            viewModel.onIntent(CreateIntent.TrackClicked(TrackId("seed-2")))
+            assertEquals(CreateEffect.OpenPlayer, awaitItem())
+        }
+    }
+
+    @Test
+    fun `last credit opens quota and tapping its notice reopens it`() = runTest(mainDispatcherRule.testDispatcher) {
+        repeat(7) { credits.trySpend() }
+        val viewModel = viewModel()
+        viewModel.onIntent(CreateIntent.VariantsClicked)
+        send(viewModel, "Final variations")
+        assertEquals(0, credits.credits.first().remaining)
+        assertEquals(CreateSheet.Quota(8), viewModel.state.value.sheet)
+        viewModel.onIntent(CreateIntent.SheetDismissed)
+        viewModel.onIntent(CreateIntent.QuotaClicked)
+        assertEquals(CreateSheet.Quota(8), viewModel.state.value.sheet)
+    }
+
+    @Test
     fun `play next in the menu queues the track after the one playing`() = runTest(mainDispatcherRule.testDispatcher) {
         val viewModel = viewModel()
         viewModel.onIntent(CreateIntent.TrackClicked(TrackId("seed-1")))
@@ -305,18 +326,78 @@ class CreateViewModelTest {
     }
 
     @Test
-    fun `like in the menu likes a track, and again unlikes it`() = runTest(mainDispatcherRule.testDispatcher) {
+    fun `rename changes the row and Use prompt fills the composer`() = runTest(mainDispatcherRule.testDispatcher) {
         val viewModel = viewModel()
-
         viewModel.onIntent(CreateIntent.MoreClicked(TrackId("seed-2")))
-        viewModel.onIntent(CreateIntent.MenuActionClicked(TrackMenuAction.Like))
-        advanceTimeBy(1.seconds)
-        assertEquals(true, viewModel.state.value.track("seed-2").isLiked)
-
+        viewModel.onIntent(CreateIntent.MenuActionClicked(TrackMenuAction.Rename))
+        viewModel.onIntent(CreateIntent.RenameChanged("  New name  "))
+        viewModel.onIntent(CreateIntent.RenameConfirmed)
+        assertEquals("New name", viewModel.state.value.track("seed-2").row.title)
         viewModel.onIntent(CreateIntent.MoreClicked(TrackId("seed-2")))
-        viewModel.onIntent(CreateIntent.MenuActionClicked(TrackMenuAction.Like))
-        advanceTimeBy(1.seconds)
-        assertEquals(false, viewModel.state.value.track("seed-2").isLiked)
+        viewModel.onIntent(CreateIntent.MenuActionClicked(TrackMenuAction.UsePrompt))
+        assertEquals("Cinematic folk with violin and choir", viewModel.state.value.composer.prompt)
+    }
+
+    @Test
+    fun `the notification answer is remembered and permission is requested only for Notify me`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val viewModel = viewModel()
+            send(viewModel, "First track")
+            assertEquals(CreateSheet.Notify, viewModel.state.value.sheet)
+            viewModel.effects.test {
+                assertEquals(CreateEffect.TracksStarted, awaitItem())
+                viewModel.onIntent(CreateIntent.NotificationAnswered(true))
+                runCurrent()
+                assertEquals(CreateEffect.RequestNotifications, awaitItem())
+            }
+            assertEquals(true, answered)
+            send(viewModel, "Second track")
+            assertNull(viewModel.state.value.sheet)
+        }
+
+    @Test
+    fun `declining notifications is remembered without requesting permission`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val viewModel = viewModel()
+            viewModel.effects.test {
+                send(viewModel, "First idea")
+                assertEquals(CreateEffect.TracksStarted, awaitItem())
+                viewModel.onIntent(CreateIntent.NotificationAnswered(false))
+                runCurrent()
+                assertNull(viewModel.state.value.sheet)
+                assertEquals(true, answered)
+                expectNoEvents()
+                send(viewModel, "Second idea")
+                assertEquals(CreateEffect.TracksStarted, awaitItem())
+                assertNull(viewModel.state.value.sheet)
+                expectNoEvents()
+            }
+        }
+
+    @Test
+    fun `repeated send while starting creates one track and keeps a newly typed draft`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val viewModel = viewModel()
+            viewModel.onIntent(CreateIntent.PromptChanged("Original idea"))
+            viewModel.onIntent(CreateIntent.SendClicked)
+            viewModel.onIntent(CreateIntent.SendClicked)
+            viewModel.onIntent(CreateIntent.PromptChanged("Next idea"))
+            advanceTimeBy(NETWORK)
+            runCurrent()
+            assertEquals(7, viewModel.state.value.tracks.size)
+            assertEquals("Original idea", viewModel.state.value.tracks.first().row.title)
+            assertEquals("Next idea", viewModel.state.value.composer.prompt)
+            assertEquals(true, viewModel.state.value.composer.canSend)
+            assertEquals(7, credits.credits.first().remaining)
+        }
+
+    @Test
+    fun `quota failure opens quota sheet and preserves prompt`() = runTest(mainDispatcherRule.testDispatcher) {
+        val viewModel = viewModel()
+        tracks.failWith = AppError.QuotaExceeded
+        send(viewModel, "Keep this idea")
+        assertEquals(CreateSheet.Quota(8), viewModel.state.value.sheet)
+        assertEquals("Keep this idea", viewModel.state.value.composer.prompt)
     }
 
     @Test
@@ -347,7 +428,6 @@ class CreateViewModelTest {
 
             // A failed track has no menu; it is deleted from under its row, also after asking.
             viewModel.onIntent(CreateIntent.DeleteClicked(TrackId("seed-5")))
-            assertEquals(TrackId("seed-5"), viewModel.state.value.deleting?.id)
             viewModel.onIntent(CreateIntent.DeleteConfirmed)
             advanceTimeBy(1.seconds)
 
@@ -433,7 +513,9 @@ class CreateViewModelTest {
         val viewModel = CreateViewModel(
             tracks = tracks,
             credits = credits,
-            styleCatalog = FakeStyleCatalog(latency = Duration.ZERO),
+            clock = clock,
+            notificationChoice = notificationChoice,
+            renames = TrackRenames(),
             playback = playback,
             generateTracks = GenerateTracks(tracks, credits),
             playNext = PlayNext(playback),

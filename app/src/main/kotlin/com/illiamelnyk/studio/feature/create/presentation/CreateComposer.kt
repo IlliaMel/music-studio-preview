@@ -15,20 +15,22 @@ fun CreateComposer(composer: ComposerUi, onIntent: (CreateIntent) -> Unit, modif
         onSendClick = { onIntent(CreateIntent.SendClicked) },
         onAttachClick = { onIntent(CreateIntent.ComingSoonClicked(ComingSoonFeature.Upload)) },
         onEnhanceClick = { onIntent(CreateIntent.ComingSoonClicked(ComingSoonFeature.Enhance)) },
-        onLyricsClick = { onIntent(CreateIntent.ComingSoonClicked(ComingSoonFeature.Lyrics)) },
+        onLyricsClick = { onIntent(CreateIntent.LyricsClicked) },
+        onMuseClick = { onIntent(CreateIntent.ComingSoonClicked(ComingSoonFeature.Muse)) },
         onSettingsClick = { onIntent(CreateIntent.SettingsClicked) },
+        onNoticeClick = { onIntent(CreateIntent.QuotaClicked) },
         modifier = modifier,
     ) {
         ComposerOptions(
             quality = composer.quality,
-            style = composer.style,
-            duration = composer.duration.label,
+            lyricsMode = composer.lyricsMode,
+            duration = composer.duration,
             variants = composer.variants,
             onQualitySelect = { onIntent(CreateIntent.QualitySelected(it)) },
             onStylesClick = { onIntent(CreateIntent.StylesClicked) },
-            onStyleRemove = { onIntent(CreateIntent.StyleRemoved) },
+            onInstrumentalRemove = { onIntent(CreateIntent.InstrumentalRemoved) },
             // The length is one of the settings, next to the model and the vocals.
-            onDurationClick = { onIntent(CreateIntent.SettingsClicked) },
+            onDurationSelect = { onIntent(CreateIntent.DurationSelected(it)) },
             onVariantsClick = { onIntent(CreateIntent.VariantsClicked) },
         )
     }
