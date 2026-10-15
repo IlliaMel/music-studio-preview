@@ -44,7 +44,7 @@ class KoinGraphTest {
             // androidContext installs this platform dependency when the app starts.
             extraTypes = listOf(Context::class),
             injections = injectedParameters(
-                definition<AndroidPlaybackController>(Function0::class),
+                definition<AndroidPlaybackController>(Function0::class, Function2::class),
                 definition<ToolViewModel>(Tool::class),
                 definition<CollectionViewModel>(String::class),
                 definition<PlaylistPickerViewModel>(Track::class),

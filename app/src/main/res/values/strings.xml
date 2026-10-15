@@ -181,4 +181,7 @@
     <string name="profile_deletion_unconfirmed">Server deletion could not be confirmed. You may need to sign in again and retry.</string>
     <string name="error_preferences">Couldn’t access saved preferences. Please try again.</string>
     <string name="ui_close">Close</string>
+    <string name="generation_notification_channel">Track generation</string>
+    <string name="generation_notification_ready">Your track is ready</string>
+    <string name="generation_notification_failed">Your track could not be generated</string>
 </resources>

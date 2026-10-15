@@ -5,7 +5,7 @@ import { ApiError } from '../../core/http/errors.js'
 import { fileResponse } from '../../core/http/file-response.js'
 import { validate } from '../../core/http/validation.js'
 import { demoAudioFile } from '../tracks/generation/demo-audio.js'
-import { catalogTracks, collections, stations } from './catalog.js'
+import { catalogMetadata, catalogTracks, collections, stations } from './catalog.js'
 import type { LibraryService } from './library.service.js'
 
 const PlaylistParams = z.object({ id: z.uuid() })
@@ -16,16 +16,18 @@ export const libraryRoutes = (service: LibraryService, publicBaseUrl?: string) =
   new Hono<AppEnv>()
     .get('/catalog', (c) =>
       c.json({
+        ...catalogMetadata,
         collections,
         stations,
         tracks: catalogTracks.map((track) => ({
           ...track,
           audioUrl: new URL(`/v1/catalog/tracks/${track.id}/audio`, publicBaseUrl ?? c.req.url)
             .href,
-          provider: 'mock',
+          provider: 'fixture',
         })),
       }),
     )
+    .get('/trends', (c) => c.json(catalogMetadata))
     .get('/catalog/tracks/:id/audio', (c) => {
       const track = catalogTracks.find((item) => item.id === c.req.param('id'))
       if (!track) throw new ApiError(404, 'TRACK_NOT_FOUND', 'No such catalog track')

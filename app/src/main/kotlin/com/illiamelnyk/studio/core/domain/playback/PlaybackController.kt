@@ -45,6 +45,16 @@ interface PlaybackController {
     /** Keeps the current track playing and drops the rest of the queue. */
     fun clearUpNext()
 
+    fun systemSnapshot(): PlaybackResumption? = state.value.takeIf { it.current != null }?.let {
+        PlaybackResumption(requireNotNull(it.current).id.value, it)
+    }
+
+    fun releaseForServiceShutdown() {
+        if (state.value.isPlaying) togglePlayPause()
+    }
+
     /** Stops and clears the queue: nothing is loaded afterwards. */
     fun stop()
 }
+
+data class PlaybackResumption(val mediaId: String, val state: PlaybackState)

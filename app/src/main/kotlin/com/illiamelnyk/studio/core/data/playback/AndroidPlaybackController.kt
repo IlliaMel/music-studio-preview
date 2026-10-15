@@ -5,6 +5,7 @@ import androidx.core.content.edit
 import com.illiamelnyk.studio.core.data.local.toJson
 import com.illiamelnyk.studio.core.data.local.toTrack
 import com.illiamelnyk.studio.core.domain.playback.PlaybackController
+import com.illiamelnyk.studio.core.domain.playback.PlaybackResumption
 import com.illiamelnyk.studio.core.domain.playback.PlaybackState
 import com.illiamelnyk.studio.core.domain.playback.RepeatMode
 import com.illiamelnyk.studio.core.domain.track.Track
@@ -27,6 +28,7 @@ class AndroidPlaybackController(
     private val scope: CoroutineScope,
     private val ownerId: () -> String?,
     private val random: Random = Random.Default,
+    private val audioHeaders: suspend (Track) -> Map<String, String> = { it.audioHeaders },
 ) : PlaybackController {
     private val playbackLock = Any()
     private val mutableState = MutableStateFlow(PlaybackState())
@@ -347,6 +349,34 @@ class AndroidPlaybackController(
         }
     }
 
+    override fun systemSnapshot(): PlaybackResumption? = synchronized(playbackLock) {
+        val owner = playbackOwner ?: return@synchronized null
+        val state = mutableState.value
+        val track = state.current ?: return@synchronized null
+        if (owner != ownerId() || playbackGeneration != playbackStateGeneration(owner)) return@synchronized null
+        val identity = owner + ":" + playbackGeneration + ":" + track.id.value
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(identity.toByteArray(Charsets.UTF_8))
+        PlaybackResumption(digest.joinToString("") { "%02x".format(it.toInt() and 255) }, state)
+    }
+
+    override fun releaseForServiceShutdown() {
+        synchronized(playbackLock) {
+            val actual = if (prepared) runCatching { player?.currentPosition?.toLong() }.getOrNull() else null
+            val position = pendingSeek ?: actual
+            preparing?.cancel()
+            player?.release()
+            player = null
+            prepared = false
+            loadedId = null
+            pendingSeek = null
+            stopClock()
+            audioManager.abandonAudioFocusRequest(focusRequest)
+            hasFocus = false
+            mutableState.update { it.copy(isPlaying = false, positionMs = position ?: it.positionMs) }
+            persistQueue()
+        }
+    }
+
     @SuppressLint("UseKtx")
     override fun stop() {
         synchronized(playbackLock) {
@@ -437,10 +467,14 @@ class AndroidPlaybackController(
             player = null
             loadedId = track.id.value
             prepared = false
+            val identity = systemSnapshot()?.mediaId
             preparing = scope.launch(kotlinx.coroutines.Dispatchers.Main.immediate) {
                 try {
+                    val headers = audioHeaders(track)
                     val uri = AudioFiles(context).playableUri(track)
-                    if (loadedId != track.id.value) return@launch
+                    if (identity == null || systemSnapshot()?.mediaId != identity || loadedId != track.id.value) {
+                        return@launch
+                    }
                     val next = android.media.MediaPlayer()
                     player = next
                     next.setWakeMode(context, android.os.PowerManager.PARTIAL_WAKE_LOCK)
@@ -449,7 +483,7 @@ class AndroidPlaybackController(
                             .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
                             .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build(),
                     )
-                    next.setDataSource(context, uri, track.audioHeaders)
+                    next.setDataSource(context, uri, headers)
                     next.setOnPreparedListener {
                         if (!ownsCurrentPlayer(next, track)) {
                             return@setOnPreparedListener

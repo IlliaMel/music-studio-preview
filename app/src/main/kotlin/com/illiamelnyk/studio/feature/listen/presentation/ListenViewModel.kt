@@ -18,17 +18,17 @@ class ListenViewModel(private val catalog: CatalogRepository, private val playba
     private val collections = mutableMapOf<String, CatalogCollection>()
 
     init {
-        CatalogSectionKind.entries.forEach(::load)
+        CatalogSectionKind.entries.forEach { load(it) }
     }
 
     override fun onIntent(intent: ListenIntent) = when (intent) {
         is ListenIntent.CollectionClicked -> open(intent.id)
-        is ListenIntent.RetrySection -> load(intent.kind)
+        is ListenIntent.RetrySection -> load(intent.kind, forceRefresh = true)
         ListenIntent.SearchClicked -> setState { copy(searchVisible = true) }
         ListenIntent.DismissSearch -> setState { copy(searchVisible = false) }
     }
 
-    private fun load(kind: CatalogSectionKind) {
+    private fun load(kind: CatalogSectionKind, forceRefresh: Boolean = false) {
         jobs.remove(kind)?.cancel()
         updateSection(CatalogSectionUi(kind))
         jobs[kind] = viewModelScope.launch {
@@ -37,6 +37,7 @@ class ListenViewModel(private val catalog: CatalogRepository, private val playba
                 updateSection(CatalogSectionUi(kind, isLoading = false, failed = true))
             }
             try {
+                if (forceRefresh) catalog.refresh()
                 catalog.observeSection(kind).collect { section ->
                     watchdog.cancel()
                     section.collections.forEach { collections[it.id] = it }

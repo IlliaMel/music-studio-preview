@@ -16,6 +16,7 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -317,6 +318,106 @@ class AudioPlaybackTest {
             assertTrue(playback.state.value.queue.isEmpty())
             val preferences = context.getSharedPreferences("playback", Context.MODE_PRIVATE)
             assertFalse(preferences.contains(playbackPreferenceKey("owner-a")))
+        } finally {
+            playback.stop()
+            org.robolectric.shadows.ShadowMediaPlayer.resetStaticState()
+        }
+    }
+
+    @Test
+    fun systemResumeRequiresExplicitPlayAndMatchingCurrentOwnerMediaId() = runTest {
+        var owner: String? = "owner-a"
+        val song = track("public-catalog-id", 20.seconds)
+        saveQueue("owner-a", listOf(song), position = 4_250)
+        saveQueue("owner-b", listOf(song), position = 7_250)
+        val first = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val firstId = requireNotNull(first.systemSnapshot()).mediaId
+        assertFalse(first.state.value.isPlaying)
+        owner = "owner-b"
+        assertNull(first.systemSnapshot())
+        val replacement = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val secondId = requireNotNull(replacement.systemSnapshot()).mediaId
+        assertFalse(firstId == secondId)
+        assertFalse(resumeSystemPlayback(replacement, firstId))
+        assertFalse(replacement.state.value.isPlaying)
+        assertTrue(resumeSystemPlayback(replacement, secondId))
+        assertTrue(replacement.state.value.isPlaying)
+        replacement.releaseForServiceShutdown()
+        assertFalse(replacement.state.value.isPlaying)
+        val restored = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        assertEquals(secondId, restored.systemSnapshot()?.mediaId)
+        assertEquals(7_000L, restored.state.value.positionMs)
+        assertFalse(restored.state.value.isPlaying)
+        owner = null
+        assertNull(restored.systemSnapshot())
+        assertFalse(resumeSystemPlayback(restored, secondId))
+        replacement.stop()
+    }
+
+    @Test
+    fun serviceShutdownReleasesNativeAudioAndKeepsOwnerScopedPausedResumeQueue() = runTest {
+        val created = mutableListOf<org.robolectric.shadows.ShadowMediaPlayer>()
+        org.robolectric.shadows.ShadowMediaPlayer.setMediaInfoProvider {
+            org.robolectric.shadows.ShadowMediaPlayer.MediaInfo(20_000, 10_000)
+        }
+        org.robolectric.shadows.ShadowMediaPlayer.setCreateListener { _, shadow -> created += shadow }
+        val song = track("shutdown-audio", 20.seconds).copy(audioUri = "https://audio.fixture/shutdown.wav")
+        val playback = AndroidPlaybackController(context, backgroundScope, ownerId = { "owner-a" })
+        try {
+            playback.play(listOf(song))
+            runCurrent()
+            val native = created.single()
+            native.invokePreparedListener()
+            assertTrue(native.isReallyPlaying)
+            playback.seekTo(8_500)
+            playback.releaseForServiceShutdown()
+            assertFalse(native.isReallyPlaying)
+            assertFalse(playback.state.value.isPlaying)
+            assertEquals(song.id, playback.state.value.current?.id)
+            val restored = AndroidPlaybackController(context, backgroundScope, ownerId = { "owner-a" })
+            assertEquals(song.id, restored.state.value.current?.id)
+            assertEquals(8_000L, restored.state.value.positionMs)
+            assertFalse(restored.state.value.isPlaying)
+            val stable = playback.state.value
+            advanceTimeBy(1_000)
+            runCurrent()
+            assertEquals(stable, playback.state.value)
+        } finally {
+            playback.stop()
+            org.robolectric.shadows.ShadowMediaPlayer.resetStaticState()
+        }
+    }
+
+    @Test
+    fun ownerChangeDuringHeaderRefreshCannotPrepareOrStartPrivateAudio() = runTest {
+        var owner: String? = "owner-a"
+        val freshHeaders = kotlinx.coroutines.CompletableDeferred<Map<String, String>>()
+        var headersRequested = false
+        val created = mutableListOf<org.robolectric.shadows.ShadowMediaPlayer>()
+        org.robolectric.shadows.ShadowMediaPlayer.setCreateListener { _, shadow -> created += shadow }
+        val playback = AndroidPlaybackController(
+            context,
+            backgroundScope,
+            ownerId = { owner },
+            audioHeaders = {
+                headersRequested = true
+                freshHeaders.await()
+            },
+        )
+        try {
+            val song = track("private-refresh", 20.seconds).copy(audioUri = "https://audio.fixture/private.wav")
+            playback.play(listOf(song))
+            runCurrent()
+            assertTrue(headersRequested)
+            assertTrue(created.isEmpty())
+            owner = "owner-b"
+            freshHeaders.complete(mapOf("Authorization" to "Bearer fresh-fixture"))
+            runCurrent()
+            assertTrue(created.isEmpty())
+            assertNull(playback.systemSnapshot())
+            advanceTimeBy(251)
+            runCurrent()
+            assertTrue(playback.state.value.queue.isEmpty())
         } finally {
             playback.stop()
             org.robolectric.shadows.ShadowMediaPlayer.resetStaticState()

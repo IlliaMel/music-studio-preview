@@ -9,12 +9,16 @@ import com.illiamelnyk.studio.core.data.local.StudioApi
 import com.illiamelnyk.studio.core.data.local.StudioStore
 import com.illiamelnyk.studio.core.data.local.UnavailableBearerTokenProvider
 import com.illiamelnyk.studio.core.data.network.AndroidNetworkMonitor
+import com.illiamelnyk.studio.core.data.notification.AndroidGenerationNotifications
 import com.illiamelnyk.studio.core.data.playback.AndroidAudioExporter
 import com.illiamelnyk.studio.core.data.playback.AndroidPlaybackController
 import com.illiamelnyk.studio.core.data.playback.LocalLyricsRepository
 import com.illiamelnyk.studio.core.data.settings.DataStoreThemePreferenceRepository
 import com.illiamelnyk.studio.core.domain.credits.CreditsRepository
 import com.illiamelnyk.studio.core.domain.network.NetworkMonitor
+import com.illiamelnyk.studio.core.domain.notification.GenerationNotificationTargets
+import com.illiamelnyk.studio.core.domain.notification.GenerationNotifications
+import com.illiamelnyk.studio.core.domain.notification.OpenGenerationNotification
 import com.illiamelnyk.studio.core.domain.playback.AudioExporter
 import com.illiamelnyk.studio.core.domain.playback.LyricsRepository
 import com.illiamelnyk.studio.core.domain.playback.PlaybackController
@@ -50,6 +54,9 @@ val coreModule = module {
     single<BearerTokenProvider> { UnavailableBearerTokenProvider }
     single { StudioApi(androidContext(), bearerTokens = get()) }
     single<GenerationWorkScheduler> { AndroidGenerationWorkScheduler(androidContext()) }
+    single<GenerationNotifications> { AndroidGenerationNotifications(androidContext(), get()) }
+    singleOf(::GenerationNotificationTargets)
+    factoryOf(::OpenGenerationNotification)
     single {
         DurableStudioRepository(
             androidContext(),
@@ -57,6 +64,7 @@ val coreModule = module {
             get(),
             get(named(APP_SCOPE)),
             generationWork = get(),
+            notifications = get(),
         )
     }
     single<SessionRepository> { get<DurableStudioRepository>() }
@@ -64,7 +72,12 @@ val coreModule = module {
     single<TrackRepository> { get<DurableStudioRepository>() }
     single {
         val repository: DurableStudioRepository = get()
-        AndroidPlaybackController(androidContext(), get(named(APP_SCOPE)), ownerId = { repository.activeAccountId })
+        AndroidPlaybackController(
+            androidContext(),
+            get(named(APP_SCOPE)),
+            ownerId = { repository.activeAccountId },
+            audioHeaders = repository::playbackHeaders,
+        )
     } bind PlaybackController::class
     singleOf(::LocalLyricsRepository) bind LyricsRepository::class
     single<AudioExporter> { AndroidAudioExporter(androidContext()) }

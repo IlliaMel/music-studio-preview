@@ -49,6 +49,7 @@ class CreateViewModelTest {
         override fun now() = Instant.parse("2026-10-14T09:00:00Z")
     }
     private var answered = false
+    private var notificationsEnabled = false
     private var failNotificationRead = false
     private var failNotificationWrite = false
     private val notificationChoice = object : NotificationChoice {
@@ -56,9 +57,11 @@ class CreateViewModelTest {
             if (failNotificationRead) throw java.io.IOException("simulated preference read failure")
             return answered
         }
-        override suspend fun answer() {
+        override suspend fun isEnabled() = notificationsEnabled
+        override suspend fun answer(enabled: Boolean) {
             if (failNotificationWrite) throw java.io.IOException("simulated preference write failure")
             answered = true
+            notificationsEnabled = enabled
         }
     }
     private lateinit var tracks: FailingTrackRepository
@@ -388,6 +391,7 @@ class CreateViewModelTest {
                 assertEquals(CreateEffect.RequestNotifications, awaitItem())
             }
             assertEquals(true, answered)
+            assertEquals(true, notificationsEnabled)
             send(viewModel, "Second track")
             assertNull(viewModel.state.value.sheet)
         }
@@ -403,6 +407,7 @@ class CreateViewModelTest {
                 runCurrent()
                 assertNull(viewModel.state.value.sheet)
                 assertEquals(true, answered)
+                assertEquals(false, notificationsEnabled)
                 expectNoEvents()
                 send(viewModel, "Second idea")
                 assertEquals(CreateEffect.TracksStarted, awaitItem())

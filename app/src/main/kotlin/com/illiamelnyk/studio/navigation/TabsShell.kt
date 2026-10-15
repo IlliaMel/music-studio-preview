@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -30,6 +31,8 @@ import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDe
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.illiamelnyk.studio.core.domain.notification.GenerationNotificationTargets
+import com.illiamelnyk.studio.core.domain.notification.OpenGenerationNotification
 import com.illiamelnyk.studio.core.domain.track.ComposerDraftStore
 import com.illiamelnyk.studio.core.ui.foundation.ProvideGlassBackdrop
 import com.illiamelnyk.studio.core.ui.foundation.glassBackdrop
@@ -65,6 +68,10 @@ fun TabsShell(
     var profileOpen by rememberSaveable { mutableStateOf(false) }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     val navigator = rememberTabNavigator(variant.tabs)
+    val notificationTargets: GenerationNotificationTargets = koinInject()
+    val openNotification: OpenGenerationNotification = koinInject()
+    val notificationTarget by notificationTargets.pending.collectAsStateWithLifecycle()
+    DisposableEffect(notificationTargets) { onDispose { notificationTargets.clear() } }
     val drafts: ComposerDraftStore = koinInject()
     val draftRevision by drafts.revision.collectAsStateWithLifecycle()
     LaunchedEffect(draftRevision) {
@@ -78,6 +85,21 @@ fun TabsShell(
     val motion = StudioTheme.motion
     val backdrop = rememberGlassBackdrop()
     PlayerHost(modifier.fillMaxSize()) { player ->
+        LaunchedEffect(notificationTarget) {
+            val target = notificationTarget ?: return@LaunchedEffect
+            when (openNotification(target)) {
+                OpenGenerationNotification.Result.Player -> player.expand()
+
+                OpenGenerationNotification.Result.Create -> {
+                    navigator.navigate(Destination.Create)
+                    navigator.select(TopLevelTab.Create)
+                    notificationTargets.focus(target.trackId)
+                }
+
+                OpenGenerationNotification.Result.Ignored -> Unit
+            }
+            notificationTargets.consume(target)
+        }
         val entryProvider =
             remember(navigator, transitions, player) {
                 signedInEntries(navigator, paddingState, transitions, onOpenPlayer = player::expand)

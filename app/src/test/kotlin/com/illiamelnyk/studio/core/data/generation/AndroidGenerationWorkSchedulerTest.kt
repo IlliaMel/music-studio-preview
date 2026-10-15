@@ -55,4 +55,19 @@ class AndroidGenerationWorkSchedulerTest {
         scheduler.reconcile(null)
         assertNull(jobs.getPendingJob(AndroidGenerationWorkScheduler.JOB_ID))
     }
+
+    @Test
+    fun terminalRunningJobStaysAliveForCompletionDeliveryButOwnerLossCancelsImmediately() {
+        val scheduler = AndroidGenerationWorkScheduler(context)
+        scheduler.reconcile("owner-one")
+        GenerationSyncJobService.runningOwner = "owner-one"
+        try {
+            scheduler.complete("owner-one")
+            assertTrue(jobs.getPendingJob(AndroidGenerationWorkScheduler.JOB_ID) != null)
+            scheduler.reconcile(null)
+            assertNull(jobs.getPendingJob(AndroidGenerationWorkScheduler.JOB_ID))
+        } finally {
+            GenerationSyncJobService.runningOwner = null
+        }
+    }
 }

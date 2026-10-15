@@ -68,10 +68,10 @@ class CollectionViewModel(
 
         is CollectionIntent.RelatedClicked -> sendEffect(CollectionEffect.OpenCollection(intent.id))
 
-        CollectionIntent.Retry -> load()
+        CollectionIntent.Retry -> load(forceRefresh = true)
     }
 
-    private fun load() {
+    private fun load(forceRefresh: Boolean = false) {
         loadJob?.cancel()
         setState { copy(isLoading = true, failed = false) }
         loadJob = viewModelScope.launch {
@@ -80,6 +80,7 @@ class CollectionViewModel(
                 setState { copy(isLoading = false, failed = true) }
             }
             try {
+                if (forceRefresh) catalog.refresh()
                 catalog.observeCollection(collectionId).collect { collection ->
                     timeout.cancel()
                     queue = collection?.tracks.orEmpty()

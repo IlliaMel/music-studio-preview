@@ -5,13 +5,16 @@ import com.illiamelnyk.studio.core.data.fake.FakeCatalog
 import com.illiamelnyk.studio.core.data.playback.audioCacheKey
 import com.illiamelnyk.studio.core.data.playback.playbackPreferenceKey
 import com.illiamelnyk.studio.core.domain.Outcome
+import com.illiamelnyk.studio.core.domain.notification.GenerationNotifications
 import com.illiamelnyk.studio.core.domain.session.SessionDataMode
 import com.illiamelnyk.studio.core.domain.track.GenerationRequest
 import com.illiamelnyk.studio.core.domain.track.GenerationWorkScheduler
+import com.illiamelnyk.studio.core.domain.track.Track
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -34,6 +37,8 @@ class DurableStudioRepositoryTest {
     @Before
     fun cleanStore() {
         context = RuntimeEnvironment.getApplication()
+        context.getSharedPreferences("generation-notifications", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSystemService(android.app.NotificationManager::class.java).cancelAll()
         context.filesDir.listFiles()?.filter { it.name.startsWith("studio-state-v1.json") }?.forEach { it.delete() }
     }
 
@@ -553,6 +558,256 @@ class DurableStudioRepositoryTest {
         assertEquals(1, api.generationRequests)
     }
 
+    @Test
+    fun notificationIoFailuresCannotTurnAnAcceptedGenerationIntoAFailedSend() = runTest {
+        val api = MemoryApi(context)
+        val notifier = object : GenerationNotifications {
+            override fun record(ownerId: String?, tracks: List<Track>): Unit =
+                throw java.io.IOException("simulated notification ledger failure")
+            override suspend fun deliver(ownerId: String?): Unit =
+                throw java.io.IOException("simulated preference read failure")
+            override fun forget(ownerId: String) = Unit
+        }
+        val repo = DurableStudioRepository(
+            context,
+            StudioStore(context),
+            api,
+            backgroundScope,
+            notifications = notifier,
+        )
+        repo.signInServer()
+        assertTrue(repo.create(GenerationRequest("Warm cinematic piano"), 1) is Outcome.Success)
+        assertEquals(1, api.generationRequests)
+        val queued = repo.observeMine().first().any {
+            it.status == com.illiamelnyk.studio.core.domain.track.TrackStatus.Queued
+        }
+        assertTrue(queued)
+    }
+
+    @Test
+    fun accountDeletionRetriesNotificationLedgerCleanupBeforeDiscardingOwnerMetadata() = runTest {
+        var fail = true
+        var forgotten: String? = null
+        val notifier = object : GenerationNotifications {
+            override fun record(ownerId: String?, tracks: List<Track>) = Unit
+            override suspend fun deliver(ownerId: String?) = Unit
+            override fun forget(ownerId: String) {
+                if (fail) throw java.io.IOException("simulated notification cleanup failure")
+                forgotten = ownerId
+            }
+        }
+        val store = StudioStore(context)
+        val repo = DurableStudioRepository(
+            context,
+            store,
+            StudioApi(context),
+            backgroundScope,
+            notifications = notifier,
+        )
+        repo.signInDemo()
+        assertTrue(repo.deleteAccount() is Outcome.Failure)
+        assertTrue(store.read().has("deletion-local-demo"))
+        assertTrue(store.read().has("account-local-demo"))
+        fail = false
+        assertTrue(repo.deleteAccount() is Outcome.Success)
+        assertEquals("local-demo", forgotten)
+        assertNull(repo.session.first())
+        assertFalse(store.read().has("deletion-local-demo"))
+        assertFalse(store.read().has("notification-observed-local-demo"))
+        assertFalse(store.read().has("notification-dirty-local-demo"))
+    }
+
+    @Test
+    fun signingOutReconcilesNotificationOwnershipBeforeTheSessionCanBeReused() = runTest {
+        var owner: String? = null
+        val notifier = object : GenerationNotifications {
+            override fun record(ownerId: String?, tracks: List<Track>) {
+                owner = ownerId
+            }
+            override suspend fun deliver(ownerId: String?) = Unit
+            override fun forget(ownerId: String) = Unit
+        }
+        val repo = DurableStudioRepository(
+            context,
+            StudioStore(context),
+            StudioApi(context),
+            backgroundScope,
+            notifications = notifier,
+        )
+        repo.signInDemo()
+        assertEquals("local-demo", owner)
+        repo.signOut()
+        assertNull(owner)
+        assertNull(repo.session.first())
+    }
+
+    @Test
+    fun restoredFirebasePlaybackRefreshesBearerWithoutPersistingItOrSendingItToAnotherOrigin() = runTest {
+        var refreshes = 0
+        val configuration = ApiConfiguration("https://api.studio.test", ApiAuthMode.Firebase, false)
+        val api = MemoryApi(
+            context,
+            configuration,
+            BearerTokenProvider { uid ->
+                refreshes++
+                val value = "fixture.payload.signature-" + refreshes
+                FirebaseBearerToken(uid, value, System.currentTimeMillis() + 3_600_000)
+            },
+        )
+        val store = StudioStore(context)
+        val repo = DurableStudioRepository(context, store, api, backgroundScope)
+        assertTrue(repo.signInFirebase("firebase-user") is Outcome.Success)
+        val track = repo.observeMine().first().first().copy(
+            audioUri = "https://api.studio.test/v1/tracks/server-track/audio",
+            audioHeaders = emptyMap(),
+        )
+        assertEquals(mapOf("Authorization" to "Bearer fixture.payload.signature-1"), repo.playbackHeaders(track))
+        assertEquals(mapOf("Authorization" to "Bearer fixture.payload.signature-2"), repo.playbackHeaders(track))
+        assertFalse(store.read().toString().contains("fixture.payload.signature"))
+        val foreign = track.copy(audioUri = "https://other.test/audio")
+        assertEquals(emptyMap<String, String>(), repo.playbackHeaders(foreign))
+        assertEquals(2, refreshes)
+        repo.signOut()
+        try {
+            repo.playbackHeaders(track)
+            org.junit.Assert.fail("Signed-out audio must not obtain credentials")
+        } catch (failure: ApiFailure) {
+            assertEquals(com.illiamelnyk.studio.core.domain.AppError.Unauthorized, failure.error)
+        }
+        assertEquals(2, refreshes)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun failedFirstLedgerRecordRecoversTerminalNotificationFromAtomicJournalAfterRestart() = runTest {
+        val api = MemoryApi(context).apply { returnedGenerationId = "server-track" }
+        val store = StudioStore(context)
+        val notifier = RetryingNotifications(context)
+        val work = RecordingGenerationWork()
+        val repo = DurableStudioRepository(
+            context,
+            store,
+            api,
+            backgroundScope,
+            generationWork = work,
+            notifications = notifier,
+        )
+        repo.signInServer()
+        notifier.failRecord = true
+        repo.create(GenerationRequest("Warm cinematic piano"), 1)
+        assertEquals(Outcome.Success(true), repo.syncPending("server-user"))
+        assertTrue(store.read().getBoolean("notification-dirty-server-user"))
+        assertEquals("server-user", work.owner)
+        backgroundScope.coroutineContext.cancelChildren()
+        val recovered = RetryingNotifications(context)
+        val restartedStore = StudioStore(context)
+        val restarted = DurableStudioRepository(
+            context,
+            restartedStore,
+            api,
+            backgroundScope,
+            StandardTestDispatcher(testScheduler),
+            work,
+            recovered,
+        )
+        runCurrent()
+        assertEquals("server-user", restarted.activeAccountId)
+        assertFalse(restartedStore.read().has("notification-dirty-server-user"))
+        assertFalse(recovered.hasPending("server-user"))
+        assertNull(work.owner)
+        assertEquals(1, api.generationRequests)
+        assertEquals(1, context.getSystemService(android.app.NotificationManager::class.java).activeNotifications.size)
+    }
+
+    @Test
+    fun notificationOnlyIoRetryKeepsJobUntilDeliveryWithoutRefreshingOrResubmittingGeneration() = runTest {
+        val api = MemoryApi(context).apply { returnedGenerationId = "server-track" }
+        val notifier = RetryingNotifications(context)
+        val work = RecordingGenerationWork()
+        val repo = DurableStudioRepository(
+            context,
+            StudioStore(context),
+            api,
+            backgroundScope,
+            generationWork = work,
+            notifications = notifier,
+        )
+        repo.signInServer()
+        repo.create(GenerationRequest("Warm cinematic piano"), 1)
+        notifier.failDelivery = true
+        assertEquals(Outcome.Success(true), repo.syncPending("server-user"))
+        assertEquals("server-user", work.owner)
+        val reads = api.libraryRequests
+        notifier.failDelivery = false
+        assertEquals(Outcome.Success(false), repo.syncPending("server-user"))
+        assertEquals(reads, api.libraryRequests)
+        assertEquals(1, api.generationRequests)
+        assertNull(work.owner)
+        assertFalse(notifier.hasPending("server-user"))
+    }
+
+    @Test
+    fun suppressedCompletionDoesNotKeepOsWorkAliveAndSignOutBlocksDirtyOwnerRecovery() = runTest {
+        val api = MemoryApi(context).apply { returnedGenerationId = "server-track" }
+        val notifier = RetryingNotifications(context).apply { enabled = false }
+        val work = RecordingGenerationWork()
+        val repo = DurableStudioRepository(
+            context,
+            StudioStore(context),
+            api,
+            backgroundScope,
+            generationWork = work,
+            notifications = notifier,
+        )
+        repo.signInServer()
+        repo.create(GenerationRequest("Warm cinematic piano"), 1)
+        assertEquals(Outcome.Success(false), repo.syncPending("server-user"))
+        assertNull(work.owner)
+        assertFalse(notifier.hasPending("server-user"))
+        notifier.failRecord = true
+        repo.create(GenerationRequest("Another cinematic piano"), 1)
+        repo.syncPending("server-user")
+        repo.signOut()
+        val reads = api.libraryRequests
+        notifier.failRecord = false
+        assertEquals(Outcome.Success(false), repo.syncPending("server-user"))
+        assertEquals(reads, api.libraryRequests)
+        assertNull(work.owner)
+        assertNull(repo.session.first())
+        assertTrue(context.getSystemService(android.app.NotificationManager::class.java).activeNotifications.isEmpty())
+    }
+
+    private class RetryingNotifications(context: Context) : GenerationNotifications {
+        var enabled = true
+        var failRecord = false
+        var failDelivery = false
+        private val actual = com.illiamelnyk.studio.core.data.notification.AndroidGenerationNotifications(
+            context,
+            object : com.illiamelnyk.studio.core.domain.notification.GenerationNotificationPreferences {
+                override suspend fun hasAnswered() = true
+                override suspend fun answer(enabled: Boolean) {
+                    this@RetryingNotifications.enabled = enabled
+                }
+                override suspend fun isEnabled() = enabled
+            },
+        )
+        init {
+            org.robolectric.Shadows.shadowOf(RuntimeEnvironment.getApplication())
+                .grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+        override fun record(ownerId: String?, tracks: List<Track>) = recover(ownerId, tracks, emptySet())
+        override fun recover(ownerId: String?, tracks: List<Track>, observedIds: Set<String>) {
+            if (failRecord && ownerId != null) throw java.io.IOException("simulated ledger IO failure")
+            actual.recover(ownerId, tracks, observedIds)
+        }
+        override fun hasPending(ownerId: String) = actual.hasPending(ownerId)
+        override suspend fun deliver(ownerId: String?) {
+            if (failDelivery) throw java.io.IOException("simulated delivery IO failure")
+            actual.deliver(ownerId)
+        }
+        override fun forget(ownerId: String) = actual.forget(ownerId)
+    }
+
     private class RecordingGenerationWork : GenerationWorkScheduler {
         var owner: String? = null
         override fun reconcile(ownerId: String?) {
@@ -560,7 +815,11 @@ class DurableStudioRepositoryTest {
         }
     }
 
-    private class MemoryApi(context: Context) : StudioApi(context) {
+    private class MemoryApi(
+        context: Context,
+        configuration: ApiConfiguration = ApiConfiguration("http://10.0.2.2:8787", ApiAuthMode.Development, true),
+        bearerTokens: BearerTokenProvider = UnavailableBearerTokenProvider,
+    ) : StudioApi(context, configuration, bearerTokens) {
         override val isAvailable: Boolean = true
         private val likes = mutableSetOf<String>()
         private val members = mutableSetOf<String>()
@@ -568,6 +827,7 @@ class DurableStudioRepositoryTest {
         var detailRequests = 0
         var libraryRequests = 0
         var generationRequests = 0
+        var returnedGenerationId: String? = null
         var failLibrary = false
         var renamedTitle: String? = null
         var failures: List<org.json.JSONObject> = emptyList()
@@ -645,7 +905,7 @@ class DurableStudioRepositoryTest {
             path == "/v1/tracks" && method == "POST" -> {
                 generationRequests++
                 lastGeneration = body?.let { org.json.JSONObject(it.toString()) }
-                track.put("id", "replacement-" + key.hashCode())
+                track.put("id", returnedGenerationId ?: "replacement-" + key.hashCode())
                     .put("status", "queued").put("audioUrl", org.json.JSONObject.NULL)
             }
 

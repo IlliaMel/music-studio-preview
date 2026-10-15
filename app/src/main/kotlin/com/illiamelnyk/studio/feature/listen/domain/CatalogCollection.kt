@@ -13,6 +13,8 @@ data class CatalogCollection(
     val coverSeed: CoverSeed,
     val tracks: List<Track>,
     val isStation: Boolean = false,
+    val kind: CatalogSectionKind? = null,
+    val trendSnapshotId: String? = null,
 ) {
     val totalDuration: Duration get() = tracks.fold(Duration.ZERO) { total, track -> total + track.duration }
 }
@@ -23,6 +25,8 @@ data class CatalogSection(val kind: CatalogSectionKind, val collections: List<Ca
 
 /** The demo catalog of Listen. */
 interface CatalogRepository {
+    suspend fun refresh() = Unit
+
     /** The collections in the order Listen shows them. */
     fun observeCollections(): Flow<List<CatalogCollection>>
 

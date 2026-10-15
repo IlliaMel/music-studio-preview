@@ -5,6 +5,7 @@ import androidx.compose.animation.core.rememberTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -14,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTouchInput
@@ -38,6 +40,38 @@ class PlayerCardMotionTest {
 
     @Test
     fun fastRootDistancePastHalfDismissesWithBatchedEventsWithoutEndingFling() = dragPastHalf(10, false)
+
+    @Test
+    fun firstCompositionExpansionRequestWaitsForLayoutAndShowsTheWholePlayerCard() {
+        lateinit var sheet: PlayerSheetState
+        composeRule.mainClock.autoAdvance = false
+        composeRule.setContent {
+            val scope = rememberCoroutineScope()
+            sheet = remember { PlayerSheetState(false, scope, StudioMotion()) }
+            val transition = rememberTransition(sheet.transitionState, label = "coldPlayer")
+            val host = remember { PlayerHostScope(sheet, transition) }
+            LaunchedEffect(Unit) { host.expand() }
+            StudioTheme(darkTheme = true) {
+                Box(
+                    Modifier.fillMaxSize().onGloballyPositioned {
+                        host.hostBounds = it.boundsInRoot()
+                        sheet.dragDistance = host.hostBounds.height
+                    },
+                ) {
+                    PlayerCardMotion(host) { modifier ->
+                        Box(modifier.background(Color.Blue).testTag("coldPlayerCard"))
+                    }
+                }
+                PlayerExpansionRequests(host)
+            }
+        }
+        composeRule.mainClock.advanceTimeBy(1_000)
+        composeRule.onNodeWithTag("coldPlayerCard").assertIsDisplayed()
+        composeRule.runOnIdle {
+            assertTrue(sheet.transitionState.currentState)
+            assertTrue(sheet.isExpanded)
+        }
+    }
 
     private fun dragPastHalf(eventDelay: Long, renderEachMove: Boolean) {
         lateinit var sheet: PlayerSheetState

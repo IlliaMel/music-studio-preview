@@ -29,6 +29,10 @@ class AndroidGenerationWorkScheduler(context: Context) : GenerationWorkScheduler
         if (scheduler.schedule(job) != JobScheduler.RESULT_SUCCESS) throw IOException("Cannot schedule generation sync")
     }
 
+    override fun complete(ownerId: String) {
+        if (GenerationSyncJobService.runningOwner != ownerId) scheduler.cancel(JOB_ID)
+    }
+
     companion object {
         const val JOB_ID = 1101
         const val OWNER = "ownerId"

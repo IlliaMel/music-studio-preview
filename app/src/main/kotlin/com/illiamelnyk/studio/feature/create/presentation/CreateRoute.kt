@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -17,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.illiamelnyk.studio.R
+import com.illiamelnyk.studio.core.domain.notification.GenerationNotificationTargets
 import com.illiamelnyk.studio.core.presentation.ObserveEffects
 import com.illiamelnyk.studio.core.presentation.ToastController
 import com.illiamelnyk.studio.core.presentation.UiText
@@ -45,6 +47,18 @@ fun CreateRoute(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
+    val targets: GenerationNotificationTargets = koinInject()
+    val notificationFocus by targets.focus.collectAsStateWithLifecycle()
+    LaunchedEffect(notificationFocus, state.tracks, state.filter) {
+        val id = notificationFocus ?: return@LaunchedEffect
+        val index = CreateFeedItems.trackIndex(state.tracks, id) ?: return@LaunchedEffect
+        if (state.filter != TracksFilter.Drafts) {
+            viewModel.onIntent(CreateIntent.FilterSelected(TracksFilter.Drafts))
+            return@LaunchedEffect
+        }
+        listState.scrollToItem(index)
+        targets.focused(id)
+    }
     val feedback: ToastController = koinInject()
     val audioActions: AudioActions = koinInject()
     val scope = rememberCoroutineScope()

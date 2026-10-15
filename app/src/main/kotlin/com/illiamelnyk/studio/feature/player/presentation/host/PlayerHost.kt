@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -49,7 +50,11 @@ class PlayerHostScope internal constructor(
     internal var hostBounds by mutableStateOf(Rect.Zero)
     internal var miniBounds by mutableStateOf<Rect?>(null)
 
-    fun expand() = sheet.expand()
+    internal var expansionRequested by mutableStateOf(false)
+
+    fun expand() {
+        expansionRequested = true
+    }
 }
 
 @Suppress("NoCollectCallFound")
@@ -75,8 +80,20 @@ fun PlayerHost(modifier: Modifier = Modifier, content: @Composable (PlayerHostSc
         ) { content(host) }
         FullPlayer(host)
     }
+    PlayerExpansionRequests(host)
     PlayerSystemBars(onMedia = { sheet.expandedFraction > STATUS_BAR_COVERED })
     PredictiveBackHandler(enabled = sheet.isExpanded) { progress -> sheet.collapseWithBack(progress) }
+}
+
+@Composable
+internal fun PlayerExpansionRequests(host: PlayerHostScope) {
+    LaunchedEffect(host.expansionRequested, host.hostBounds) {
+        if (!host.expansionRequested || host.hostBounds.width <= 0f || host.hostBounds.height <= 0f) {
+            return@LaunchedEffect
+        }
+        host.expansionRequested = false
+        host.sheet.expand()
+    }
 }
 
 @Composable

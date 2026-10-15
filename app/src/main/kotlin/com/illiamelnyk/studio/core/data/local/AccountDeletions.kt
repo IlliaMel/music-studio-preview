@@ -1,6 +1,7 @@
 package com.illiamelnyk.studio.core.data.local
 
 import com.illiamelnyk.studio.core.domain.AppError
+import com.illiamelnyk.studio.core.domain.notification.GenerationNotifications
 import com.illiamelnyk.studio.core.domain.track.TrackId
 import kotlinx.coroutines.CancellationException
 import org.json.JSONArray
@@ -23,6 +24,7 @@ internal class AccountDeletions(
     private val store: StudioStore,
     private val api: StudioApi,
     private val recordings: RecordingFiles,
+    private val notifications: GenerationNotifications = GenerationNotifications.None,
 ) {
     fun pending(): List<AccountDeletionIntent> = store.read().let { root ->
         root.keys().asSequence().filter { it.startsWith(PREFIX) }
@@ -76,7 +78,9 @@ internal class AccountDeletions(
             intent.audio.forEach { recordings.delete(TrackId(it.id), it.uri) }
             recordings.deleteReferences(intent.ownerId, intent.references)
             recordings.deletePlaybackState(intent.ownerId)
+            notifications.forget(intent.ownerId)
             store.change { root ->
+                NotificationOutbox.remove(root, intent.ownerId)
                 root.remove("account-" + intent.ownerId)
                 root.remove("pending-" + intent.ownerId)
                 if (root.stringOrNull("active") == intent.ownerId) root.remove("active")

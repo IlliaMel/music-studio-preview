@@ -404,7 +404,7 @@ class CreateViewModel(
         isAnsweringNotifications = true
         viewModelScope.launch {
             try {
-                notificationChoice.answer()
+                notificationChoice.answer(notify)
                 setState { if (sheet == CreateSheet.Notify) copy(sheet = null) else this }
                 if (notify) sendEffect(CreateEffect.RequestNotifications)
             } catch (_: IOException) {

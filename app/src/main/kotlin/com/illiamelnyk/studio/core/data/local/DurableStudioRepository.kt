@@ -8,6 +8,7 @@ import com.illiamelnyk.studio.core.domain.CoverSeed
 import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.credits.Credits
 import com.illiamelnyk.studio.core.domain.credits.CreditsRepository
+import com.illiamelnyk.studio.core.domain.notification.GenerationNotifications
 import com.illiamelnyk.studio.core.domain.playlist.Playlist
 import com.illiamelnyk.studio.core.domain.playlist.PlaylistRepository
 import com.illiamelnyk.studio.core.domain.session.Onboarding
@@ -36,6 +37,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -51,13 +53,16 @@ class DurableStudioRepository(
     scope: CoroutineScope,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val generationWork: GenerationWorkScheduler = GenerationWorkScheduler.None,
+    private val notifications: GenerationNotifications = GenerationNotifications.None,
 ) : TrackRepository,
     PlaylistRepository,
     SessionRepository,
     CreditsRepository {
     private val mutex = Mutex()
+    private val publicCatalogTracks = MutableStateFlow(FakeCatalog.tracks)
     private val recordings = RecordingFiles(context)
-    private val deletions = AccountDeletions(store, api, recordings)
+    private val notificationOutbox = NotificationOutbox(store)
+    private val deletions = AccountDeletions(store, api, recordings, notifications)
 
     @Volatile private var deletingAccountId: String? = null
     private var lastSyncMillis = 0L
@@ -74,6 +79,9 @@ class DurableStudioRepository(
                 mutex.withLock {
                     resumeDeletions()
                     reconcileGenerationWork()
+                    recordNotifications()
+                    notifications.deliver(activeAccountId)
+                    reconcileGenerationWork()
                 }
             }
             while (true) {
@@ -89,6 +97,9 @@ class DurableStudioRepository(
                         if (account?.token == null || pending || syncDue) {
                             refresh()
                         }
+                        if (activeAccountId?.let(notificationOutbox::isDirty) == true) recordNotifications()
+                        notifications.deliver(activeAccountId)
+                        reconcileGenerationWork()
                     }
                 }
             }
@@ -172,41 +183,48 @@ class DurableStudioRepository(
         return recordings.referenceDirectory(id)
     }
 
+    internal fun registerCatalogTracks(tracks: List<Track>) {
+        publicCatalogTracks.value =
+            tracks.distinctBy { it.id }.map { it.copy(isLiked = false, audioHeaders = emptyMap()) }
+    }
+
     fun catalogTrack(track: Track): Track {
-        val account = state.value ?: return track
-        if (account.token == null) return track
+        val account = state.value ?: return track.copy(isLiked = false, audioHeaders = emptyMap())
+        val liked = track.id.value in account.likes
+        if (account.token == null) return track.copy(isLiked = liked, audioHeaders = emptyMap())
         return track.copy(
+            isLiked = liked,
             audioUri = api.baseUrl + "/v1/catalog/tracks/" + track.id.value + "/audio",
             audioHeaders = authHeaders(account),
         )
     }
 
     override fun observeMine(): Flow<List<Track>> = state.map { it?.tracks.orEmpty() }.distinctUntilChanged()
-    override fun observeLiked(): Flow<List<Track>> = state.map { account ->
+    override fun observeLiked(): Flow<List<Track>> = combine(state, publicCatalogTracks) { account, catalog ->
         account?.tracks.orEmpty().filter {
             it.isLiked
-        } + FakeCatalog.tracks.filter {
+        } + catalog.filter {
             it.id.value in account?.likes.orEmpty()
         }.map {
             catalogTrack(it).copy(isLiked = true)
         }
     }.distinctUntilChanged()
-    override fun observeById(id: TrackId): Flow<Track?> = state.map { account ->
+    override fun observeById(id: TrackId): Flow<Track?> = combine(state, publicCatalogTracks) { account, catalog ->
         account?.tracks?.find {
             it.id == id
-        } ?: FakeCatalog.tracks.find {
+        } ?: catalog.find {
             it.id == id
         }?.let {
             catalogTrack(it).copy(isLiked = it.id.value in account?.likes.orEmpty())
         }
     }.distinctUntilChanged()
-    override fun observeAll(): Flow<List<Playlist>> = state.map { account ->
+    override fun observeAll(): Flow<List<Playlist>> = combine(state, publicCatalogTracks) { account, catalog ->
         account?.playlists.orEmpty().map { playlist ->
             playlist.copy(
                 tracks = playlist.tracks.map { track ->
                     account?.tracks?.find {
                         it.id == track.id
-                    } ?: track
+                    } ?: catalog.find { it.id == track.id }?.let(::catalogTrack) ?: track
                 },
             )
         }
@@ -226,7 +244,7 @@ class DurableStudioRepository(
         val account = requireAccount()
         request.remixTrackId?.let { sourceId ->
             val source = account.tracks.find { it.id.value == sourceId }
-                ?: FakeCatalog.tracks.find { it.id.value == sourceId }
+                ?: publicCatalogTracks.value.find { it.id.value == sourceId }
                 ?: throw ApiFailure(AppError.InvalidPrompt(null))
             if (source.remixTrackId != null || source.status != TrackStatus.Ready) {
                 throw ApiFailure(AppError.InvalidPrompt(null))
@@ -429,7 +447,7 @@ class DurableStudioRepository(
 
     override suspend fun setLiked(id: TrackId, liked: Boolean): Outcome<Unit> = operation {
         val account = requireAccount()
-        if (account.tracks.none { it.id == id } && FakeCatalog.tracks.none { it.id == id }) {
+        if (account.tracks.none { it.id == id } && publicCatalogTracks.value.none { it.id == id }) {
             throw ApiFailure(AppError.Unknown)
         }
         if (account.token != null && !id.value.startsWith("recording-")) {
@@ -516,6 +534,7 @@ class DurableStudioRepository(
             ?: deletions.pending().firstOrNull() ?: throw ApiFailure(AppError.Unauthorized)
         deletingAccountId = intent.ownerId
         reconcileGenerationWork()
+        recordNotifications()
         try {
             val result = deletions.execute(intent)
             if (state.value?.session?.user?.id?.value == result.ownerId) state.value = null
@@ -537,6 +556,7 @@ class DurableStudioRepository(
                 if (state.value?.session?.user?.id?.value == result.ownerId) state.value = null
                 if (deletingAccountId == result.ownerId) deletingAccountId = null
                 reconcileGenerationWork()
+                recordNotifications()
             }
         }
     }
@@ -550,18 +570,32 @@ class DurableStudioRepository(
                 state.value = null
                 api.forgetCredentials()
                 reconcileGenerationWork()
+                recordNotifications()
             }
         }
     }
 
     suspend fun syncPending(ownerId: String): Outcome<Boolean> = operation {
         val account = state.value
-        if (account?.session?.user?.id?.value != ownerId || !needsGenerationSync(account)) {
+        if (activeAccountId != ownerId) {
             reconcileGenerationWork()
             return@operation false
         }
-        refresh()
-        needsGenerationSync(state.value)
+        recordNotifications()
+        if (needsGenerationSync(account)) refresh()
+        guarded { notifications.deliver(ownerId) }
+        reconcileGenerationWork()
+        needsGenerationSync(state.value) || needsNotificationSync(state.value)
+    }
+
+    private fun needsNotificationSync(account: AccountSnapshot?): Boolean {
+        val owner = activeAccountId ?: return false
+        if (account?.token == null || account.session.user.id.value != owner) return false
+        return try {
+            notificationOutbox.isDirty(owner) || notifications.hasPending(owner)
+        } catch (_: Exception) {
+            true
+        }
     }
 
     private fun needsGenerationSync(account: AccountSnapshot?): Boolean = account != null &&
@@ -571,9 +605,11 @@ class DurableStudioRepository(
 
     private fun reconcileGenerationWork() {
         val account = state.value
-        val owner = account?.session?.user?.id?.value?.takeIf { needsGenerationSync(account) }
+        val pending = needsGenerationSync(account) || needsNotificationSync(account)
+        val owner = account?.session?.user?.id?.value?.takeIf { pending }
         try {
-            generationWork.reconcile(owner)
+            val active = activeAccountId
+            if (owner == null && active != null) generationWork.complete(active) else generationWork.reconcile(owner)
         } catch (error: Exception) {
             android.util.Log.w("StudioData", "Cannot schedule generation sync: " + error.javaClass.simpleName)
         }
@@ -641,7 +677,7 @@ class DurableStudioRepository(
                 val id = json.getString("id")
                 val members = json.array("trackIds").strings().mapNotNull { trackId ->
                     allTracks.find { it.id.value == trackId }
-                        ?: FakeCatalog.tracks.find { it.id.value == trackId }?.let(::catalogTrack)
+                        ?: publicCatalogTracks.value.find { it.id.value == trackId }?.let(::catalogTrack)
                 }
                 val localMembers = account.playlists.find { it.id == id }?.tracks.orEmpty()
                     .filter { it.id.value.startsWith("recording-") }
@@ -684,6 +720,7 @@ class DurableStudioRepository(
         }.orEmpty()
     private fun save(account: AccountSnapshot) {
         store.change { root ->
+            notificationOutbox.register(root, account)
             root.put(
                 "active",
                 account.session.user.id.value,
@@ -694,7 +731,49 @@ class DurableStudioRepository(
         }
         state.value = account
         reconcileGenerationWork()
+        recordNotifications()
     }
+    private fun recordNotifications() {
+        try {
+            val owner = activeAccountId
+            if (owner != null) notificationOutbox.markDirty(owner)
+            val observed = owner?.let(notificationOutbox::observed).orEmpty()
+            notifications.recover(owner, state.value?.tracks.orEmpty(), observed)
+            if (owner != null) notificationOutbox.recorded(owner)
+        } catch (error: Exception) {
+            android.util.Log.w("StudioData", "Cannot record completion: " + error.javaClass.simpleName)
+        }
+    }
+
+    suspend fun playbackHeaders(track: Track): Map<String, String> = withContext(dispatcher) {
+        mutex.withLock {
+            val source = track.audioUri?.let { java.net.URI(it) } ?: return@withLock emptyMap()
+            if (source.scheme !in setOf("http", "https")) return@withLock emptyMap()
+            val origin = java.net.URI(api.baseUrl)
+            if (source.scheme != origin.scheme || source.host != origin.host || source.port != origin.port) {
+                return@withLock emptyMap()
+            }
+            if (source.rawUserInfo != null || source.rawQuery != null || source.rawFragment != null) {
+                throw ApiFailure(AppError.Unauthorized)
+            }
+            val account = requireAccount()
+            val owner = activeAccountId ?: throw ApiFailure(AppError.Unauthorized)
+            val id = Uri.encode(track.id.value)
+            val owned = source.rawPath == "/v1/tracks/" + id + "/audio" && account.tracks.any { it.id == track.id }
+            val catalog = source.rawPath == "/v1/catalog/tracks/" + id + "/audio"
+            if (!owned && !catalog) throw ApiFailure(AppError.Unauthorized)
+            val token = account.token ?: return@withLock emptyMap()
+            api.authorization(token)
+            if (activeAccountId != owner) throw ApiFailure(AppError.Unauthorized)
+            api.audioHeaders(token)
+        }
+    }
+
+    internal suspend fun fetchCatalog(): Outcome<JSONObject> = operation {
+        val account = requireAccount()
+        api.request("GET", "/v1/catalog", account.token ?: throw ApiFailure(AppError.UnsupportedMode))
+    }
+
     private fun loadActive(): AccountSnapshot? = store.read().stringOrNull("active")?.let(::loadAccount)
         ?.takeIf { (api.isAvailable || it.token == null) && !store.read().has("deletion-" + it.session.user.id.value) }
         ?.let { account ->
@@ -714,6 +793,9 @@ class DurableStudioRepository(
             } catch (error: Exception) {
                 android.util.Log.e("StudioData", "Data operation failed: " + error.javaClass.simpleName)
                 Outcome.Failure(AppError.Unknown)
+            } finally {
+                guarded { notifications.deliver(activeAccountId) }
+                reconcileGenerationWork()
             }
         }
     }

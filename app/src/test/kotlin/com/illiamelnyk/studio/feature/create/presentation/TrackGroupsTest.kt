@@ -19,6 +19,18 @@ class TrackGroupsTest {
     private val zone = ZoneId.of("Europe/Chisinau")
 
     @Test
+    fun notificationFocusFindsTheExactVariationGroupAndAccountsForFixedFeedItems() {
+        val tracks = listOf(
+            track("1", "2026-10-15T09:00:40Z"),
+            track("2", "2026-10-15T09:00:20Z"),
+            track("3", "2026-10-15T09:00:00Z"),
+        ).toGroupedCreateUi(today, zone)
+        assertEquals(3, CreateFeedItems.trackIndex(tracks, TrackId("2")))
+        assertEquals(4, CreateFeedItems.trackIndex(tracks, TrackId("3")))
+        assertEquals(null, CreateFeedItems.trackIndex(tracks, TrackId("missing")))
+    }
+
+    @Test
     fun `same prompt within a minute becomes a pair but never a group of three`() {
         val tracks =
             listOf(

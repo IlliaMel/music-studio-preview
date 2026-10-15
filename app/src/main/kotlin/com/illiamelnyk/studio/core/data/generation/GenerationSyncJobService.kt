@@ -20,12 +20,14 @@ class GenerationSyncJobService : JobService() {
     override fun onStartJob(params: JobParameters): Boolean {
         val owner = params.extras.getString(AndroidGenerationWorkScheduler.OWNER) ?: return false
         work?.cancel()
+        runningOwner = owner
         work = scope.launch {
             val result = get<DurableStudioRepository>().syncPending(owner)
             val retry = when (result) {
                 is Outcome.Success -> result.value
                 is Outcome.Failure -> result.error != AppError.Unauthorized
             }
+            runningOwner = null
             jobFinished(params, retry)
         }
         return true
@@ -34,11 +36,16 @@ class GenerationSyncJobService : JobService() {
     override fun onStopJob(params: JobParameters): Boolean {
         work?.cancel()
         work = null
+        runningOwner = null
         return true
     }
 
     override fun onDestroy() {
         scope.cancel()
+        runningOwner = null
         super.onDestroy()
+    }
+    companion object {
+        @Volatile internal var runningOwner: String? = null
     }
 }

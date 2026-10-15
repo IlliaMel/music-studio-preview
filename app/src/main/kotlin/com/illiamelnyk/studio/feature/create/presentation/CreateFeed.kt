@@ -41,6 +41,12 @@ val CreateState.feed: FeedUi
 /** The positions of the feed's fixed items, to scroll to them. */
 object CreateFeedItems {
     const val TRACKS_HEADER = 2
+
+    fun trackIndex(tracks: List<CreateTrackUi>, id: TrackId): Int? {
+        val groups = tracks.groupBy { it.variationGroupId ?: "track:" + it.row.id.value }.values.toList()
+        val index = groups.indexOfFirst { group -> group.any { it.row.id == id } }
+        return index.takeIf { it >= 0 }?.plus(TRACKS_HEADER + 1)
+    }
 }
 
 /**
