@@ -5,12 +5,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalView
@@ -26,8 +26,8 @@ import com.illiamelnyk.studio.core.presentation.ObserveEffects
 import com.illiamelnyk.studio.core.ui.components.StudioBottomSheet
 import com.illiamelnyk.studio.core.ui.foundation.FeedbackWindow
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
-import org.koin.compose.viewmodel.koinViewModel
 import kotlinx.coroutines.delay
+import org.koin.compose.viewmodel.koinViewModel
 
 /**
  * The profile, wired to its ViewModel.

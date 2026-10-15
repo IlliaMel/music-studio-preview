@@ -24,6 +24,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.movableContentWithReceiverOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -65,6 +66,8 @@ fun Composer(
     trailingActions: @Composable RowScope.() -> Unit = {},
     showSend: Boolean = true,
 ) {
+    val leading = remember(leadingActions) { movableContentWithReceiverOf<RowScope> { leadingActions() } }
+    val trailing = remember(trailingActions) { movableContentWithReceiverOf<RowScope> { trailingActions() } }
     val colors = StudioTheme.colors
     val dimens = StudioTheme.dimens
     val motion = StudioTheme.motion
@@ -110,7 +113,7 @@ fun Composer(
                 cursorBrush = SolidColor(colors.content.primary),
                 decorationBox = { innerTextField ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (!expanded) leadingActions()
+                        if (!expanded) leading()
                         Box(Modifier.weight(1f)) {
                         if (value.isEmpty()) {
                             StudioText(placeholder, StudioTheme.typography.bodyLarge, color = colors.content.tertiary, maxLines = if (expanded) ComposerDefaults.MAX_LINES else 1)
@@ -125,7 +128,7 @@ fun Composer(
                 horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (expanded) leadingActions()
+                if (expanded) leading()
                 Spacer(Modifier.weight(1f))
                 if (characterLimit != null) {
                     StudioText(
@@ -134,7 +137,7 @@ fun Composer(
                         color = if (overLimit) colors.error.content else colors.content.tertiary,
                     )
                 }
-                if (expanded) trailingActions()
+                if (expanded) trailing()
                 if (showSend) {
                     StudioIconButton(
                         icon = StudioIcons.ArrowUpward,
@@ -147,7 +150,7 @@ fun Composer(
                 }
             }
         }
-        if (!expanded) Row(verticalAlignment = Alignment.CenterVertically, content = trailingActions)
+        if (!expanded) Row(verticalAlignment = Alignment.CenterVertically, content = trailing)
         }
     }
 }

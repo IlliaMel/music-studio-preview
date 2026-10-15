@@ -10,7 +10,8 @@ import org.koin.core.parameter.parametersOf
 /** Shared by Player, Library and collection track menus. */
 @Composable
 fun PlaylistPickerRoute(track: Track, onDismiss: () -> Unit) {
-    val viewModel: PlaylistPickerViewModel = koinViewModel(key = "playlist-picker-" + track.id.value, parameters = { parametersOf(track) })
+    val viewModel: PlaylistPickerViewModel =
+        koinViewModel(key = "playlist-picker-" + track.id.value, parameters = { parametersOf(track) })
     val state by viewModel.state.collectAsStateWithLifecycle()
     PlaylistPickerSheet(state, viewModel::onIntent, onDismiss)
 }

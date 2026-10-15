@@ -114,7 +114,11 @@ private fun MediaButton(@DrawableRes icon: Int, description: String, onClick: ()
         StudioIcon(
             icon,
             contentDescription = null,
-            tint = if (enabled) StudioTheme.colors.overlay.onMediaPrimary else StudioTheme.colors.overlay.onMediaSecondary,
+            tint = if (enabled) {
+                StudioTheme.colors.overlay.onMediaPrimary
+            } else {
+                StudioTheme.colors.overlay.onMediaSecondary
+            },
             size = dimens.size.icon.xl,
         )
     }

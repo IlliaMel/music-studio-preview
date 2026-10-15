@@ -48,14 +48,14 @@ fun OverlaySheet(
         ),
     ) {
         FeedbackWindow {
-        PlainWindow()
-        StudioBottomSheet(visible = visible, onDismissRequest = onDismissRequest, modifier = modifier) {
-            DisposableEffect(Unit) {
-                onScreen = true
-                onDispose { onScreen = false }
+            PlainWindow()
+            StudioBottomSheet(visible = visible, onDismissRequest = onDismissRequest, modifier = modifier) {
+                DisposableEffect(Unit) {
+                    onScreen = true
+                    onDispose { onScreen = false }
+                }
+                content()
             }
-            content()
-        }
         }
     }
 }

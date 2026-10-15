@@ -35,9 +35,10 @@ class FakePlaylistRepository : PlaylistRepository {
         if (playlist.tracks.any { it.id == track.id }) playlist else playlist.copy(tracks = playlist.tracks + track)
     }
 
-    override suspend fun removeTrack(playlistId: String, trackId: TrackId): Outcome<Unit> = edit(playlistId) { playlist ->
-        playlist.copy(tracks = playlist.tracks.filterNot { it.id == trackId })
-    }
+    override suspend fun removeTrack(playlistId: String, trackId: TrackId): Outcome<Unit> =
+        edit(playlistId) { playlist ->
+            playlist.copy(tracks = playlist.tracks.filterNot { it.id == trackId })
+        }
 
     private fun edit(id: String, transform: (Playlist) -> Playlist): Outcome<Unit> {
         if (playlists.value.none { it.id == id }) return Outcome.Failure(AppError.Unknown)

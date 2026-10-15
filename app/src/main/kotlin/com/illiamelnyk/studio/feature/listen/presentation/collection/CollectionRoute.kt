@@ -40,5 +40,7 @@ fun CollectionRoute(
         modifier = modifier,
         contentPadding = contentPadding,
     )
-    state.pickerTrack?.let { track -> PlaylistPickerRoute(track, onDismiss = { viewModel.onIntent(CollectionIntent.DismissPicker) }) }
+    state.pickerTrack?.let { track ->
+        PlaylistPickerRoute(track, onDismiss = { viewModel.onIntent(CollectionIntent.DismissPicker) })
+    }
 }

@@ -17,9 +17,17 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class CollectionScreenTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
+
     @Test fun missingCollectionOffersRetry() {
         val intents = mutableListOf<CollectionIntent>()
-        compose.setContent { StudioTheme { CollectionScreen(CollectionState(isLoading = false, failed = true), { intents += it }) } }
+        compose.setContent {
+            StudioTheme {
+                CollectionScreen(CollectionState(isLoading = false, failed = true), {
+                    intents +=
+                        it
+                })
+            }
+        }
         compose.onNodeWithText(compose.activity.getString(R.string.listen_retry)).performClick()
         assertEquals(listOf(CollectionIntent.Retry), intents)
     }

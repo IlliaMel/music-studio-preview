@@ -63,7 +63,15 @@ class FakePlaybackController(private val scope: CoroutineScope, private val rand
             val retained = originalQueue.indices.filter { originalQueue[it].id != track.id }
             val insertAt = retained.indexOf(currentOriginal) + 1
             val updated = retained.map(originalQueue::get).toMutableList().apply { add(insertAt, track) }
-            val remapped = retained.mapIndexed { index, old -> old to if (index >= insertAt) index + 1 else index }.toMap()
+            val remapped = retained.mapIndexed { index, old ->
+                old to if (index >=
+                    insertAt
+                ) {
+                    index + 1
+                } else {
+                    index
+                }
+            }.toMap()
             val order = playOrder.mapNotNull(remapped::get).toMutableList()
             val currentIndex = order.indexOf(remapped.getValue(currentOriginal))
             order.add(currentIndex + 1, insertAt)

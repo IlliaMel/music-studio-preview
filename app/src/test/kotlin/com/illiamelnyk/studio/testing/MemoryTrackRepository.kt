@@ -11,12 +11,17 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 
-class MemoryTrackRepository(initial: List<Track> = FakeCatalog.tracks.map { it.copy(isLiked = false) }) : TrackRepository {
+class MemoryTrackRepository(
+    initial: List<Track> = FakeCatalog.tracks.map {
+        it.copy(isLiked = false)
+    },
+) : TrackRepository {
     private val tracks = MutableStateFlow(initial)
     var failLike = false
     override fun observeMine(): Flow<List<Track>> = tracks
     override fun observeById(id: TrackId): Flow<Track?> = tracks.map { list -> list.find { it.id == id } }
-    override suspend fun create(request: GenerationRequest, variants: Int): Outcome<List<Track>> = Outcome.Failure(AppError.Unknown)
+    override suspend fun create(request: GenerationRequest, variants: Int): Outcome<List<Track>> =
+        Outcome.Failure(AppError.Unknown)
     override suspend fun retry(id: TrackId): Outcome<Track> = Outcome.Failure(AppError.Unknown)
     override suspend fun delete(id: TrackId): Outcome<Unit> = Outcome.Failure(AppError.Unknown)
     override suspend fun setLiked(id: TrackId, liked: Boolean): Outcome<Unit> {

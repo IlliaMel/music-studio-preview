@@ -10,8 +10,8 @@ import com.illiamelnyk.studio.core.domain.track.GenerationRequest
 import com.illiamelnyk.studio.core.domain.track.Track
 import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.core.domain.track.TrackRepository
-import com.illiamelnyk.studio.testing.MemoryTrackRepository
 import com.illiamelnyk.studio.testing.MainDispatcherRule
+import com.illiamelnyk.studio.testing.MemoryTrackRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first

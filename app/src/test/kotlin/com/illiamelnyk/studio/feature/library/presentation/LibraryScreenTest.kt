@@ -15,6 +15,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class LibraryScreenTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
+
     @Test fun emptyLibraryExploresAndPlaylistsTabCanBeSelected() {
         val intents = mutableListOf<LibraryIntent>()
         compose.setContent { StudioTheme { LibraryScreen(LibraryState(isLoading = false), { intents += it }) } }

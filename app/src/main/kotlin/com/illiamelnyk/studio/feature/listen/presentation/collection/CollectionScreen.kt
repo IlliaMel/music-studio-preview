@@ -30,24 +30,58 @@ import com.illiamelnyk.studio.feature.listen.presentation.collection.components.
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun CollectionScreen(state: CollectionState, onIntent: (CollectionIntent) -> Unit, modifier: Modifier = Modifier, contentPadding: PaddingValues = PaddingValues()) {
+fun CollectionScreen(
+    state: CollectionState,
+    onIntent: (CollectionIntent) -> Unit,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(),
+) {
     val padding = Modifier.padding(horizontal = StudioTheme.dimens.layout.screenPadding)
     Column(modifier.fillMaxSize().padding(top = contentPadding.calculateTopPadding())) {
         BackTopBar(onBack = { onIntent(CollectionIntent.BackClicked) })
         LazyColumn(contentPadding = contentPadding.withoutTop()) {
             if (state.isLoading) item(key = "loading") { StudioLinearProgress() }
-            if (state.failed) item(key = "error") { StudioButton(stringResource(R.string.listen_retry), onClick = { onIntent(CollectionIntent.Retry) }) }
+            if (state.failed) {
+                item(key = "error") {
+                    StudioButton(stringResource(R.string.listen_retry), onClick = { onIntent(CollectionIntent.Retry) })
+                }
+            }
             state.collection?.let { collection ->
                 item(key = "header") { CollectionHeader(collection) }
-                stickyHeader(key = "actions") { CollectionActions(onPlay = { onIntent(CollectionIntent.PlayClicked) }, onShuffle = { onIntent(CollectionIntent.ShuffleClicked) }, enabled = state.tracks.isNotEmpty()) }
+                stickyHeader(key = "actions") {
+                    CollectionActions(onPlay = {
+                        onIntent(CollectionIntent.PlayClicked)
+                    }, onShuffle = { onIntent(CollectionIntent.ShuffleClicked) }, enabled = state.tracks.isNotEmpty())
+                }
             }
             items(state.tracks, key = { it.id.value }, contentType = { "track" }) { track ->
-                TrackUiRow(track, onClick = { onIntent(CollectionIntent.TrackClicked(track.id)) }, modifier = Modifier.animateItem().then(padding), isPlaying = track.id == state.playingTrackId, onMore = { onIntent(CollectionIntent.TrackMoreClicked(track.id)) }, badges = { StudioBadge(state.versions[track.id]?.asString() ?: stringResource(R.string.library_original)) })
+                TrackUiRow(
+                    track,
+                    onClick = {
+                        onIntent(CollectionIntent.TrackClicked(track.id))
+                    },
+                    modifier = Modifier.animateItem().then(padding),
+                    isPlaying =
+                        track.id == state.playingTrackId,
+                    onMore = {
+                        onIntent(CollectionIntent.TrackMoreClicked(track.id))
+                    },
+                    badges = {
+                        StudioBadge(state.versions[track.id]?.asString() ?: stringResource(R.string.library_original))
+                    },
+                )
             }
-            if (state.related.isNotEmpty()) item(key = "related") {
-                SectionHeader(stringResource(R.string.listen_related), padding.padding(vertical = StudioTheme.dimens.spacing.s))
-                Carousel(state.related, key = { it.id }) { collection ->
-                    TrackCard(collection.title, collection.subtitle.asString(), collection.coverSeed, onClick = { onIntent(CollectionIntent.RelatedClicked(collection.id)) })
+            if (state.related.isNotEmpty()) {
+                item(key = "related") {
+                    SectionHeader(
+                        stringResource(R.string.listen_related),
+                        padding.padding(vertical = StudioTheme.dimens.spacing.s),
+                    )
+                    Carousel(state.related, key = { it.id }) { collection ->
+                        TrackCard(collection.title, collection.subtitle.asString(), collection.coverSeed, onClick = {
+                            onIntent(CollectionIntent.RelatedClicked(collection.id))
+                        })
+                    }
                 }
             }
         }

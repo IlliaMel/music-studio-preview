@@ -95,7 +95,11 @@ private fun SettingsContent(
         }
         SettingsGroup(R.string.create_composer_lyrics) {
             StudioSegmentedControl(
-                options = listOf(R.string.create_quality_auto, R.string.create_lyrics_custom, R.string.create_settings_instrumental),
+                options = listOf(
+                    R.string.create_quality_auto,
+                    R.string.create_lyrics_custom,
+                    R.string.create_settings_instrumental,
+                ),
                 selected = if (draft.instrumental) R.string.create_settings_instrumental else R.string.create_quality_auto,
                 onSelect = { option ->
                     if (option == R.string.create_lyrics_custom) {

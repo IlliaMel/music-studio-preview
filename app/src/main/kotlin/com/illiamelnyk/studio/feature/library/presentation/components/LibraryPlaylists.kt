@@ -38,25 +38,52 @@ fun LibraryPlaylists(
     contentPadding: PaddingValues = PaddingValues(),
 ) {
     if (selected == null) {
-        LibraryPlaylistGrid(playlists, onCreate, onExplore, onSelect = { onSelect(it) }, modifier = modifier, contentPadding = contentPadding)
+        LibraryPlaylistGrid(playlists, onCreate, onExplore, onSelect = {
+            onSelect(it)
+        }, modifier = modifier, contentPadding = contentPadding)
         return
     }
     val padding = Modifier.padding(horizontal = StudioTheme.dimens.layout.screenPadding)
     LazyColumn(modifier, contentPadding = contentPadding) {
-        item(key = "header") { CollectionHeader(selected.name, selected.subtitle.asString(), selected.coverSeed, artworkSize = StudioTheme.dimens.size.cover.l + StudioTheme.dimens.spacing.giant) }
+        item(key = "header") {
+            CollectionHeader(
+                selected.name,
+                selected.subtitle.asString(),
+                selected.coverSeed,
+                artworkSize =
+                    StudioTheme.dimens.size.cover.l + StudioTheme.dimens.spacing.giant,
+            )
+        }
         stickyHeader(key = "actions") {
             Row(Modifier.background(StudioTheme.colors.surface.level1).then(padding)) {
-                StudioButton(stringResource(R.string.collection_play), onClick = { onPlay(false) }, enabled = selected.tracks.isNotEmpty(), style = StudioButtonStyle.Secondary)
-                StudioButton(stringResource(R.string.collection_shuffle), onClick = { onPlay(true) }, enabled = selected.tracks.isNotEmpty(), style = StudioButtonStyle.Secondary)
-                StudioButton(stringResource(R.string.listen_close), onClick = { onSelect(null) }, style = StudioButtonStyle.Text)
+                StudioButton(stringResource(R.string.collection_play), onClick = {
+                    onPlay(false)
+                }, enabled = selected.tracks.isNotEmpty(), style = StudioButtonStyle.Secondary)
+                StudioButton(stringResource(R.string.collection_shuffle), onClick = {
+                    onPlay(true)
+                }, enabled = selected.tracks.isNotEmpty(), style = StudioButtonStyle.Secondary)
+                StudioButton(stringResource(R.string.listen_close), onClick = {
+                    onSelect(null)
+                }, style = StudioButtonStyle.Text)
             }
         }
-        if (selected.tracks.isEmpty()) item(key = "empty-tracks") {
-            StudioText(stringResource(R.string.library_empty_message), StudioTheme.typography.bodyMedium, padding)
-            StudioButton(stringResource(R.string.library_explore), onClick = onExplore, modifier = padding)
+        if (selected.tracks.isEmpty()) {
+            item(key = "empty-tracks") {
+                StudioText(stringResource(R.string.library_empty_message), StudioTheme.typography.bodyMedium, padding)
+                StudioButton(stringResource(R.string.library_explore), onClick = onExplore, modifier = padding)
+            }
         }
         items(selected.tracks, key = { it.id.value }, contentType = { "track" }) { track ->
-            TrackUiRow(track, onClick = { onTrackClick(track.id) }, modifier = Modifier.animateItem().then(padding), isPlaying = track.id == playingTrackId, onMore = { onTrackMore(track.id) })
+            TrackUiRow(
+                track,
+                onClick = {
+                    onTrackClick(track.id)
+                },
+                modifier = Modifier.animateItem().then(padding),
+                isPlaying =
+                    track.id == playingTrackId,
+                onMore = { onTrackMore(track.id) },
+            )
         }
     }
 }

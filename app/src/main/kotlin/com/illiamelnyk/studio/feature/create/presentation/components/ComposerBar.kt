@@ -137,7 +137,12 @@ fun ComposerBar(
                     }
                 }
                 if (!expanded) {
-                    ComposerAction(StudioIcons.Tune, R.string.create_composer_settings, onSettingsClick, StudioIconButtonStyle.Surface)
+                    ComposerAction(
+                        StudioIcons.Tune,
+                        R.string.create_composer_settings,
+                        onSettingsClick,
+                        StudioIconButtonStyle.Surface,
+                    )
                 }
             },
         )

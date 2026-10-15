@@ -16,11 +16,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.domain.track.Track
+import com.illiamelnyk.studio.core.presentation.ObserveEffects
 import com.illiamelnyk.studio.core.presentation.ToastController
+import com.illiamelnyk.studio.core.presentation.asString
 import com.illiamelnyk.studio.core.presentation.playlist.PlaylistPickerRoute
 import com.illiamelnyk.studio.core.ui.components.StudioToastKind
-import com.illiamelnyk.studio.core.presentation.ObserveEffects
-import com.illiamelnyk.studio.core.presentation.asString
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -67,6 +67,7 @@ fun PlayerRoute(
             }
 
             is PlayerEffect.OpenPlaylistPicker -> playlistTrack = effect.track
+
             is PlayerEffect.ShowToast -> feedback.show(
                 effect.toast.title,
                 effect.toast.message,

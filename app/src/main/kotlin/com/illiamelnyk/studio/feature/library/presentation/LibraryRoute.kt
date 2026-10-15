@@ -44,5 +44,7 @@ fun LibraryRoute(
         contentPadding = contentPadding,
         showBackButton = onBack != null,
     )
-    state.pickerTrack?.let { track -> PlaylistPickerRoute(track, onDismiss = { viewModel.onIntent(LibraryIntent.DismissPicker) }) }
+    state.pickerTrack?.let { track ->
+        PlaylistPickerRoute(track, onDismiss = { viewModel.onIntent(LibraryIntent.DismissPicker) })
+    }
 }

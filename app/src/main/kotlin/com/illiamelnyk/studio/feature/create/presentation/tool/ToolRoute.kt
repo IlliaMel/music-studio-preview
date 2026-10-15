@@ -5,9 +5,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.illiamelnyk.studio.core.presentation.ObserveEffects
 import com.illiamelnyk.studio.core.presentation.ToastController
 import com.illiamelnyk.studio.core.ui.components.StudioToastKind
-import com.illiamelnyk.studio.core.presentation.ObserveEffects
 import com.illiamelnyk.studio.feature.create.domain.Tool
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -32,7 +32,13 @@ fun ToolRoute(
     ObserveEffects(viewModel.effects) { effect ->
         when (effect) {
             ToolEffect.Close -> onClose()
-            is ToolEffect.ShowToast -> feedback.show(effect.toast.title, effect.toast.message, isError = effect.toast.kind == StudioToastKind.Error)
+
+            is ToolEffect.ShowToast -> feedback.show(
+                effect.toast.title,
+                effect.toast.message,
+                isError =
+                    effect.toast.kind == StudioToastKind.Error,
+            )
         }
     }
     ToolScreen(

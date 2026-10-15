@@ -22,21 +22,48 @@ import com.illiamelnyk.studio.feature.library.presentation.PlaylistUi
 import kotlinx.collections.immutable.ImmutableList
 
 @Composable
-fun LibraryPlaylistGrid(playlists: ImmutableList<PlaylistUi>, onCreate: () -> Unit, onExplore: () -> Unit, onSelect: (String) -> Unit, modifier: Modifier = Modifier, contentPadding: PaddingValues = PaddingValues()) {
+fun LibraryPlaylistGrid(
+    playlists: ImmutableList<PlaylistUi>,
+    onCreate: () -> Unit,
+    onExplore: () -> Unit,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(),
+) {
     val dimens = StudioTheme.dimens
-    LazyVerticalGrid(columns = GridCells.Adaptive(dimens.size.cover.l), modifier = modifier,
-        contentPadding = contentPadding + PaddingValues(horizontal = dimens.layout.screenPadding, vertical = dimens.spacing.m),
-        verticalArrangement = Arrangement.spacedBy(dimens.spacing.m), horizontalArrangement = Arrangement.spacedBy(dimens.layout.itemGap)) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(dimens.size.cover.l),
+        modifier = modifier,
+        contentPadding =
+            contentPadding + PaddingValues(horizontal = dimens.layout.screenPadding, vertical = dimens.spacing.m),
+        verticalArrangement = Arrangement.spacedBy(dimens.spacing.m),
+        horizontalArrangement = Arrangement.spacedBy(dimens.layout.itemGap),
+    ) {
         item(key = "create", span = { GridItemSpan(maxLineSpan) }) {
-            StudioButton(stringResource(R.string.library_create_playlist), onClick = onCreate, style = StudioButtonStyle.Text)
+            StudioButton(
+                stringResource(R.string.library_create_playlist),
+                onClick = onCreate,
+                style = StudioButtonStyle.Text,
+            )
         }
-        if (playlists.isEmpty()) item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
-            EmptyState(StudioIcons.LibraryMusic, stringResource(R.string.library_playlists), stringResource(R.string.library_playlist_empty), action = {
-                StudioButton(stringResource(R.string.library_explore), onClick = onExplore)
-            })
+        if (playlists.isEmpty()) {
+            item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
+                EmptyState(
+                    StudioIcons.LibraryMusic,
+                    stringResource(
+                        R.string.library_playlists,
+                    ),
+                    stringResource(R.string.library_playlist_empty),
+                    action = {
+                        StudioButton(stringResource(R.string.library_explore), onClick = onExplore)
+                    },
+                )
+            }
         }
         items(playlists, key = { it.id }, contentType = { "playlist" }) { playlist ->
-            TrackCard(playlist.name, playlist.subtitle.asString(), playlist.coverSeed, onClick = { onSelect(playlist.id) }, modifier = Modifier.animateItem())
+            TrackCard(playlist.name, playlist.subtitle.asString(), playlist.coverSeed, onClick = {
+                onSelect(playlist.id)
+            }, modifier = Modifier.animateItem())
         }
     }
 }

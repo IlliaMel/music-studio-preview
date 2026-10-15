@@ -59,10 +59,9 @@ class FakeTrackRepository(
         mine.filter(Track::isLiked) + catalog.values
     }
 
-    override fun observeById(id: TrackId): Flow<Track?> =
-        combine(tracks, catalogLikes) { list, catalog ->
-            list.find { it.id == id } ?: catalog[id] ?: FakeCatalog.tracks.find { it.id == id }
-        }.distinctUntilChanged()
+    override fun observeById(id: TrackId): Flow<Track?> = combine(tracks, catalogLikes) { list, catalog ->
+        list.find { it.id == id } ?: catalog[id] ?: FakeCatalog.tracks.find { it.id == id }
+    }.distinctUntilChanged()
 
     override suspend fun create(request: GenerationRequest, variants: Int): Outcome<List<Track>> {
         require(variants in 1..2) { "Variants must be between 1 and 2" }

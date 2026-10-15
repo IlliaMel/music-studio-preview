@@ -19,24 +19,59 @@ import com.illiamelnyk.studio.feature.listen.domain.CatalogSectionKind
 import com.illiamelnyk.studio.feature.listen.presentation.CatalogSectionUi
 
 @Composable
-fun CatalogSectionRow(section: CatalogSectionUi, onOpen: (String) -> Unit, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+fun CatalogSectionRow(
+    section: CatalogSectionUi,
+    onOpen: (String) -> Unit,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val padding = Modifier.padding(horizontal = StudioTheme.dimens.layout.screenPadding)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.s)) {
-        SectionHeader(stringResource(section.kind.titleResource()), modifier = padding, onTitleClick = if (!section.isLoading && !section.failed && section.kind != CatalogSectionKind.Stations && section.collections.isNotEmpty()) { { onOpen(section.collections.first().id) } } else null)
+        SectionHeader(
+            stringResource(section.kind.titleResource()),
+            modifier = padding,
+            onTitleClick = if (!section.isLoading &&
+                !section.failed &&
+                section.kind != CatalogSectionKind.Stations &&
+                section.collections.isNotEmpty()
+            ) {
+                { onOpen(section.collections.first().id) }
+            } else {
+                null
+            },
+        )
         when {
             section.isLoading -> CatalogSkeletonRow()
+
             section.failed -> Column(padding) {
                 StudioText(stringResource(R.string.listen_section_error), StudioTheme.typography.bodyMedium)
                 StudioButton(stringResource(R.string.listen_retry), onClick = onRetry)
             }
-            section.collections.isEmpty() -> StudioText(stringResource(R.string.listen_section_empty), StudioTheme.typography.bodyMedium, padding)
+
+            section.collections.isEmpty() -> StudioText(
+                stringResource(R.string.listen_section_empty),
+                StudioTheme.typography.bodyMedium,
+                padding,
+            )
+
             else -> Carousel(section.collections, key = { it.id }) { collection ->
                 if (section.kind == CatalogSectionKind.Stations) {
-                    StationCard(collection.title, stringResource(R.string.listen_live), collection.coverSeed, onClick = { onOpen(collection.id) })
+                    StationCard(
+                        collection.title,
+                        stringResource(
+                            R.string.listen_live,
+                        ),
+                        collection.coverSeed,
+                        onClick = {
+                            onOpen(collection.id)
+                        },
+                    )
                 } else if (section.kind == CatalogSectionKind.Genres) {
                     GenreCard(collection, onClick = { onOpen(collection.id) })
                 } else {
-                    TrackCard(collection.title, collection.subtitle.asString(), collection.coverSeed, onClick = { onOpen(collection.id) })
+                    TrackCard(collection.title, collection.subtitle.asString(), collection.coverSeed, onClick = {
+                        onOpen(collection.id)
+                    })
                 }
             }
         }

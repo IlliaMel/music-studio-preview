@@ -107,9 +107,17 @@ fun StudioContextMenu(
                 AnimatedVisibility(
                     visibleState = visibility,
                     enter = fadeIn(tween(motion.duration.short, easing = motion.easing.standard)) +
-                        scaleIn(tween(motion.duration.short, easing = motion.easing.standard), motion.pressScale, origin),
+                        scaleIn(
+                            tween(motion.duration.short, easing = motion.easing.standard),
+                            motion.pressScale,
+                            origin,
+                        ),
                     exit = fadeOut(tween(motion.duration.short, easing = motion.easing.standard)) +
-                        scaleOut(tween(motion.duration.short, easing = motion.easing.standard), motion.pressScale, origin),
+                        scaleOut(
+                            tween(motion.duration.short, easing = motion.easing.standard),
+                            motion.pressScale,
+                            origin,
+                        ),
                 ) {
                     Column(
                         modifier = modifier

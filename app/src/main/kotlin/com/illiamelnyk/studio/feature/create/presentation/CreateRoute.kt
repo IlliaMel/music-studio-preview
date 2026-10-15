@@ -17,9 +17,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.illiamelnyk.studio.R
+import com.illiamelnyk.studio.core.presentation.ObserveEffects
 import com.illiamelnyk.studio.core.presentation.ToastController
 import com.illiamelnyk.studio.core.ui.components.StudioToastKind
-import com.illiamelnyk.studio.core.presentation.ObserveEffects
 import com.illiamelnyk.studio.feature.create.domain.Tool
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -59,7 +59,12 @@ fun CreateRoute(
 
             is CreateEffect.OpenTool -> onOpenTool(effect.tool)
 
-            is CreateEffect.ShowToast -> feedback.show(effect.toast.title, effect.toast.message, isError = effect.toast.kind == StudioToastKind.Error)
+            is CreateEffect.ShowToast -> feedback.show(
+                effect.toast.title,
+                effect.toast.message,
+                isError =
+                    effect.toast.kind == StudioToastKind.Error,
+            )
 
             is CreateEffect.ShareTrack -> context.shareTrack(effect.title, effect.prompt)
 

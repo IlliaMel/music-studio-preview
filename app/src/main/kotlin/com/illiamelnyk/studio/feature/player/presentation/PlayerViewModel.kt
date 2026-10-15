@@ -87,7 +87,7 @@ class PlayerViewModel(
         is PlayerIntent.UpNextTrackClicked -> playUpNext(intent.position)
         PlayerIntent.ClearUpNextClicked -> playback.clearUpNext()
         PlayerIntent.SheetDismissed -> setContent { copy(sheet = null) }
-        PlayerIntent.AddToClicked -> playback.state.value.current?.let { sendEffect(PlayerEffect.OpenPlaylistPicker(it)) }
+        PlayerIntent.AddToClicked -> openPlaylistPicker()
         PlayerIntent.LikeClicked -> toggleLike()
         PlayerIntent.ShareClicked -> share()
         is PlayerIntent.ComingSoonClicked -> setContent { copy(sheet = PlayerSheet.ComingSoon(intent.feature)) }
@@ -114,6 +114,11 @@ class PlayerViewModel(
         return combine(tracks.observeById(track.id), likedHere) { saved, here ->
             here[track.id] ?: saved?.isLiked ?: track.isLiked
         }
+    }
+
+    private fun openPlaylistPicker() {
+        val track = playback.state.value.current ?: return
+        sendEffect(PlayerEffect.OpenPlaylistPicker(track))
     }
 
     private fun toggleLike() {

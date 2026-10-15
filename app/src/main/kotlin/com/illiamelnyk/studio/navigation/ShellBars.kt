@@ -18,6 +18,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
+import com.illiamelnyk.studio.core.ui.components.ComingSoonSheetContent
+import com.illiamelnyk.studio.core.ui.components.StudioBottomSheet
 import com.illiamelnyk.studio.core.ui.components.CreditsCounter
 import com.illiamelnyk.studio.core.ui.components.StudioIconButton
 import com.illiamelnyk.studio.core.ui.components.StudioNavigationBar
@@ -46,6 +48,7 @@ fun ShellTopBar(
     onProfileClick: () -> Unit,
     onLibraryClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onSearchClick: () -> Unit = {},
 ) {
     val insets = WindowInsets.systemBars.union(WindowInsets.displayCutout)
     TopBar(
@@ -63,8 +66,11 @@ fun ShellTopBar(
             when (selectedTab) {
                 TopLevelTab.Create -> CreditsCounter(left = creditsLeft)
 
-                TopLevelTab.Listen -> if (TopLevelTab.Library !in variant.tabs) {
-                    StudioIconButton(StudioIcons.Bookmark, stringResource(R.string.nav_library), onLibraryClick)
+                TopLevelTab.Listen -> {
+                    StudioIconButton(StudioIcons.Search, stringResource(R.string.listen_search), onSearchClick)
+                    if (TopLevelTab.Library !in variant.tabs) {
+                        StudioIconButton(StudioIcons.Bookmark, stringResource(R.string.nav_library), onLibraryClick)
+                    }
                 }
 
                 TopLevelTab.Library -> Unit
@@ -135,5 +141,18 @@ private fun ShellBarsPreview() {
                 onTabSelect = {},
             )
         }
+    }
+}
+
+@Composable
+internal fun ShellSearchSheet(visible: Boolean, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    StudioBottomSheet(visible = visible, onDismissRequest = onDismiss, modifier = modifier) {
+        ComingSoonSheetContent(
+            title = stringResource(R.string.listen_search),
+            description = stringResource(R.string.listen_search_soon),
+            steps = emptyList(),
+            actionLabel = stringResource(R.string.listen_close),
+            onAction = onDismiss,
+        )
     }
 }
