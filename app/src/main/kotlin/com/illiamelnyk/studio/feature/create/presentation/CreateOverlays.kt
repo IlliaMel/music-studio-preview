@@ -24,13 +24,10 @@ fun CreateOverlays(state: CreateState, onIntent: (CreateIntent) -> Unit) {
     GenerationSheets(state.sheet, onIntent)
     SettingsSheet(
         draft = (state.sheet as? CreateSheet.Settings)?.draft,
-        models = state.models,
-        durations = state.durations,
         callbacks = remember(onIntent) {
             SettingsCallbacks(
                 onQualitySelect = { onIntent(CreateIntent.SettingsQualitySelected(it)) },
                 onVariantsSelect = { onIntent(CreateIntent.SettingsVariantsSelected(it)) },
-                onModelSelect = { onIntent(CreateIntent.SettingsModelSelected(it)) },
                 onInstrumentalChange = { onIntent(CreateIntent.SettingsInstrumentalChanged(it)) },
                 onDurationSelect = { onIntent(CreateIntent.SettingsDurationSelected(it)) },
                 onReset = { onIntent(CreateIntent.SettingsReset) },
