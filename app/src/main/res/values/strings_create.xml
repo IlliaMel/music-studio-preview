@@ -63,7 +63,7 @@
     <string name="create_settings_vocals">Vocals</string>
     <string name="create_settings_with_vocals">Auto</string>
     <string name="create_settings_instrumental">Instrumental</string>
-    <string name="create_settings_length">Length</string>
+    <string name="create_settings_length">Duration</string>
     <string name="create_settings_reset">Reset</string>
     <string name="create_settings_apply">Apply</string>
 
