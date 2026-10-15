@@ -2,10 +2,14 @@ package com.illiamelnyk.studio.feature.create.presentation.components
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -21,7 +25,6 @@ import com.illiamelnyk.studio.core.domain.track.Quality
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
 import com.illiamelnyk.studio.core.ui.components.StudioButton
 import com.illiamelnyk.studio.core.ui.components.StudioButtonStyle
-import com.illiamelnyk.studio.core.ui.components.StudioChip
 import com.illiamelnyk.studio.core.ui.components.StudioIconButton
 import com.illiamelnyk.studio.core.ui.components.StudioSegmentedControl
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
@@ -85,11 +88,11 @@ private fun SettingsContent(
                 Modifier.align(Alignment.CenterEnd),
             )
         }
-        SettingsGroup(R.string.create_settings_length) {
+        SettingsInlineGroup(R.string.create_settings_length) {
             ComposerDurationMenu(draft.duration, callbacks.onDurationSelect)
         }
-        SettingsGroup(R.string.create_settings_variations) {
-            StudioSegmentedControl(listOf(1, 2), draft.variants, callbacks.onVariantsSelect) {
+        SettingsInlineGroup(R.string.create_settings_variations) {
+            StudioSegmentedControl(listOf(1, 2), draft.variants, callbacks.onVariantsSelect, compact = true) {
                 stringResource(R.string.create_variants, it)
             }
         }
@@ -116,10 +119,17 @@ private fun SettingsContent(
                 stringResource(it.label)
             }
         }
-        StudioChip(
-            stringResource(R.string.create_chip_styles),
-            { callbacks.onComingSoon(ComingSoonFeature.Styles) },
-        )
+        SettingsInlineGroup(
+            R.string.create_chip_styles,
+            Modifier.clickable { callbacks.onComingSoon(ComingSoonFeature.Styles) },
+        ) {
+            StudioText(stringResource(R.string.ui_soon), StudioTheme.typography.bodySmall)
+            StudioIconButton(
+                StudioIcons.ChevronRight,
+                stringResource(R.string.create_chip_styles),
+                { callbacks.onComingSoon(ComingSoonFeature.Styles) },
+            )
+        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs)) {
             StudioButton(
                 text = stringResource(R.string.create_settings_reset),
@@ -150,6 +160,27 @@ private fun SettingsGroup(@StringRes label: Int, modifier: Modifier = Modifier, 
             StudioTheme.typography.labelLarge,
             color = StudioTheme.colors.content.secondary,
         )
+        content()
+    }
+}
+
+@Composable
+private fun SettingsInlineGroup(
+    @StringRes label: Int,
+    modifier: Modifier = Modifier,
+    content: @Composable RowScope.() -> Unit,
+) {
+    val dimens = StudioTheme.dimens
+    Row(
+        modifier.fillMaxWidth()
+            .heightIn(min = dimens.size.component.trackRow)
+            .background(StudioTheme.colors.surface.level2, StudioTheme.shapes.xl)
+            .padding(horizontal = dimens.layout.cardPadding, vertical = dimens.spacing.xs),
+        horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StudioText(stringResource(label), StudioTheme.typography.bodyMedium)
+        Spacer(Modifier.weight(1f))
         content()
     }
 }
