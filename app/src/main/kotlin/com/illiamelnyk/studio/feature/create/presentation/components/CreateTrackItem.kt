@@ -70,6 +70,8 @@ fun CreateTrackItem(
                 onAction = onMenuAction,
                 onDismissRequest = onMenuDismiss,
                 canUseAsReference = track.canUseAsReference,
+                canUsePrompt = track.canUsePrompt,
+                canPlayNext = !isPlaying,
             )
         }
         if (track.row.status is TrackUi.Status.Failed) {

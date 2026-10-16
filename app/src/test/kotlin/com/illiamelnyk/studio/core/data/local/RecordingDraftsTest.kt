@@ -232,6 +232,34 @@ class RecordingDraftsTest {
     }
 
     @Test
+    fun playbackMetadataIsOwnerTaggedAndRejectsSnapshotsAfterRenameDeleteAndOwnerSwitch() = runTest {
+        val api = MemoryRecordings(context)
+        val repository = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
+        repository.signInServer()
+        val track = (
+            repository.saveRecording(source.toUri().toString(), "Before rename", 12.seconds) as Outcome.Success
+            ).value
+        val original = requireNotNull(repository.playbackMetadata.first())
+        assertEquals("owner", original.ownerId)
+        assertEquals("Before rename", original.tracks.single().title)
+        assertTrue(repository.isPlaybackMetadataCurrent(original))
+        assertEquals(Outcome.Success(Unit), repository.rename(track.id, "New metadata"))
+        val renamed = requireNotNull(repository.playbackMetadata.first())
+        assertEquals("New metadata", renamed.tracks.single().title)
+        assertFalse(repository.isPlaybackMetadataCurrent(original))
+        assertTrue(repository.isPlaybackMetadataCurrent(renamed))
+        assertEquals(Outcome.Success(Unit), repository.delete(track.id))
+        assertFalse(repository.isPlaybackMetadataCurrent(renamed))
+        repository.signOut()
+        assertEquals(null, repository.playbackMetadata.first())
+        api.owner = "second-owner"
+        repository.signInServer()
+        assertEquals("second-owner", repository.playbackMetadata.first()?.ownerId)
+        assertFalse(repository.isPlaybackMetadataCurrent(original))
+        assertEquals(0, api.generationPosts)
+    }
+
+    @Test
     fun deletedRecordingCannotBeReinsertedIntoPlaylistFromStalePicker() = runTest {
         val api = MemoryRecordings(context).apply { playlistCreated = true }
         val repository = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)

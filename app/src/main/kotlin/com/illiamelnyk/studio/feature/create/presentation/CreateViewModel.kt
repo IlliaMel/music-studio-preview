@@ -300,13 +300,16 @@ class CreateViewModel(
         val track = myTracks.find { it.id == id }?.let(renames::apply) ?: return
         when (action) {
             TrackMenuAction.PlayNext -> {
+                if (playback.state.value.current?.id == track.id) return
                 playNext(track)
                 toast(UiText.Resource(R.string.create_toast_play_next), UiText.Raw(track.title))
             }
 
             TrackMenuAction.Rename -> setState { copy(sheet = CreateSheet.Rename(id, track.title)) }
 
-            TrackMenuAction.UsePrompt -> updateComposer { copy(prompt = track.prompt) }
+            TrackMenuAction.UsePrompt -> if (track.prompt.isNotBlank()) {
+                updateComposer { copy(prompt = track.prompt) }
+            }
 
             TrackMenuAction.UseAsReference -> useRecordingReference(track)
 

@@ -98,7 +98,7 @@ fun PlayerRoute(
                     )
                 }.onFailure {
                     feedback.show(
-                        com.illiamelnyk.studio.core.presentation.UiText.Resource(R.string.player_share),
+                        com.illiamelnyk.studio.core.presentation.UiText.Resource(R.string.player_download),
                         com.illiamelnyk.studio.core.presentation.UiText.Resource(R.string.error_server),
                         isError = true,
                     )

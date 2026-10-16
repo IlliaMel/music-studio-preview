@@ -36,11 +36,13 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
@@ -832,9 +834,50 @@ class CreateViewModelTest {
             assertEquals(emptyList<Track>(), drafts.sources.value)
         }
 
-    private fun TestScope.viewModel(drafts: ComposerDraftStore = ComposerDraftStore { "test-owner" }): CreateViewModel {
+    @Test
+    fun blankPromptMenuCallbackPreservesTheExistingComposerDraft() = runTest(mainDispatcherRule.testDispatcher) {
+        val id = TrackId("seed-2")
+        val vm = viewModel(blankPromptIds = setOf(id))
+        vm.onIntent(CreateIntent.PromptChanged("Keep my existing musical idea"))
+        assertFalse(vm.state.value.track(id.value).canUsePrompt)
+        vm.effects.test {
+            vm.onIntent(CreateIntent.MoreClicked(id))
+            vm.onIntent(CreateIntent.MenuActionClicked(TrackMenuAction.UsePrompt))
+            runCurrent()
+            assertEquals("Keep my existing musical idea", vm.state.value.composer.prompt)
+            assertNull(vm.state.value.menuTrackId)
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun playNextForTheActualCurrentTrackDoesNotEnqueueOrReportSuccess() = runTest(mainDispatcherRule.testDispatcher) {
+        val vm = viewModel()
+        val current = tracks.observeMine().first().first { it.id == TrackId("seed-2") }
+        playback.play(listOf(current))
+        runCurrent()
+        val queue = playback.state.value.queue
+        vm.effects.test {
+            vm.onIntent(CreateIntent.MoreClicked(current.id))
+            vm.onIntent(CreateIntent.MenuActionClicked(TrackMenuAction.PlayNext))
+            runCurrent()
+            assertEquals(queue, playback.state.value.queue)
+            assertEquals(current.id, playback.state.value.current?.id)
+            assertNull(vm.state.value.menuTrackId)
+            expectNoEvents()
+        }
+    }
+
+    private fun TestScope.viewModel(
+        drafts: ComposerDraftStore = ComposerDraftStore { "test-owner" },
+        blankPromptIds: Set<TrackId> = emptySet(),
+    ): CreateViewModel {
         val fake = FakeTrackRepository(credits, FakeSessionRepository(), backgroundScope, clock)
         val capturing = object : TrackRepository by fake {
+            override fun observeMine() = fake.observeMine().map { list ->
+                list.map { if (it.id in blankPromptIds) it.copy(prompt = "") else it }
+            }
+
             override suspend fun rename(id: TrackId, title: String): Outcome<Unit> {
                 renameCalls++
                 val result = renameGate?.await() ?: Outcome.Success(Unit)

@@ -21,6 +21,7 @@ import com.illiamelnyk.studio.feature.player.presentation.PlayerViewModel
 import com.illiamelnyk.studio.feature.player.presentation.mini.MiniPlayerViewModel
 import com.illiamelnyk.studio.feature.profile.presentation.ProfileViewModel
 import com.illiamelnyk.studio.navigation.AppViewModel
+import kotlinx.coroutines.flow.Flow
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.koin.android.ext.koin.androidContext
@@ -46,7 +47,12 @@ class KoinGraphTest {
             // androidContext installs this platform dependency when the app starts.
             extraTypes = listOf(Context::class),
             injections = injectedParameters(
-                definition<AndroidPlaybackController>(Function0::class, Function2::class),
+                definition<AndroidPlaybackController>(
+                    Function0::class,
+                    Function1::class,
+                    Function2::class,
+                    Flow::class,
+                ),
                 definition<PlaybackAutoplayCoordinator>(Function0::class),
                 definition<ComposerDraftStore>(Function0::class),
                 definition<ToolViewModel>(Tool::class),

@@ -137,8 +137,10 @@ class PlaybackService : MediaBrowserService() {
             val bitmap = artwork.load(requireNotNull(snapshot.state.current).coverSeed.value)
             val current = playback.systemSnapshot()
             result.sendResult(
-                if (current?.mediaId == snapshot.mediaId) {
-                    listOf(recentMediaItem(snapshot, bitmap))
+                if (current != null && current.mediaId == snapshot.mediaId &&
+                    current.state.current?.coverSeed == snapshot.state.current?.coverSeed
+                ) {
+                    listOf(recentMediaItem(current, bitmap))
                 } else {
                     emptyList()
                 },

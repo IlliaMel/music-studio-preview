@@ -6,6 +6,7 @@ import com.illiamelnyk.studio.core.data.local.toTrack
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.playback.PlaybackController
 import com.illiamelnyk.studio.core.domain.playback.PlaybackFailure
+import com.illiamelnyk.studio.core.domain.playback.PlaybackMetadataSnapshot
 import com.illiamelnyk.studio.core.domain.playback.PlaybackResumption
 import com.illiamelnyk.studio.core.domain.playback.PlaybackState
 import com.illiamelnyk.studio.core.domain.playback.RepeatMode
@@ -17,9 +18,11 @@ import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -31,6 +34,8 @@ class AndroidPlaybackController(
     private val ownerId: () -> String?,
     private val random: Random = Random.Default,
     private val audioHeaders: suspend (Track) -> Map<String, String> = { it.audioHeaders },
+    metadata: Flow<PlaybackMetadataSnapshot?> = emptyFlow(),
+    private val isMetadataCurrent: (PlaybackMetadataSnapshot) -> Boolean = { true },
 ) : PlaybackController {
     private val playbackLock = Any()
     private val mutableState = MutableStateFlow(PlaybackState())
@@ -40,6 +45,7 @@ class AndroidPlaybackController(
     private var playbackOwner: String? = null
     private var playbackGeneration = 0L
     private var originalQueue: List<Track> = emptyList()
+    private var latestMetadata: PlaybackMetadataSnapshot? = null
 
     private var playOrder: List<Int> = emptyList()
     private var clock: Job? = null
@@ -72,6 +78,15 @@ class AndroidPlaybackController(
     init {
         clearLegacyState()
         restoreQueue()
+        scope.launch(kotlinx.coroutines.Dispatchers.Main.immediate) {
+            metadata.collect { snapshot ->
+                if (snapshot == null) {
+                    synchronized(playbackLock) { latestMetadata = null }
+                } else {
+                    refreshMetadata(snapshot)
+                }
+            }
+        }
         scope.launch(kotlinx.coroutines.Dispatchers.Main) {
             playbackPurgeGenerations.collect { generations ->
                 synchronized(playbackLock) {
@@ -445,6 +460,32 @@ class AndroidPlaybackController(
         flushPersistenceAsync()
     }
 
+    override fun refreshMetadata(snapshot: PlaybackMetadataSnapshot) {
+        synchronized(playbackLock) {
+            if (snapshot.ownerId != ownerId() || !isMetadataCurrent(snapshot)) return
+            latestMetadata = snapshot
+            val owner = playbackOwner ?: return
+            if (snapshot.ownerId != owner || owner != ownerId() ||
+                playbackGeneration != playbackStateGeneration(owner) || !persistence.owns(owner) ||
+                !isMetadataCurrent(snapshot)
+            ) {
+                return
+            }
+            val updates = snapshot.tracks.associateBy { it.id }
+            fun Track.updated(): Track = updates[id]?.let {
+                copy(title = it.title, artist = it.artist, coverSeed = it.coverSeed)
+            } ?: this
+            val original = originalQueue.map { it.updated() }
+            if (owner != ownerId() || playbackGeneration != playbackStateGeneration(owner) ||
+                !persistence.owns(owner) || !isMetadataCurrent(snapshot)
+            ) {
+                return
+            }
+            originalQueue = original
+            mutableState.update { current -> current.copy(queue = current.queue.map { it.updated() }) }
+        }
+    }
+
     override fun clearUpNext() {
         synchronized(playbackLock) {
             val current = mutableState.value.current ?: return
@@ -575,6 +616,7 @@ class AndroidPlaybackController(
                 )
             }
         }
+        latestMetadata?.let(::refreshMetadata)
         persistAutoplay()
         persistQueue()
         if (ownerId() == owner && playbackStateGeneration(owner) == generation && persistence.owns(owner)) startClock()

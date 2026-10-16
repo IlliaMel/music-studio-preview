@@ -9,6 +9,8 @@ import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.credits.Credits
 import com.illiamelnyk.studio.core.domain.credits.CreditsRepository
 import com.illiamelnyk.studio.core.domain.notification.GenerationNotifications
+import com.illiamelnyk.studio.core.domain.playback.PlaybackMetadataSnapshot
+import com.illiamelnyk.studio.core.domain.playback.PlaybackTrackMetadata
 import com.illiamelnyk.studio.core.domain.playlist.Playlist
 import com.illiamelnyk.studio.core.domain.playlist.PlaylistRepository
 import com.illiamelnyk.studio.core.domain.session.Onboarding
@@ -70,6 +72,20 @@ class DurableStudioRepository(
     private var lastSyncMillis = 0L
     private var lastDeletionRetryMillis = 0L
     private val state = MutableStateFlow(loadActive())
+    val playbackMetadata = state.map { it?.toPlaybackMetadata() }.distinctUntilChanged()
+
+    fun isPlaybackMetadataCurrent(snapshot: PlaybackMetadataSnapshot): Boolean {
+        val current = state.value ?: return false
+        return deletingAccountId != snapshot.ownerId && current.toPlaybackMetadata() == snapshot
+    }
+
+    private fun AccountSnapshot.toPlaybackMetadata() = PlaybackMetadataSnapshot(
+        session.user.id.value,
+        tracks.map {
+            PlaybackTrackMetadata(it.id, it.title, it.artist, it.coverSeed)
+        },
+    )
+
     val activeAccountId: String?
         get() = state.value?.session?.user?.id?.value?.takeUnless { it == deletingAccountId }
     override val session: Flow<Session?> = state.map { it?.session }.distinctUntilChanged()

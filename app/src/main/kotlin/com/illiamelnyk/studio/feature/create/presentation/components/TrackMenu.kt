@@ -26,13 +26,17 @@ fun TrackMenu(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
     canUseAsReference: Boolean = false,
+    canUsePrompt: Boolean = true,
+    canPlayNext: Boolean = true,
 ) {
     StudioContextMenu(expanded = expanded, onDismissRequest = onDismissRequest, modifier = modifier) {
-        ContextMenuItem(
-            label = stringResource(R.string.create_menu_play_next),
-            onClick = { onAction(TrackMenuAction.PlayNext) },
-            icon = StudioIcons.PlaylistPlay,
-        )
+        if (canPlayNext) {
+            ContextMenuItem(
+                label = stringResource(R.string.create_menu_play_next),
+                onClick = { onAction(TrackMenuAction.PlayNext) },
+                icon = StudioIcons.PlaylistPlay,
+            )
+        }
         ContextMenuItem(
             label = stringResource(R.string.create_menu_share),
             onClick = { onAction(TrackMenuAction.Share) },
@@ -48,11 +52,13 @@ fun TrackMenu(
             onClick = { onAction(TrackMenuAction.Rename) },
             icon = StudioIcons.Edit,
         )
-        ContextMenuItem(
-            label = stringResource(R.string.create_menu_use_prompt),
-            onClick = { onAction(TrackMenuAction.UsePrompt) },
-            icon = StudioIcons.Lyrics,
-        )
+        if (canUsePrompt) {
+            ContextMenuItem(
+                label = stringResource(R.string.create_menu_use_prompt),
+                onClick = { onAction(TrackMenuAction.UsePrompt) },
+                icon = StudioIcons.Lyrics,
+            )
+        }
         if (canUseAsReference) {
             ContextMenuItem(
                 label = stringResource(R.string.create_menu_use_as_reference),

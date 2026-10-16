@@ -46,6 +46,8 @@ interface PlaybackController {
 
     fun removeTrack(id: TrackId) = Unit
 
+    fun refreshMetadata(snapshot: PlaybackMetadataSnapshot) = Unit
+
     /** Keeps the current track playing and drops the rest of the queue. */
     fun clearUpNext()
 

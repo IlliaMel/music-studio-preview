@@ -92,6 +92,8 @@ val coreModule = module {
             get(named(APP_SCOPE)),
             ownerId = { repository.activeAccountId },
             audioHeaders = repository::playbackHeaders,
+            metadata = repository.playbackMetadata,
+            isMetadataCurrent = repository::isPlaybackMetadataCurrent,
         )
     } bind PlaybackController::class
     single<AutoplayCatalog> {
