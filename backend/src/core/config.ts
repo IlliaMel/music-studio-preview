@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { z } from 'zod'
+import { defaultHttpLimits, type HttpLimits } from './http/admission.js'
 
 /** Where the data lives: a real Postgres server, or the embedded PGlite for local work and tests. */
 export type DatabaseConfig =
@@ -31,6 +32,7 @@ export type Config = {
   auth: AuthConfig
   generation: GenerationConfig
   storage: { audioDir: string }
+  http: HttpLimits
 }
 
 export type LogLevel = z.infer<typeof LogLevel>
@@ -87,6 +89,10 @@ const Env = z.object({
   MOCK_DELAY_MS: optional(z.coerce.number().int().min(0)),
   FIREBASE_SERVICE_ACCOUNT: optional(ServiceAccountJson),
   FIREBASE_SERVICE_ACCOUNT_FILE: optional(z.string().min(1)),
+  HTTP_REQUESTS_PER_MINUTE: optional(z.coerce.number().int().min(1)),
+  HTTP_OWNER_REQUESTS_PER_MINUTE: optional(z.coerce.number().int().min(1)),
+  HTTP_CONCURRENT_UPLOADS: optional(z.coerce.number().int().min(1).max(100)),
+  HTTP_OWNER_CONCURRENT_UPLOADS: optional(z.coerce.number().int().min(1).max(100)),
   MUSIC_PROVIDER: optional(z.enum(['mock', 'elevenlabs'])),
   ELEVENLABS_API_KEY: optional(z.string().trim().min(1)),
   ELEVENLABS_ENABLE_REFERENCES: optional(flag),
@@ -126,6 +132,8 @@ export function loadConfig(environment: Record<string, string | undefined>): Con
   const authMode = env.AUTH_MODE ?? (nodeEnv === 'production' ? 'firebase' : 'dev')
 
   const problems: string[] = []
+  if (nodeEnv === 'production' && !env.MUSIC_PROVIDER)
+    problems.push('MUSIC_PROVIDER: explicitly choose elevenlabs or mock in production')
   if (nodeEnv === 'production' && !env.DATABASE_URL) {
     problems.push('DATABASE_URL: required in production; PGlite is for local work only')
   }
@@ -187,6 +195,14 @@ export function loadConfig(environment: Record<string, string | undefined>): Con
       concurrency: env.GENERATION_CONCURRENCY ?? 2,
       timeoutMs: env.GENERATION_TIMEOUT_MS ?? 5 * 60_000,
       dailyLimit: env.DAILY_GENERATIONS_PER_USER ?? 25,
+    },
+    http: {
+      requestsPerMinute: env.HTTP_REQUESTS_PER_MINUTE ?? defaultHttpLimits.requestsPerMinute,
+      ownerRequestsPerMinute:
+        env.HTTP_OWNER_REQUESTS_PER_MINUTE ?? defaultHttpLimits.ownerRequestsPerMinute,
+      concurrentUploads: env.HTTP_CONCURRENT_UPLOADS ?? defaultHttpLimits.concurrentUploads,
+      ownerConcurrentUploads:
+        env.HTTP_OWNER_CONCURRENT_UPLOADS ?? defaultHttpLimits.ownerConcurrentUploads,
     },
     storage: { audioDir: env.AUDIO_DIR ?? `${env.DATA_DIR ?? './data'}/audio` },
   }

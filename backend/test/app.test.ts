@@ -115,7 +115,7 @@ describe('feature routes', () => {
     const response = await app.request('/v1/probe/echo', {
       method: 'POST',
       body,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer dev:alice' },
       duplex: 'half',
     } as RequestInit)
 

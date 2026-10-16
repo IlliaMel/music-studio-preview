@@ -31,6 +31,12 @@ describe('loadConfig', () => {
         dailyLimit: 25,
       },
       storage: { audioDir: './data/audio' },
+      http: {
+        requestsPerMinute: 1200,
+        ownerRequestsPerMinute: 240,
+        concurrentUploads: 4,
+        ownerConcurrentUploads: 2,
+      },
     })
   })
 
@@ -73,6 +79,7 @@ describe('loadConfig in production', () => {
     const error = captureError(() => loadConfig({ NODE_ENV: 'production' })) as ConfigError
 
     expect(error.problems.map((problem) => problem.split(':')[0])).toEqual([
+      'MUSIC_PROVIDER',
       'DATABASE_URL',
       'PUBLIC_BASE_URL',
       'AUDIO_DIR',
@@ -80,10 +87,11 @@ describe('loadConfig in production', () => {
     ])
   })
 
-  it('starts with both', () => {
+  it('allows an explicitly selected mock for intentional production-like staging', () => {
     const config = loadConfig({
       NODE_ENV: 'production',
       HOST: '0.0.0.0',
+      MUSIC_PROVIDER: 'mock',
       DATABASE_URL: 'postgres://db.internal/studio',
       PUBLIC_BASE_URL: 'https://api.studio.example/',
       AUDIO_DIR: '/data/audio',
@@ -92,6 +100,7 @@ describe('loadConfig in production', () => {
 
     expect(config.server.publicBaseUrl).toBe('https://api.studio.example')
     expect(config.storage.audioDir).toBe('/data/audio')
+    expect(config.generation.provider).toBe('mock')
 
     expect(config.auth).toEqual({
       mode: 'firebase',
@@ -206,4 +215,32 @@ it('loads a backend Firebase credential file without exposing unreadable-file de
   } finally {
     await rm(directory, { recursive: true, force: true })
   }
+})
+
+it('rejects an omitted production provider even when the other deployment inputs are valid', () => {
+  expect(() =>
+    loadConfig({
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgres://db/studio',
+      PUBLIC_BASE_URL: 'https://api.example.test',
+      AUDIO_DIR: '/data/audio',
+      FIREBASE_SERVICE_ACCOUNT: serviceAccount,
+    }),
+  ).toThrow('MUSIC_PROVIDER: explicitly choose')
+})
+it('validates and applies HTTP resource limits', () => {
+  expect(
+    loadConfig({
+      HTTP_REQUESTS_PER_MINUTE: '50',
+      HTTP_OWNER_REQUESTS_PER_MINUTE: '10',
+      HTTP_CONCURRENT_UPLOADS: '3',
+      HTTP_OWNER_CONCURRENT_UPLOADS: '1',
+    }).http,
+  ).toEqual({
+    requestsPerMinute: 50,
+    ownerRequestsPerMinute: 10,
+    concurrentUploads: 3,
+    ownerConcurrentUploads: 1,
+  })
+  expect(() => loadConfig({ HTTP_CONCURRENT_UPLOADS: '0' })).toThrow('HTTP_CONCURRENT_UPLOADS')
 })

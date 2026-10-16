@@ -8,7 +8,7 @@ Copy .env.example to .env, set MUSIC_PROVIDER=elevenlabs and ELEVENLABS_API_KEY 
 
 AUTH_MODE=firebase activates Firebase Admin token verification/revocation checking and account deletion. Supply either FIREBASE_SERVICE_ACCOUNT as JSON or FIREBASE_SERVICE_ACCOUNT_FILE as an absolute JSON-file path; inline JSON wins if both are present. This is the backend admin credential, not Android google-services.json. The HTTP client must supply a real Firebase ID token. Never commit credentials or put them in the phone.
 
-Production additionally requires NODE_ENV=production, DATABASE_URL for Postgres, PUBLIC_BASE_URL=https://your-api-host, AUDIO_DIR on a persistent volume and Firebase credentials. Terminate HTTPS at your ingress; use an appropriately protected HOST. The local-volume deployment supports one server instance. Multiple instances need a shared audio/object store. API keys are sent only to the fixed official ElevenLabs origin; redirects are refused.
+Production requires an explicit MUSIC_PROVIDER=elevenlabs (and its key), or MUSIC_PROVIDER=mock only when fixtures are intentionally desired in a production-like staging environment. Omitting MUSIC_PROVIDER fails startup in production; local development still defaults to mock. Production additionally requires NODE_ENV=production, DATABASE_URL for Postgres, PUBLIC_BASE_URL=https://your-api-host, AUDIO_DIR on a persistent volume and Firebase credentials. Terminate HTTPS at your ingress; use an appropriately protected HOST. The local-volume deployment supports one server instance. Multiple instances need a shared audio/object store. API keys are sent only to the fixed official ElevenLabs origin; redirects are refused.
 
 ## Supported real modes and costs
 
@@ -47,3 +47,9 @@ Official contracts checked 2026-10-15:
 - [Music upload and its billing notice](https://elevenlabs.io/docs/api-reference/music/upload)
 - [Official Music SDK skill: v2 chunks, enterprise inpainting and conditioning](https://github.com/elevenlabs/skills/blob/main/music/references/api_reference.md)
 - [Official generated SDK response/word-timestamp schemas](https://github.com/elevenlabs/elevenlabs-python/tree/main/src/elevenlabs/types)
+
+## HTTP admission limits
+
+Each server process admits at most 1200 API requests/minute before authentication, 240 requests/minute per verified owner, 4 concurrent binary uploads overall and 2 per owner. Configure positive HTTP_REQUESTS_PER_MINUTE, HTTP_OWNER_REQUESTS_PER_MINUTE, HTTP_CONCURRENT_UPLOADS and HTTP_OWNER_CONCURRENT_UPLOADS (upload concurrency max 100). Fixed windows return 429 RATE_LIMITED with Retry-After; saturation rejects uploads before reading/materializing bytes. Slots release on handler success/failure. Owner bookkeeping is capped at 10000 active windows. Requests authenticate before body validation; unauthenticated oversized bodies receive 401. Health probes remain outside API admission.
+
+These counters are bounded in-memory per process, reset on restart, and are not distributed billing/security quotas. Forwarded IP headers are deliberately ignored; no proxy trust is invented. Configure ingress connection/body/time limits and, if needed, distributed/per-IP limits for public deployment, especially before slow unauthenticated connections and across replicas. Authentication itself is bounded by the pre-auth global request rate; upload slots apply after authentication. No network/paid integration was exercised by these local regressions.

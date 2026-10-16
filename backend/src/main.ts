@@ -33,6 +33,7 @@ if (config.auth.mode === 'dev') {
 const { generation } = config
 const { app, features, worker, accountDeletionWorker, purgeExpiredUploads } = composeApp({
   db: database.db,
+  http: config.http,
   log,
   auth,
   storage: new LocalAudioStorage(config.storage.audioDir),

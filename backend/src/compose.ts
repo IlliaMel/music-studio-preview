@@ -3,6 +3,7 @@ import { createApp } from './app.js'
 import type { AuthProvider } from './core/auth/auth-provider.js'
 import { authenticate } from './core/auth/authenticate.js'
 import type { Database } from './core/db/database.js'
+import type { HttpLimits } from './core/http/admission.js'
 import type { AppEnv, Feature } from './core/http/app-env.js'
 import type { Logger } from './core/logger.js'
 import type { AudioStorage } from './core/storage/audio-storage.js'
@@ -21,6 +22,7 @@ export type AppServices = {
   storage: AudioStorage
   provider: MusicProvider
   tracks: TracksFeatureOptions
+  http?: HttpLimits
 }
 
 /**
@@ -102,6 +104,7 @@ export function composeApp(services: AppServices, extraFeatures: readonly Featur
     log,
     authenticate: authenticate(auth, (identity) => users.service.resolve(identity)),
     features,
+    http: services.http,
   })
   return {
     app,
