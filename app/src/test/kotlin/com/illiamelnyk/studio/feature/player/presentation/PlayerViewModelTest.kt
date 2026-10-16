@@ -365,6 +365,25 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun rawRecordingStaleRemixActionCannotAddSourceOrCollapsePlayer() = runTest(mainDispatcherRule.testDispatcher) {
+        val playback = playback()
+        playback.play(listOf(sung))
+        val drafts = com.illiamelnyk.studio.core.domain.track.ComposerDraftStore { "test-owner" }
+        val viewModel = PlayerViewModel(playback, lyrics, tracks, drafts)
+        assertTrue(viewModel.state.value.content.canRemix)
+        val recording = sung.copy(id = com.illiamelnyk.studio.core.domain.track.TrackId("recording-raw-fixture"))
+        playback.play(listOf(recording))
+        viewModel.effects.test {
+            viewModel.onIntent(PlayerIntent.ComingSoonClicked(SoonFeature.Remix))
+            runCurrent()
+            assertFalse(viewModel.state.value.content.canRemix)
+            assertNull(drafts.pending.value)
+            assertTrue(drafts.sources.value.isEmpty())
+            expectNoEvents()
+        }
+    }
+
+    @Test
     fun `download exports the playing track and autoplay toggles independently of repeat`() =
         runTest(mainDispatcherRule.testDispatcher) {
             val playback = playback()

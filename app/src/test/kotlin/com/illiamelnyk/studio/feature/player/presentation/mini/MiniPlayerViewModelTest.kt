@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -34,7 +35,7 @@ class MiniPlayerViewModelTest {
         runCurrent()
 
         assertEquals(
-            MiniPlayerState(track = a.toNowPlaying(), isPlaying = true, progress = 0.25f),
+            MiniPlayerState(track = a.toNowPlaying(), isPlaying = true, progress = 0.25f, canRemix = true),
             viewModel.state.value,
         )
     }
@@ -79,6 +80,35 @@ class MiniPlayerViewModelTest {
         playback.setRepeat(com.illiamelnyk.studio.core.domain.playback.RepeatMode.All)
         runCurrent()
         assertEquals(true, viewModel.state.value.hasNext)
+    }
+
+    @Test
+    fun miniRemixRechecksCurrentTrackBeforeUsingAnOldVisibleAction() = runTest(mainDispatcherRule.testDispatcher) {
+        val playback = playback()
+        playback.play(listOf(a))
+        val drafts = com.illiamelnyk.studio.core.domain.track.ComposerDraftStore { "test-owner" }
+        val viewModel = MiniPlayerViewModel(playback, drafts)
+        assertTrue(viewModel.state.value.canRemix)
+        viewModel.onIntent(MiniPlayerIntent.RemixClicked)
+        assertEquals(listOf(a), drafts.sources.value)
+        drafts.clear()
+        val recording = a.copy(id = com.illiamelnyk.studio.core.domain.track.TrackId("recording-raw-fixture"))
+        playback.play(listOf(recording))
+        viewModel.onIntent(MiniPlayerIntent.RemixClicked)
+        assertTrue(drafts.sources.value.isEmpty())
+        runCurrent()
+        assertFalse(viewModel.state.value.canRemix)
+        playback.play(listOf(a.copy(remixTrackIds = listOf("one", "two"))))
+        viewModel.onIntent(MiniPlayerIntent.RemixClicked)
+        assertTrue(drafts.sources.value.isEmpty())
+        playback.playStation("LIVE", listOf(a))
+        viewModel.onIntent(MiniPlayerIntent.RemixClicked)
+        assertTrue(drafts.sources.value.isEmpty())
+        runCurrent()
+        assertFalse(viewModel.state.value.canRemix)
+        playback.play(listOf(b))
+        viewModel.onIntent(MiniPlayerIntent.RemixClicked)
+        assertEquals(listOf(b), drafts.sources.value)
     }
 
     private fun TestScope.playback() = FakePlaybackController(backgroundScope, Random(seed = 7))

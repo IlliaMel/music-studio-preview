@@ -20,12 +20,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.illiamelnyk.studio.core.domain.playback.PlaybackController
-import com.illiamelnyk.studio.core.domain.track.ComposerDraftStore
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.player.presentation.host.PlayerHostScope
 import com.illiamelnyk.studio.feature.player.presentation.mini.components.MiniPlayerPill
-import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -48,14 +45,12 @@ fun MiniPlayerHost(
     modifier: Modifier = Modifier,
     viewModel: MiniPlayerViewModel = koinViewModel(),
 ) {
-    val drafts: ComposerDraftStore = koinInject()
-    val playback: PlaybackController = koinInject()
-    val playbackState by playback.state.collectAsStateWithLifecycle()
     val state = viewModel.state.collectAsStateWithLifecycle()
     val track by remember { derivedStateOf { state.value.track } }
     val isPlaying by remember { derivedStateOf { state.value.isPlaying } }
     val isStation by remember { derivedStateOf { state.value.isStation } }
     val hasNext by remember { derivedStateOf { state.value.hasNext } }
+    val canRemix by remember { derivedStateOf { state.value.canRemix } }
     val motion = StudioTheme.motion
     AnimatedVisibility(
         visible = visible && track != null,
@@ -86,8 +81,8 @@ fun MiniPlayerHost(
                     onPlayPause = { viewModel.onIntent(MiniPlayerIntent.PlayPauseClicked) },
                     onNext = if (!isStation) ({ viewModel.onIntent(MiniPlayerIntent.NextClicked) }) else null,
                     nextEnabled = hasNext,
-                    onRemix = if (!isStation && playbackState.current?.remixTrackId == null) {
-                        { playback.state.value.current?.let(drafts::remix) }
+                    onRemix = if (canRemix) {
+                        { viewModel.onIntent(MiniPlayerIntent.RemixClicked) }
                     } else {
                         null
                     },

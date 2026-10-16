@@ -21,7 +21,7 @@ fun PlayerContent.withPlayback(playback: PlaybackState): PlayerContent {
         track = nowPlaying,
         isPlaying = playback.isPlaying,
         hasNext = playback.hasNext,
-        canRemix = playback.current?.remixTrackId == null,
+        canRemix = !playback.isStation && playback.current?.canRemixOriginal == true,
         isStation = playback.isStation,
         shuffle = playback.shuffle,
         repeat = playback.repeat != RepeatMode.Off,

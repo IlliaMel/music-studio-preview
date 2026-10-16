@@ -21,6 +21,8 @@ class ComposerDraftStore(private val ownerId: () -> String? = { null }) {
         if (checkOwner() == null) return
         mutableRevision.value += 1
         mutableProblem.value = when {
+            track.id.isRecording -> Problem.RecordingReference
+
             track.isRemix -> Problem.AlreadyRemixed
 
             track.status != TrackStatus.Ready -> Problem.NotReady
@@ -96,7 +98,7 @@ class ComposerDraftStore(private val ownerId: () -> String? = { null }) {
         }
     }
 
-    enum class Problem { TooMany, AlreadyRemixed, NotReady }
+    enum class Problem { TooMany, AlreadyRemixed, NotReady, RecordingReference }
     companion object {
         const val MAX_SOURCES = 4
     }

@@ -30,6 +30,7 @@ import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.core.presentation.UiText
 import com.illiamelnyk.studio.core.presentation.track.TrackUi
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.collections.immutable.persistentListOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -180,6 +181,25 @@ class PlayerScreenTest {
     @Test
     @Config(qualifiers = "w320dp-h400dp")
     fun compactLiveKeepsStopTouchableAtFont2() = assertCompactLive(2f)
+
+    @Test
+    @Config(qualifiers = "w360dp-h800dp")
+    fun rawRecordingHidesRemixInFullActionsAndMoreMenuWhileShareStillWorks() {
+        val recording = com.illiamelnyk.studio.feature.player.fake.track(
+            "recording-raw-fixture",
+            20.seconds,
+        )
+        val projected = PlayerContent().withPlayback(
+            com.illiamelnyk.studio.core.domain.playback.PlaybackState(queue = listOf(recording)),
+        )
+        show(projected)
+        composeRule.onNodeWithText(string(R.string.player_remix)).assertDoesNotExist()
+        composeRule.onNodeWithText(string(R.string.player_add_to)).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(string(R.string.player_more)).performClick()
+        composeRule.onNodeWithText(string(R.string.player_remix)).assertDoesNotExist()
+        composeRule.onNodeWithText(string(R.string.player_share)).assertIsDisplayed().performTouchInput { click() }
+        assertEquals(listOf(PlayerIntent.ShareClicked), intents)
+    }
 
     private fun assertCompactActions(fontScale: Float) {
         show(

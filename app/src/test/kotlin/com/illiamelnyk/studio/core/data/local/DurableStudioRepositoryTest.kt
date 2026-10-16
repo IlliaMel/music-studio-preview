@@ -851,6 +851,43 @@ class DurableStudioRepositoryTest {
         assertEquals(credits, repository.credits.first())
     }
 
+    @Test
+    fun rawOwnedRecordingCannotBypassRemixEligibilityOrSpendCreditWhileAnOriginalCanPost() = runTest {
+        val api = MemoryApi(context)
+        val store = StudioStore(context)
+        val first = DurableStudioRepository(context, store, api, backgroundScope)
+        first.signInServer()
+        val original = first.observeMine().first().first()
+        val recordingId = "recording-8ced07a1-2964-4a3f-aa80-75177020463b"
+        val recording = original.copy(
+            id = com.illiamelnyk.studio.core.domain.track.TrackId(recordingId),
+            audioUri = api.baseUrl + "/v1/recordings/8ced07a1-2964-4a3f-aa80-75177020463b/audio",
+        )
+        store.change { root ->
+            root.getJSONObject("account-server-user").getJSONArray("tracks").put(recording.toJson())
+        }
+        val repository = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
+        val credits = repository.credits.first()
+        assertEquals(
+            Outcome.Failure(com.illiamelnyk.studio.core.domain.AppError.InvalidReference),
+            repository.create(
+                GenerationRequest("Use a raw recording as a remix source", remixTrackIds = listOf(recordingId)),
+                1,
+            ),
+        )
+        assertEquals(0, api.generationRequests)
+        assertEquals(credits, repository.credits.first())
+        assertTrue(
+            repository.create(
+                GenerationRequest("Remix the actual completed original", remixTrackIds = listOf(original.id.value)),
+                1,
+            )
+                is Outcome.Success,
+        )
+        assertEquals(1, api.generationRequests)
+        assertEquals(listOf(original.id.value), api.lastGeneration!!.getJSONArray("remixTrackIds").strings())
+    }
+
     private class RetryingNotifications(context: Context) : GenerationNotifications {
         var enabled = true
         var failRecord = false

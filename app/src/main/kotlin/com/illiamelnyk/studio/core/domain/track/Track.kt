@@ -6,7 +6,9 @@ import kotlin.time.Duration
 import kotlin.time.Instant
 
 @JvmInline
-value class TrackId(val value: String)
+value class TrackId(val value: String) {
+    val isRecording: Boolean get() = value.startsWith("recording-")
+}
 
 /**
  * A song: one the user generated, or one from the catalog.
@@ -43,4 +45,5 @@ data class Track(
 ) {
     val remixSourceIds: List<String> get() = remixTrackIds.ifEmpty { listOfNotNull(remixTrackId) }
     val isRemix: Boolean get() = remixSourceIds.isNotEmpty()
+    val canRemixOriginal: Boolean get() = status == TrackStatus.Ready && !isRemix && !id.isRecording
 }

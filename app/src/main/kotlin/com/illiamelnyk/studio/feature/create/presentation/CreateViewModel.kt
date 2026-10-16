@@ -95,6 +95,7 @@ class CreateViewModel(
                     ComposerDraftStore.Problem.TooMany -> R.string.create_remix_source_limit
                     ComposerDraftStore.Problem.AlreadyRemixed -> R.string.create_remix_original_only
                     ComposerDraftStore.Problem.NotReady -> R.string.create_remix_ready_only
+                    ComposerDraftStore.Problem.RecordingReference -> R.string.create_remix_recording_reference
                 }
                 toast(UiText.Resource(R.string.create_toast_error), UiText.Resource(message), StudioToastKind.Error)
                 drafts.problemShown()

@@ -91,4 +91,19 @@ class ComposerDraftStoreTest {
         assertNull(store.pending.value)
         assertEquals(0, store.revision.value)
     }
+
+    @Test
+    fun rawRecordingIsRejectedAsARemixSourceButAnOrdinaryOriginalIsAccepted() {
+        val store = ComposerDraftStore { "owner" }
+        val recording = track("recording-8ced07a1-2964-4a3f-aa80-75177020463b", 30.seconds)
+        val original = track("original-track", 30.seconds)
+        assertEquals(false, recording.canRemixOriginal)
+        assertEquals(true, original.canRemixOriginal)
+        store.remix(recording)
+        assertEquals(emptyList<Track>(), store.sources.value)
+        assertEquals(ComposerDraftStore.Problem.RecordingReference, store.problem.value)
+        store.remix(original)
+        assertEquals(listOf(original), store.sources.value)
+        assertNull(store.problem.value)
+    }
 }

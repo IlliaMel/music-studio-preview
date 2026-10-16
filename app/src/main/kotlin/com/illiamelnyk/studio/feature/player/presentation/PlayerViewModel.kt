@@ -133,17 +133,20 @@ class PlayerViewModel(
 
             is PlayerIntent.ComingSoonClicked -> when (intent.feature) {
                 SoonFeature.Download -> playback.state.value.current?.let { sendEffect(PlayerEffect.Download(it)) }
-
-                SoonFeature.Remix -> playback.state.value.current?.takeIf { it.remixTrackId == null }?.let {
-                    drafts.remix(it)
-                    sendEffect(PlayerEffect.Collapse)
-                }
-
+                SoonFeature.Remix -> remixCurrentTrack()
                 SoonFeature.Autoplay -> playback.setAutoplay(!playback.state.value.autoplay)
             }
 
             PlayerIntent.WantItClicked -> wantIt()
         }
+    }
+
+    private fun remixCurrentTrack() {
+        val current = playback.state.value
+        if (current.isStation) return
+        val track = current.current?.takeIf { it.canRemixOriginal } ?: return
+        drafts.remix(track)
+        sendEffect(PlayerEffect.Collapse)
     }
 
     private fun setContent(reduce: PlayerContent.() -> PlayerContent) = setState { copy(content = content.reduce()) }

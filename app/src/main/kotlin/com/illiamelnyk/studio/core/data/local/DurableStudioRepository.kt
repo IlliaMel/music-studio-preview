@@ -253,7 +253,7 @@ class DurableStudioRepository(
             val source = account.tracks.find { it.id.value == sourceId }
                 ?: publicCatalogTracks.value.find { it.id.value == sourceId }
                 ?: throw ApiFailure(AppError.InvalidReference)
-            if (source.isRemix || source.status != TrackStatus.Ready) {
+            if (!source.canRemixOriginal) {
                 throw ApiFailure(AppError.InvalidReference)
             }
         }

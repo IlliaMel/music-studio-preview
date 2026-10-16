@@ -189,6 +189,30 @@ class GenerateTracksTest {
         assertEquals(8, credits.credits.first().remaining)
     }
 
+    @Test
+    fun rawRecordingRemixIdIsRejectedBeforeRepositoryMutationAndCredit() = runTest {
+        val tracks = FakeTrackRepository(credits, FakeSessionRepository(), backgroundScope, clock)
+        var mutations = 0
+        val repository = object : com.illiamelnyk.studio.core.domain.track.TrackRepository by tracks {
+            override suspend fun create(
+                request: com.illiamelnyk.studio.core.domain.track.GenerationRequest,
+                variants: Int,
+            ): Outcome<List<com.illiamelnyk.studio.core.domain.track.Track>> {
+                mutations++
+                return tracks.create(request, variants)
+            }
+        }
+        val before = tracks.observeMine().first()
+        val result = GenerateTracks(repository, credits)(
+            "A recording cannot be a remix original",
+            GenerationSettings(remixTrackIds = listOf("recording-8ced07a1-2964-4a3f-aa80-75177020463b")),
+        )
+        assertEquals(Outcome.Failure(AppError.InvalidReference), result)
+        assertEquals(0, mutations)
+        assertEquals(before, tracks.observeMine().first())
+        assertEquals(8, credits.credits.first().remaining)
+    }
+
     private fun TestScope.subject(): Pair<GenerateTracks, FakeTrackRepository> {
         val tracks = FakeTrackRepository(credits, FakeSessionRepository(), backgroundScope, clock)
         return GenerateTracks(tracks, credits) to tracks

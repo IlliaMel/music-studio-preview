@@ -79,6 +79,19 @@ class PlayerMappingTest {
     }
 
     @Test
+    fun remixEligibilityExcludesRawRecordingsPendingAndCanonicalRemixes() {
+        val recording = a.copy(id = com.illiamelnyk.studio.core.domain.track.TrackId("recording-raw-fixture"))
+        val remix = a.copy(remixTrackIds = listOf("one", "two"))
+        val pending = a.copy(status = com.illiamelnyk.studio.core.domain.track.TrackStatus.Queued)
+        assertTrue(PlayerContent().withPlayback(PlaybackState(queue = listOf(a))).canRemix)
+        listOf(recording, remix, pending).forEach {
+            org.junit.Assert.assertFalse(PlayerContent().withPlayback(PlaybackState(queue = listOf(it))).canRemix)
+        }
+        val station = PlaybackState(queue = listOf(a), stationName = "LIVE")
+        org.junit.Assert.assertFalse(PlayerContent().withPlayback(station).canRemix)
+    }
+
+    @Test
     fun `the clock is at no fraction of a track without length`() {
         assertEquals(0f, PlaybackClock(positionMs = 500, durationMs = 0).fraction)
         assertEquals(0.25f, PlaybackClock(positionMs = 500, durationMs = 2_000).fraction)

@@ -19,6 +19,7 @@ data class MiniPlayerState(
     val isStation: Boolean = false,
     val hasNext: Boolean = false,
     val progress: Float = 0f,
+    val canRemix: Boolean = false,
 )
 
 sealed interface MiniPlayerIntent {
@@ -26,4 +27,6 @@ sealed interface MiniPlayerIntent {
     data object PlayPauseClicked : MiniPlayerIntent
 
     data object NextClicked : MiniPlayerIntent
+
+    data object RemixClicked : MiniPlayerIntent
 }

@@ -5,6 +5,7 @@ import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.credits.CreditsRepository
 import com.illiamelnyk.studio.core.domain.track.GenerationRequest
 import com.illiamelnyk.studio.core.domain.track.Track
+import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.core.domain.track.TrackRepository
 import kotlinx.coroutines.flow.first
 
@@ -15,7 +16,8 @@ class GenerateTracks(private val tracks: TrackRepository, private val credits: C
         val text = prompt.trim()
         if (!Prompt.isValid(text)) return Outcome.Failure(AppError.InvalidPrompt(suggestion = null))
         val sources = settings.remixSourceIds
-        if (sources.size > 4 || sources.distinct().size != sources.size || sources.any { it.isBlank() } ||
+        if (sources.size > 4 || sources.distinct().size != sources.size ||
+            sources.any { it.isBlank() || TrackId(it).isRecording } ||
             (sources.isNotEmpty() && settings.referenceAudioUri != null)
         ) {
             return Outcome.Failure(AppError.InvalidReference)
