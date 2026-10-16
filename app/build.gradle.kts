@@ -16,6 +16,14 @@ android {
         applicationId = "com.illiamelnyk.studio"
         versionCode = 1
         versionName = "0.1.0"
+        mapOf(
+            "FIREBASE_APP_ID" to "studio.firebaseAppId",
+            "FIREBASE_API_KEY" to "studio.firebaseApiKey",
+            "FIREBASE_PROJECT_ID" to "studio.firebaseProjectId",
+            "GOOGLE_WEB_CLIENT_ID" to "studio.googleWebClientId",
+        ).forEach { (field, property) ->
+            buildConfigField("String", field, buildString(providers.gradleProperty(property).orElse("").get()))
+        }
     }
 
     buildTypes {
@@ -52,6 +60,11 @@ android {
 }
 
 dependencies {
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services)
+    implementation(libs.google.id)
     implementation(libs.haze)
     implementation(libs.haze.blur)
     implementation(libs.androidx.activity.compose)

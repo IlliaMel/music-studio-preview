@@ -16,9 +16,16 @@ internal data class AccountDeletionIntent(
     val references: List<String>,
     val remoteConfirmed: Boolean,
     val localPurged: Boolean = false,
+    val remoteCompletionUnverified: Boolean = false,
+    val requiresReauthentication: Boolean = false,
 )
 
-internal data class AccountDeletionResult(val ownerId: String, val remoteError: AppError?)
+internal data class AccountDeletionResult(
+    val ownerId: String,
+    val remoteError: AppError?,
+    val remoteCompletionUnverified: Boolean = false,
+    val requiresReauthentication: Boolean = false,
+)
 
 internal class AccountDeletions(
     private val store: StudioStore,
@@ -49,10 +56,17 @@ internal class AccountDeletions(
         return intent
     }
 
+    fun reauthenticated(intent: AccountDeletionIntent): AccountDeletionIntent =
+        intent.copy(requiresReauthentication = false).also(::persist)
+
     suspend fun execute(original: AccountDeletionIntent): AccountDeletionResult {
         var intent = original
-        var remoteError: AppError? = null
-        if (!intent.remoteConfirmed) {
+        var remoteError: AppError? = if (intent.remoteCompletionUnverified || intent.requiresReauthentication) {
+            AppError.Unauthorized
+        } else {
+            null
+        }
+        if (!intent.remoteConfirmed && !intent.remoteCompletionUnverified && !intent.requiresReauthentication) {
             val token = intent.token
             if (token == null) {
                 remoteError = AppError.Unauthorized
@@ -65,15 +79,34 @@ internal class AccountDeletions(
                         if (failure.serverCode != "ACCOUNT_DELETING") throw failure
                     }
                     api.request("DELETE", "/v1/me", token)
-                    intent = intent.copy(remoteConfirmed = true)
+                    intent = intent.copy(remoteConfirmed = true, requiresReauthentication = false)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (failure: ApiFailure) {
-                    remoteError = failure.error
+                    val classified = if (failure.error == AppError.Unauthorized &&
+                        failure.serverCode !in setOf("FIREBASE_IDENTITY_MISSING", "FIREBASE_REAUTH_REQUIRED")
+                    ) {
+                        try {
+                            api.confirmFirebaseIdentity(intent.token)
+                            failure
+                        } catch (identity: ApiFailure) {
+                            identity
+                        }
+                    } else {
+                        failure
+                    }
+                    remoteError = classified.error
+                    intent = when (classified.serverCode) {
+                        "FIREBASE_IDENTITY_MISSING" -> intent.copy(remoteCompletionUnverified = true)
+                        "FIREBASE_REAUTH_REQUIRED" -> intent.copy(requiresReauthentication = true)
+                        else -> intent
+                    }
                 } catch (_: Exception) {
                     remoteError = AppError.Unknown
                 }
-                if (intent.remoteConfirmed) persist(intent)
+                if (intent.remoteConfirmed || intent.remoteCompletionUnverified || intent.requiresReauthentication) {
+                    persist(intent)
+                }
             }
         }
         if (!intent.localPurged) {
@@ -103,7 +136,12 @@ internal class AccountDeletions(
         } else if (intent.remoteConfirmed) {
             store.change { it.remove(PREFIX + intent.ownerId) }
         }
-        return AccountDeletionResult(intent.ownerId, remoteError)
+        return AccountDeletionResult(
+            intent.ownerId,
+            remoteError,
+            intent.remoteCompletionUnverified,
+            intent.requiresReauthentication,
+        )
     }
 
     private fun persist(intent: AccountDeletionIntent) {
@@ -120,6 +158,8 @@ private fun AccountDeletionIntent.encodeDeletion(): JSONObject = JSONObject().ap
     put("token", token)
     put("remoteConfirmed", remoteConfirmed)
     put("localPurged", localPurged)
+    put("remoteCompletionUnverified", remoteCompletionUnverified)
+    put("requiresReauthentication", requiresReauthentication)
     put("audio", JSONArray(audio.map { JSONObject().put("id", it.id).put("uri", it.uri) }))
     put("references", JSONArray(references))
 }
@@ -129,6 +169,8 @@ private fun JSONObject.decodeDeletion(): AccountDeletionIntent = AccountDeletion
     token = stringOrNull("token"),
     remoteConfirmed = optBoolean("remoteConfirmed"),
     localPurged = optBoolean("localPurged"),
+    remoteCompletionUnverified = optBoolean("remoteCompletionUnverified"),
+    requiresReauthentication = optBoolean("requiresReauthentication"),
     audio = array("audio").objects().map { DeletionAudio(it.getString("id"), it.stringOrNull("uri")) },
     references = array("references").strings(),
 )

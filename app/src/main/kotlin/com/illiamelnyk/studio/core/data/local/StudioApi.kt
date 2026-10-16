@@ -11,6 +11,7 @@ import java.net.SocketTimeoutException
 import java.net.URL
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
@@ -65,6 +66,10 @@ open class StudioApi(
             bearerTokens.getToken(owner)
         } catch (cancelled: CancellationException) {
             throw cancelled
+        } catch (missing: FirebaseIdentityMissing) {
+            throw ApiFailure(AppError.Unauthorized, "FIREBASE_IDENTITY_MISSING".takeIf { missing.firebaseUid == owner })
+        } catch (expired: FirebaseReauthenticationRequired) {
+            throw ApiFailure(AppError.Unauthorized, "FIREBASE_REAUTH_REQUIRED".takeIf { expired.firebaseUid == owner })
         } catch (_: IOException) {
             throw ApiFailure(AppError.Network)
         }
@@ -93,6 +98,28 @@ open class StudioApi(
 
     internal fun forgetCredentials() {
         resolvedTokens.clear()
+    }
+
+    internal suspend fun confirmFirebaseIdentity(token: String?) {
+        if (token?.startsWith("firebase:") != true) return
+        val owner = token.removePrefix("firebase:")
+        try {
+            bearerTokens.confirmIdentity(owner)
+        } catch (missing: FirebaseIdentityMissing) {
+            throw ApiFailure(AppError.Unauthorized, "FIREBASE_IDENTITY_MISSING".takeIf { missing.firebaseUid == owner })
+        } catch (expired: FirebaseReauthenticationRequired) {
+            throw ApiFailure(AppError.Unauthorized, "FIREBASE_REAUTH_REQUIRED".takeIf { expired.firebaseUid == owner })
+        } catch (_: IOException) {
+            throw ApiFailure(AppError.Network)
+        }
+    }
+
+    internal suspend fun clearClientSession(token: String?) = withContext(NonCancellable) {
+        try {
+            if (token?.startsWith("firebase:") == true) bearerTokens.clearSession(token.removePrefix("firebase:"))
+        } finally {
+            forgetCredentials()
+        }
     }
 
     open suspend fun request(

@@ -1,5 +1,6 @@
 package com.illiamelnyk.studio.feature.auth.presentation.welcome
 
+import app.cash.turbine.test
 import com.illiamelnyk.studio.core.data.fake.FakeSessionRepository
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.Outcome
@@ -14,6 +15,8 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -67,5 +70,59 @@ class WelcomeViewModelTest {
         advanceUntilIdle()
         assertEquals(1, calls)
         assertFalse(vm.state.value.isSigningIn)
+    }
+
+    @Test
+    fun credentialChooserCancellationIsSilentAndStaleResponsesCannotStartTheNextAttempt() =
+        runTest(main.testDispatcher) {
+            var tokens = 0
+            val vm = WelcomeViewModel(object : AuthRepository {
+                override val requiresGoogleCredential = true
+                override suspend fun signInWithGoogle() = error("UI-hosted credentials required")
+                override suspend fun signInWithGoogleToken(idToken: String): Outcome<Unit> {
+                    tokens++
+                    return Outcome.Failure(AppError.Network)
+                }
+            })
+            vm.effects.test {
+                vm.onIntent(WelcomeIntent.ContinueWithGoogleClicked)
+                val first = (awaitItem() as WelcomeEffect.RequestGoogleCredential).requestId
+                vm.onIntent(WelcomeIntent.ContinueWithGoogleClicked)
+                expectNoEvents()
+                vm.onIntent(WelcomeIntent.GoogleCredentialCancelled(first))
+                assertFalse(vm.state.value.isSigningIn)
+                assertNull(vm.state.value.notice)
+                vm.onIntent(WelcomeIntent.ContinueWithGoogleClicked)
+                val second = (awaitItem() as WelcomeEffect.RequestGoogleCredential).requestId
+                assertTrue(second > first)
+                vm.onIntent(WelcomeIntent.GoogleCredentialReceived(first, "old-token"))
+                assertEquals(0, tokens)
+                vm.onIntent(WelcomeIntent.GoogleCredentialReceived(second, "new-token"))
+                advanceUntilIdle()
+                assertEquals(1, tokens)
+                assertFalse(vm.state.value.isSigningIn)
+                assertNotNull(vm.state.value.notice)
+            }
+        }
+
+    @Test
+    fun cancelledSdkExchangeUnlocksWelcomeWithoutAnErrorNoticeOrTokenInState() = runTest(main.testDispatcher) {
+        val vm = WelcomeViewModel(object : AuthRepository {
+            override val requiresGoogleCredential = true
+            override suspend fun signInWithGoogle() = error("UI-hosted credentials required")
+            override suspend fun signInWithGoogleToken(idToken: String): Outcome<Unit> =
+                throw kotlinx.coroutines.CancellationException()
+        })
+        vm.effects.test {
+            vm.onIntent(WelcomeIntent.ContinueWithGoogleClicked)
+            val request = (awaitItem() as WelcomeEffect.RequestGoogleCredential).requestId
+            val response = WelcomeIntent.GoogleCredentialReceived(request, "sensitive-google-id-token")
+            assertFalse(response.toString().contains("sensitive-google-id-token"))
+            vm.onIntent(response)
+            advanceUntilIdle()
+            assertFalse(vm.state.value.isSigningIn)
+            assertNull(vm.state.value.notice)
+            assertFalse(vm.state.value.toString().contains("sensitive-google-id-token"))
+        }
     }
 }

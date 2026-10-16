@@ -7,6 +7,11 @@ import com.illiamelnyk.studio.core.domain.Outcome
  * handles everything after it: the profile, signing out, deleting the account.
  */
 interface AuthRepository {
+    val requiresGoogleCredential: Boolean get() = false
+
+    suspend fun signInWithGoogleToken(idToken: String): Outcome<Unit> =
+        Outcome.Failure(com.illiamelnyk.studio.core.domain.AppError.UnsupportedMode)
+
     /** Signs in with the Google account on the device. */
     suspend fun signInWithGoogle(): Outcome<Unit>
 

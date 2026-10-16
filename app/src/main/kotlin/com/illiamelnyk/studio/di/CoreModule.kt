@@ -2,7 +2,10 @@ package com.illiamelnyk.studio.di
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
+import com.illiamelnyk.studio.BuildConfig
 import com.illiamelnyk.studio.core.data.generation.AndroidGenerationWorkScheduler
+import com.illiamelnyk.studio.core.data.local.ApiAuthMode
+import com.illiamelnyk.studio.core.data.local.ApiConfiguration
 import com.illiamelnyk.studio.core.data.local.BearerTokenProvider
 import com.illiamelnyk.studio.core.data.local.DurableStudioRepository
 import com.illiamelnyk.studio.core.data.local.StudioApi
@@ -34,6 +37,7 @@ import com.illiamelnyk.studio.core.domain.track.TrackRepository
 import com.illiamelnyk.studio.core.presentation.OfflineViewModel
 import com.illiamelnyk.studio.core.presentation.ToastController
 import com.illiamelnyk.studio.core.presentation.audio.AudioActions
+import com.illiamelnyk.studio.feature.auth.data.FirebaseSdkTokenProvider
 import com.illiamelnyk.studio.feature.listen.domain.CatalogRepository
 import kotlin.time.Clock
 import kotlinx.coroutines.CoroutineScope
@@ -55,7 +59,14 @@ val coreModule = module {
     single<Clock> { Clock.System }
 
     single { StudioStore(androidContext()) }
-    single<BearerTokenProvider> { UnavailableBearerTokenProvider }
+    single<BearerTokenProvider> {
+        val mode = ApiConfiguration.fromBuild(BuildConfig.API_BASE_URL, BuildConfig.API_AUTH_MODE, BuildConfig.DEBUG)
+        if (mode.isAvailable && mode.authMode == ApiAuthMode.Firebase) {
+            FirebaseSdkTokenProvider(get())
+        } else {
+            UnavailableBearerTokenProvider
+        }
+    }
     single { StudioApi(androidContext(), bearerTokens = get()) }
     single<GenerationWorkScheduler> { AndroidGenerationWorkScheduler(androidContext()) }
     single<GenerationNotifications> { AndroidGenerationNotifications(androidContext(), get()) }

@@ -29,6 +29,11 @@
         android:theme="@style/Theme.Studio"
         tools:targetApi="33">
 
+        <provider
+            android:name="com.google.firebase.provider.FirebaseInitProvider"
+            android:authorities="${applicationId}.firebaseinitprovider"
+            tools:node="remove" />
+
         <!-- adjustResize: the window reports the keyboard as insets, which the composer pads for. -->
         <activity
             android:name=".MainActivity"

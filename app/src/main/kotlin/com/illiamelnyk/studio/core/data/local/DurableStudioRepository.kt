@@ -179,6 +179,54 @@ class DurableStudioRepository(
         guarded { refresh() }
     }
 
+    fun isFirebaseSessionActive(firebaseUid: String): Boolean =
+        activeAccountId != null && state.value?.token == "firebase:" + firebaseUid
+
+    fun needsFirebaseDeletionCredentials(firebaseUid: String): Boolean = deletions.pending().any {
+        it.token == "firebase:" + firebaseUid && !it.remoteConfirmed &&
+            !it.remoteCompletionUnverified && !it.requiresReauthentication
+    }
+
+    suspend fun prepareFirebaseSignIn(currentFirebaseUid: String?): Outcome<Unit> = operation {
+        if (currentFirebaseUid != null) {
+            deletions.pending().filter {
+                it.token == "firebase:" + currentFirebaseUid &&
+                    !(it.localPurged && (it.remoteCompletionUnverified || it.requiresReauthentication))
+            }.forEach { intent ->
+                val result = deletions.execute(intent)
+                if (state.value?.session?.user?.id?.value == result.ownerId) state.value = null
+                if (result.remoteCompletionUnverified || result.requiresReauthentication) {
+                    api.clearClientSession(intent.token)
+                } else {
+                    result.remoteError?.let { throw ApiFailure(it) }
+                    api.clearClientSession(intent.token)
+                }
+            }
+        }
+        Unit
+    }
+
+    suspend fun completeFirebaseSignIn(firebaseUid: String): Outcome<Unit> {
+        val prepared = operation {
+            val pending = deletions.pending().filter { it.token == "firebase:" + firebaseUid }
+            if (pending.isNotEmpty()) {
+                pending.forEach { intent ->
+                    val result = deletions.execute(deletions.reauthenticated(intent))
+                    if (state.value?.session?.user?.id?.value == result.ownerId) state.value = null
+                    if (result.remoteError == null || result.remoteCompletionUnverified ||
+                        result.requiresReauthentication
+                    ) {
+                        api.clearClientSession(intent.token)
+                    }
+                    result.remoteError?.let { throw ApiFailure(it) }
+                }
+                throw ApiFailure(AppError.Unauthorized)
+            }
+            Unit
+        }
+        return if (prepared is Outcome.Failure) prepared else signInFirebase(firebaseUid)
+    }
+
     fun referenceDirectory(): java.io.File {
         val id = requireAccount().session.user.id.value
         if (id == deletingAccountId) throw ApiFailure(AppError.Unauthorized)
@@ -582,14 +630,17 @@ class DurableStudioRepository(
         deletingAccountId = intent.ownerId
         reconcileGenerationWork()
         recordNotifications()
+        var clearIdentity = false
         try {
             val result = deletions.execute(intent)
+            clearIdentity = result.remoteError == null || result.remoteCompletionUnverified ||
+                result.requiresReauthentication
             if (state.value?.session?.user?.id?.value == result.ownerId) state.value = null
             result.remoteError?.let { throw ApiFailure(it) }
         } finally {
             if (state.value?.session?.user?.id?.value != intent.ownerId) {
                 deletingAccountId = null
-                api.forgetCredentials()
+                if (clearIdentity) api.clearClientSession(intent.token) else api.forgetCredentials()
             }
         }
         Unit
@@ -597,11 +648,18 @@ class DurableStudioRepository(
 
     private suspend fun resumeDeletions() {
         lastDeletionRetryMillis = System.currentTimeMillis()
-        deletions.pending().forEach { intent ->
+        deletions.pending().filterNot {
+            it.localPurged && (it.remoteCompletionUnverified || it.requiresReauthentication)
+        }.forEach { intent ->
             guarded {
                 val result = deletions.execute(intent)
                 if (state.value?.session?.user?.id?.value == result.ownerId) state.value = null
                 if (deletingAccountId == result.ownerId) deletingAccountId = null
+                if (result.remoteError == null || result.remoteCompletionUnverified ||
+                    result.requiresReauthentication
+                ) {
+                    api.clearClientSession(intent.token)
+                }
                 reconcileGenerationWork()
                 recordNotifications()
             }
@@ -611,11 +669,12 @@ class DurableStudioRepository(
     override suspend fun signOut() {
         withContext(dispatcher) {
             mutex.withLock {
+                val token = state.value?.token
                 store.change {
                     it.remove("active")
                 }
                 state.value = null
-                api.forgetCredentials()
+                api.clearClientSession(token)
                 reconcileGenerationWork()
                 recordNotifications()
             }
