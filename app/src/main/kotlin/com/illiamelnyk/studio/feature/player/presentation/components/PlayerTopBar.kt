@@ -48,10 +48,9 @@ fun PlayerTopBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         GlassIconButton(
-            icon = StudioIcons.ChevronLeft,
+            icon = StudioIcons.ChevronDown,
             contentDescription = stringResource(R.string.player_collapse),
             onClick = onCollapse,
-            iconRotation = COLLAPSE_ROTATION,
         )
         Spacer(Modifier.weight(1f))
         if (showActions) {
@@ -81,9 +80,6 @@ fun PlayerTopBar(
 private fun PlayerAction(@DrawableRes icon: Int, description: String, onClick: () -> Unit) {
     StudioIconButton(icon, description, onClick, style = StudioIconButtonStyle.OnGlass)
 }
-
-/** The chevron is the kit's "left" one turned to point down. */
-private const val COLLAPSE_ROTATION = -90f
 
 @PreviewLightDark
 @Composable

@@ -33,6 +33,8 @@ object StudioIcons {
 
     @DrawableRes val CheckCircleFilled = R.drawable.ic_check_circle_filled
 
+    @DrawableRes val ChevronDown = R.drawable.ic_chevron_down
+
     /** Mirrored in right-to-left layouts, like every "back" arrow. */
     @DrawableRes val ChevronLeft = R.drawable.ic_chevron_left
 
