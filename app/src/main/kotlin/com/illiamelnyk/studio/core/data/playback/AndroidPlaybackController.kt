@@ -105,9 +105,13 @@ class AndroidPlaybackController(
     private fun restoreQueue() {
         val owner = ownerId() ?: return
         val key = playbackPreferenceKey(owner)
+        var observed: Any? = null
+        var generation = playbackStateGeneration(owner)
         runCatching {
             synchronized(playbackPersistenceLock) {
-                val saved = persistence.read(key)?.let { org.json.JSONObject(it) } ?: return@runCatching
+                generation = playbackStateGeneration(owner)
+                observed = persistence.readValue(key)
+                val saved = observed?.let { org.json.JSONObject(it as String) } ?: return@runCatching
                 require(saved.getInt("version") == 2 && saved.getString("owner") == owner)
                 val array = saved.getJSONArray("original")
                 val original = (0 until array.length()).map { array.getJSONObject(it).toTrack() }
@@ -142,7 +146,7 @@ class AndroidPlaybackController(
                 }
             }
         }.onFailure {
-            persistence.remove(listOf(key))
+            persistence.removeUnclaimed(owner, generation, observed)
             persistence.flush()
             android.util.Log.w("StudioPlayback", "Discarded invalid or mismatched playback state")
         }

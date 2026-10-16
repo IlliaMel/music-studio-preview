@@ -3,12 +3,17 @@ package com.illiamelnyk.studio.core.data.playback
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.test.core.app.ApplicationProvider
+import com.illiamelnyk.studio.core.data.local.toJson
+import com.illiamelnyk.studio.feature.player.fake.track
 import java.io.IOException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.time.Duration.Companion.seconds
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -111,6 +116,63 @@ class PlaybackStatePersistenceTest {
             release.countDown()
             replacement.flush()
             assertEquals("new", preferences.getString(playbackPreferenceKey("owner"), null))
+        }
+    }
+
+    @Test
+    fun invalidRestoreCleanupCannotDisplaceClaimedQueuedReplacement() {
+        withBlockedWriter { writer, release ->
+            val owner = "invalid-restore-owner"
+            val key = playbackPreferenceKey(owner)
+            val preferences = preferences("invalid-restore")
+            preferences.edit().putString(key, "{invalid").commit()
+            val failedRestore = PlaybackStatePersistence(preferences, { owner }, writer)
+            val observed = failedRestore.readValue(key)
+            val generation = playbackStateGeneration(owner)
+            val replacement = PlaybackStatePersistence(preferences, { owner }, writer)
+            val valid = JSONObject().apply {
+                put("version", 2)
+                put("owner", owner)
+                put("original", JSONArray().put(track("replacement", 20.seconds).toJson()))
+                put("order", JSONArray().put(0))
+                put("index", 0)
+                put("position", 4000)
+            }.toString()
+            replacement.claim(owner)
+            replacement.write(key, valid, owner, generation) { true }
+            failedRestore.removeUnclaimed(owner, generation, observed)
+            assertEquals(valid, replacement.read(key))
+            release.countDown()
+            failedRestore.flush()
+            assertEquals(valid, preferences.getString(key, null))
+        }
+    }
+
+    @Test
+    fun invalidRestoreCleanupRechecksStoredValueBeforeCommit() {
+        withBlockedWriter { writer, release ->
+            val owner = "changed-invalid-restore-owner"
+            val key = playbackPreferenceKey(owner)
+            val preferences = preferences("invalid-restore-changed")
+            preferences.edit().putBoolean(key, true).commit()
+            val persistence = PlaybackStatePersistence(preferences, { owner }, writer)
+            val observed = persistence.readValue(key)
+            persistence.removeUnclaimed(owner, playbackStateGeneration(owner), observed)
+            preferences.edit().putString(key, "replacement-from-new-store").commit()
+            release.countDown()
+            persistence.flush()
+            assertEquals("replacement-from-new-store", preferences.getString(key, null))
+        }
+        withBlockedWriter { writer, release ->
+            val owner = "unchanged-invalid-restore-owner"
+            val key = playbackPreferenceKey(owner)
+            val preferences = preferences("invalid-restore-unchanged")
+            preferences.edit().putBoolean(key, true).commit()
+            val persistence = PlaybackStatePersistence(preferences, { owner }, writer)
+            persistence.removeUnclaimed(owner, playbackStateGeneration(owner), persistence.readValue(key))
+            release.countDown()
+            persistence.flush()
+            assertFalse(preferences.contains(key))
         }
     }
 

@@ -21,7 +21,9 @@ internal class PlaybackStatePersistence(
 
     fun owns(owner: String): Boolean = writer.owns(preferences, playbackPreferenceKey(owner), lease)
 
-    fun read(key: String): String? = writer.read(preferences, key)
+    fun read(key: String): String? = writer.read(preferences, key) as String?
+
+    fun readValue(key: String): Any? = writer.read(preferences, key)
 
     fun contains(key: String): Boolean = writer.contains(preferences, key)
 
@@ -36,6 +38,13 @@ internal class PlaybackStatePersistence(
     fun removeQueue(owner: String, generation: Long) {
         writer.enqueue(preferences, playbackPreferenceKey(owner), null, failure) {
             owns(owner) && playbackStateGeneration(owner) == generation
+        }
+    }
+
+    fun removeUnclaimed(owner: String, generation: Long, observed: Any?) {
+        val key = playbackPreferenceKey(owner)
+        writer.enqueue(preferences, key, null, failure) {
+            playbackStateGeneration(owner) == generation && writer.unclaimedAndUnchanged(preferences, key, observed)
         }
     }
 
@@ -80,10 +89,23 @@ internal class PlaybackPersistenceWriter(
     fun owns(preferences: SharedPreferences, key: String, lease: Any): Boolean =
         synchronized(queueLock) { leases[Key(preferences, key)]?.get() === lease }
 
-    fun read(preferences: SharedPreferences, key: String): String? {
+    fun read(preferences: SharedPreferences, key: String): Any? {
         val queued = synchronized(queueLock) { accepted[Key(preferences, key)] }
         if (queued != null && queued.current()) return queued.value
-        return preferences.getString(key, null)
+        return storedValue(preferences, key)
+    }
+
+    fun unclaimedAndUnchanged(preferences: SharedPreferences, key: String, observed: Any?): Boolean =
+        synchronized(queueLock) {
+            val storageKey = Key(preferences, key)
+            leases[storageKey]?.get() == null && accepted[storageKey]?.value == null &&
+                storedValue(preferences, key) == observed
+        }
+
+    private fun storedValue(preferences: SharedPreferences, key: String): Any? = try {
+        preferences.getString(key, null)
+    } catch (_: ClassCastException) {
+        preferences.all[key]
     }
 
     fun pending(preferences: SharedPreferences, key: String): Boolean {

@@ -89,10 +89,15 @@ class AppViewModel(
             }.launchIn(viewModelScope)
     }
 
+    private val themePreference = themes.preference.map<ThemePreference, ThemePreference?> { it }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    private val shellVariant = shellVariants.variant
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ShellVariant.Default)
+
     val state: StateFlow<AppState> = combine(
         sessions.session,
-        themes.preference,
-        shellVariants.variant,
+        themePreference,
+        shellVariant,
         credits.credits,
         playback.state.map { it.current != null }.distinctUntilChanged(),
     ) { session, theme, variant, credits, hasPlayback ->

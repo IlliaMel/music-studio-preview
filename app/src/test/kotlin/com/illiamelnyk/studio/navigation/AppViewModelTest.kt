@@ -87,6 +87,12 @@ class AppViewModelTest {
 
         viewModel.state.test {
             assertEquals(AppState(), awaitItem())
+            var ready = awaitItem()
+            if (ready.theme == null) {
+                assertEquals(SessionGate.SignedIn, ready.gate)
+                assertEquals("dev-illia", ready.ownerId)
+                ready = awaitItem()
+            }
             assertEquals(
                 AppState(
                     gate = SessionGate.SignedIn,
@@ -97,7 +103,7 @@ class AppViewModelTest {
                     hasPlayback = false,
                     ownerId = "dev-illia",
                 ),
-                awaitItem(),
+                ready,
             )
         }
     }
