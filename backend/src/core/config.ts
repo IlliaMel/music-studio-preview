@@ -80,6 +80,7 @@ const Env = z.object({
   DATA_DIR: optional(z.string()),
   AUDIO_DIR: optional(z.string()),
   AUTH_MODE: optional(z.enum(['firebase', 'dev'])),
+  ALLOW_LAN_DEV_AUTH: optional(flag),
   PUBLIC_BASE_URL: optional(
     z.url({ protocol: /^https?$/ }).transform((url) => url.replace(/\/$/, '')),
   ),
@@ -99,6 +100,21 @@ const Env = z.object({
 })
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
+
+function isPrivateIpv4(host: string): boolean {
+  const parts = host.split('.')
+  if (parts.length !== 4 || parts.some((part) => !/^(0|[1-9]\d{0,2})$/.test(part))) return false
+  const octets = parts.map(Number)
+  if (octets.some((octet) => octet > 255)) return false
+  const first = octets[0]
+  const second = octets[1]
+  if (second === undefined) return false
+  return (
+    first === 10 ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168)
+  )
+}
 
 export class ConfigError extends Error {
   constructor(readonly problems: string[]) {
@@ -152,9 +168,19 @@ export function loadConfig(environment: Record<string, string | undefined>): Con
       'LOG_PRETTY: pretty logs need pino-pretty, a dev dependency; production logs JSON',
     )
   }
-  if (authMode === 'dev' && (nodeEnv === 'production' || !LOOPBACK_HOSTS.has(host))) {
+  const allowLanDevAuth =
+    env.ALLOW_LAN_DEV_AUTH === true && nodeEnv === 'development' && isPrivateIpv4(host)
+  if (env.ALLOW_LAN_DEV_AUTH && (nodeEnv !== 'development' || !isPrivateIpv4(host))) {
     problems.push(
-      'AUTH_MODE: dev sign-in lets anyone claim any account, so it runs only on a loopback HOST and never in production',
+      'ALLOW_LAN_DEV_AUTH: requires NODE_ENV=development and a literal RFC1918 IPv4 HOST',
+    )
+  }
+  if (
+    authMode === 'dev' &&
+    (nodeEnv === 'production' || (!LOOPBACK_HOSTS.has(host) && !allowLanDevAuth))
+  ) {
+    problems.push(
+      'AUTH_MODE: dev sign-in lets anyone claim any account; use loopback or explicitly opt in to a private LAN development HOST, never production',
     )
   }
   if (authMode === 'firebase' && !env.FIREBASE_SERVICE_ACCOUNT) {

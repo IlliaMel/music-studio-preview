@@ -1,3 +1,5 @@
+import java.net.URI
+
 plugins {
     alias(libs.plugins.studio.android.application)
     // Navigation keys are @Serializable so the back stacks survive process death.
@@ -6,11 +8,60 @@ plugins {
 
 val configuredApiUrl = providers.gradleProperty("studio.apiBaseUrl").orElse("")
 val configuredAuthMode = providers.gradleProperty("studio.authMode").orElse("firebase")
+val allowLanDevelopment = providers.gradleProperty("studio.allowLanDevelopment").orElse("false").map { it == "true" }
+val lanHost = if (allowLanDevelopment.get()) {
+    val uri = URI(configuredApiUrl.get())
+    val host = uri.host ?: error("LAN development requires an IPv4 API host")
+    val parts = host.split('.')
+    val octets = parts.map { it.toIntOrNull() ?: -1 }
+    require(
+        octets.size == 4 && parts.all { Regex("0|[1-9][0-9]{0,2}").matches(it) } &&
+            octets.all { it in 0..255 } &&
+            (
+                octets[0] == 10 || (octets[0] == 172 && octets[1] in 16..31) ||
+                    (octets[0] == 192 && octets[1] == 168)
+                ) &&
+            uri.scheme == "http" && configuredAuthMode.get() == "development",
+    ) { "LAN development requires an RFC1918 IPv4 HTTP URL and studio.authMode=development" }
+    host
+} else {
+    "localhost"
+}
+val lanResources = layout.buildDirectory.dir("generated/lanDebugResources")
+val generateLanDebugResources = tasks.register("generateLanDebugResources") {
+    val hostsForResource = if (allowLanDevelopment.get()) {
+        listOf(
+            lanHost,
+        )
+    } else {
+        listOf("10.0.2.2", "localhost", "127.0.0.1")
+    }
+    val outputDirectory = lanResources.get().asFile
+    inputs.property("hosts", hostsForResource)
+    outputs.dir(outputDirectory)
+    doLast {
+        val target = outputDirectory.resolve("xml/debug_network_security.xml")
+        target.parentFile.mkdirs()
+        val domains = hostsForResource.joinToString("\n") { "<domain includeSubdomains=\"false\">$it</domain>" }
+        target.writeText(
+            """
+            <network-security-config>
+                <base-config cleartextTrafficPermitted="false" />
+                <domain-config cleartextTrafficPermitted="true">
+                    $domains
+                </domain-config>
+            </network-security-config>
+            """.trimIndent(),
+        )
+    }
+}
+tasks.matching { it.name == "preDebugBuild" }.configureEach { dependsOn(generateLanDebugResources) }
 fun buildString(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
 android {
     buildFeatures { buildConfig = true }
     namespace = "com.illiamelnyk.studio"
+    sourceSets.getByName("debug").res.directories.add(lanResources.get().asFile.absolutePath)
 
     defaultConfig {
         applicationId = "com.illiamelnyk.studio"
@@ -28,6 +79,7 @@ android {
 
     buildTypes {
         debug {
+            buildConfigField("boolean", "API_ALLOW_LAN_DEVELOPMENT", allowLanDevelopment.get().toString())
             buildConfigField(
                 "String",
                 "API_BASE_URL",
@@ -44,6 +96,7 @@ android {
             )
         }
         release {
+            buildConfigField("boolean", "API_ALLOW_LAN_DEVELOPMENT", "false")
             buildConfigField("String", "API_BASE_URL", buildString(configuredApiUrl.get()))
             buildConfigField(
                 "String",

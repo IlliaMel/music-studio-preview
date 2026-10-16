@@ -60,7 +60,12 @@ val coreModule = module {
 
     single { StudioStore(androidContext()) }
     single<BearerTokenProvider> {
-        val mode = ApiConfiguration.fromBuild(BuildConfig.API_BASE_URL, BuildConfig.API_AUTH_MODE, BuildConfig.DEBUG)
+        val mode = ApiConfiguration.fromBuild(
+            BuildConfig.API_BASE_URL,
+            BuildConfig.API_AUTH_MODE,
+            BuildConfig.DEBUG,
+            BuildConfig.API_ALLOW_LAN_DEVELOPMENT,
+        )
         if (mode.isAvailable && mode.authMode == ApiAuthMode.Firebase) {
             FirebaseSdkTokenProvider(get())
         } else {

@@ -25,6 +25,23 @@ Nothing else to install: without `DATABASE_URL` the server uses PGlite, a real P
 
 **From the app:** the Android emulator reaches the computer at `http://10.0.2.2:8787`. A phone on USB reaches it at `http://localhost:8787` after `adb reverse tcp:8787 tcp:8787`.
 
+For a physical phone over Wi-Fi, connect both devices to the same trusted local network. Set the backend environment to the computer's actual private IPv4 address, for example:
+
+```dotenv
+NODE_ENV=development
+HOST=192.168.1.20
+PORT=8789
+AUTH_MODE=dev
+ALLOW_LAN_DEV_AUTH=true
+MUSIC_PROVIDER=mock
+DATA_DIR=./data-phone-test
+PUBLIC_BASE_URL=http://192.168.1.20:8789
+```
+
+Use a separate test data directory and launch only one backend per directory. Configure the Android test build with the matching `http://192.168.1.20:8789` base URL; replacing the address requires rebuilding that APK. Check `/health` from the phone's browser first. The computer's firewall must allow that backend port from the private network; Wi-Fi client isolation can prevent communication even on the same Wi-Fi.
+
+LAN development sign-in lets anyone who can reach the port impersonate any `dev:<name>` account. Use test data on a trusted LAN and stop the server after testing. The opt-in only permits literal RFC1918 IPv4 addresses (`10/8`, `172.16/12`, `192.168/16`) in development; public hosts, hostnames, wildcard binds and production/test environments are refused. Keep `MUSIC_PROVIDER=mock` for this test setup: it makes no paid provider calls. Default loopback-only development behavior remains unchanged.
+
 ## Commands
 
 | Command | What it does |
@@ -80,7 +97,7 @@ A token that is missing, malformed or expired gets `401 UNAUTHORIZED` with `WWW-
 
 When the terms change, bump `TERMS_VERSION` in `users.service.ts`: every user gets `terms` back in the missing steps and `requireOnboarding` stops them until they accept.
 
-**Modes.** `AUTH_MODE=firebase` needs `FIREBASE_SERVICE_ACCOUNT` (inline JSON) or `FIREBASE_SERVICE_ACCOUNT_FILE` (credential path), the JSON key from Firebase console → Project settings → Service accounts, pasted as one line; the Admin SDK needs it to delete users. `AUTH_MODE=dev` accepts `dev:<name>` tokens, so tests, CI and anyone without our Firebase project can use the API. Because anyone could claim any name, the server refuses dev mode in production and on any address other than loopback.
+**Modes.** `AUTH_MODE=firebase` needs `FIREBASE_SERVICE_ACCOUNT` (inline JSON) or `FIREBASE_SERVICE_ACCOUNT_FILE` (credential path), the JSON key from Firebase console → Project settings → Service accounts, pasted as one line; the Admin SDK needs it to delete users. `AUTH_MODE=dev` accepts `dev:<name>` tokens, so tests, CI and anyone without our Firebase project can use the API. Because anyone could claim any name, dev mode defaults to loopback and is always refused in production. Physical-phone LAN testing requires the explicit private-address development opt-in described above.
 
 ## Tracks and generation
 

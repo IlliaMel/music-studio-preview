@@ -131,6 +131,55 @@ describe('dev sign-in', () => {
   it.each(['127.0.0.1', 'localhost', '::1'])('is allowed on %s', (host) => {
     expect(loadConfig({ HOST: host }).auth.mode).toBe('dev')
   })
+
+  it.each(['10.0.0.1', '10.255.255.254', '172.16.0.1', '172.31.255.254', '192.168.1.2'])(
+    'allows explicit trusted-LAN development on %s, but keeps the default closed',
+    (host) => {
+      expect(() => loadConfig({ HOST: host })).toThrow(/AUTH_MODE: dev sign-in/)
+      expect(() => loadConfig({ HOST: host, ALLOW_LAN_DEV_AUTH: 'false' })).toThrow(
+        /AUTH_MODE: dev sign-in/,
+      )
+      expect(
+        loadConfig({ NODE_ENV: 'development', HOST: host, ALLOW_LAN_DEV_AUTH: 'true' }).auth.mode,
+      ).toBe('dev')
+    },
+  )
+
+  it.each([
+    '0.0.0.0',
+    '8.8.8.8',
+    '172.15.255.255',
+    '172.32.0.1',
+    '192.169.1.2',
+    '169.254.1.2',
+    '192.168.1.256',
+    '10.-1.2.3',
+    '10.1.2',
+    '010.1.2.3',
+    '10.1.2.3.example',
+    'studio.local',
+    '::',
+    '::ffff:192.168.1.2',
+  ])('refuses LAN opt-in on invalid or non-private HOST %s', (host) => {
+    expect(() => loadConfig({ HOST: host, ALLOW_LAN_DEV_AUTH: 'true' })).toThrow(
+      /ALLOW_LAN_DEV_AUTH: requires/,
+    )
+  })
+
+  it.each(['test', 'production'])('refuses LAN opt-in in %s', (nodeEnv) => {
+    expect(() =>
+      loadConfig({
+        NODE_ENV: nodeEnv,
+        HOST: '192.168.1.2',
+        AUTH_MODE: 'dev',
+        ALLOW_LAN_DEV_AUTH: 'true',
+      }),
+    ).toThrow(/ALLOW_LAN_DEV_AUTH: requires/)
+  })
+
+  it('validates the opt-in boolean rather than accepting truthy strings', () => {
+    expect(() => loadConfig({ ALLOW_LAN_DEV_AUTH: 'yes' })).toThrow(/ALLOW_LAN_DEV_AUTH/)
+  })
 })
 
 describe('FIREBASE_SERVICE_ACCOUNT', () => {

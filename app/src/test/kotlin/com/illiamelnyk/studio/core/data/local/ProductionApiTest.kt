@@ -53,6 +53,24 @@ class ProductionApiTest {
     }
 
     @Test
+    fun lanHttpRequiresExplicitDebugOptInAndPrivateIpv4() {
+        listOf("192.168.1.243", "10.1.2.3", "172.16.0.1", "172.31.255.254").forEach { host ->
+            val url = "http://$host:8789"
+            assertFalse(ApiConfiguration(url, ApiAuthMode.Development, true).isAvailable)
+            assertTrue(ApiConfiguration.fromBuild(url, "development", true, true).isAvailable)
+            assertFalse(ApiConfiguration(url, ApiAuthMode.Development, false, true).isAvailable)
+            assertFalse(ApiConfiguration(url, ApiAuthMode.Firebase, true, true).isAvailable)
+        }
+        listOf(
+            "172.15.0.1", "172.32.0.1", "192.169.1.2", "8.8.8.8", "0.0.0.0", "pc.local",
+            "10.0.0.999", "010.1.2.3", "172.016.0.1",
+        )
+            .forEach { host ->
+                assertFalse(ApiConfiguration("http://$host:8789", ApiAuthMode.Development, true, true).isAvailable)
+            }
+    }
+
+    @Test
     fun firebaseBearerIsRefreshedPerCallAndNeverFallsBackToDevOrAnotherOwner() = runTest {
         var calls = 0
         var mismatch = false

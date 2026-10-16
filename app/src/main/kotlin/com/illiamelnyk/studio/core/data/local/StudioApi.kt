@@ -23,6 +23,7 @@ open class StudioApi(
         BuildConfig.API_BASE_URL,
         BuildConfig.API_AUTH_MODE,
         BuildConfig.DEBUG,
+        BuildConfig.API_ALLOW_LAN_DEVELOPMENT,
     ),
     private val bearerTokens: BearerTokenProvider = UnavailableBearerTokenProvider,
     private val nowMillis: () -> Long = System::currentTimeMillis,
