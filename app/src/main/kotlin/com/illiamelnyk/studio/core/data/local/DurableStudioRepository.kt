@@ -22,6 +22,7 @@ import com.illiamelnyk.studio.core.domain.session.UserId
 import com.illiamelnyk.studio.core.domain.track.GenerationRequest
 import com.illiamelnyk.studio.core.domain.track.GenerationWorkScheduler
 import com.illiamelnyk.studio.core.domain.track.MusicModel
+import com.illiamelnyk.studio.core.domain.track.RecordingReference
 import com.illiamelnyk.studio.core.domain.track.Track
 import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.core.domain.track.TrackRepository
@@ -373,6 +374,36 @@ class DurableStudioRepository(
         val created = createLocked(original, 1).single()
         store.change { it.put("retry-" + id.value, created.id.value) }
         created
+    }
+
+    override suspend fun prepareRecordingReference(id: TrackId): Outcome<RecordingReference> = operation {
+        val account = requireAccount()
+        val owner = activeAccountId ?: throw ApiFailure(AppError.Unauthorized)
+        val current = account.tracks.find { it.id == id }
+            ?.takeIf { it.canUseAsReference } ?: throw ApiFailure(AppError.InvalidReference)
+        val token = account.token ?: throw ApiFailure(AppError.UnsupportedMode)
+        val metadata = api.request("GET", "/v1/recordings", token).array("recordings").objects()
+            .find { it.optString("id") == id.value.removePrefix("recording-") }
+            ?: throw ApiFailure(AppError.InvalidReference)
+        val uri = metadata.stringOrNull("audioUrl") ?: throw ApiFailure(AppError.InvalidReference)
+        val canonical = java.net.URI(api.baseUrl + remoteTrackPath(id) + "/audio")
+        val source = try {
+            java.net.URI(uri)
+        } catch (_: java.net.URISyntaxException) {
+            throw ApiFailure(AppError.InvalidReference)
+        }
+        if (source != canonical || current.audioUri != uri || activeAccountId != owner) {
+            throw ApiFailure(AppError.InvalidReference)
+        }
+        val remote = recordingDrafts.track(metadata, account)
+        if (!remote.canUseAsReference) throw ApiFailure(AppError.InvalidReference)
+        RecordingReference(id, owner, uri, remote.title)
+    }
+
+    override fun isRecordingReferenceCurrent(reference: RecordingReference): Boolean {
+        if (activeAccountId != reference.ownerId) return false
+        val current = state.value?.tracks?.find { it.id == reference.id } ?: return false
+        return current.canUseAsReference && current.audioUri == reference.uri
     }
 
     override suspend fun saveRecording(localUri: String, title: String, duration: Duration): Outcome<Track> =
@@ -770,45 +801,60 @@ class DurableStudioRepository(
         }
     }
 
-    suspend fun exportHeaders(track: Track): Map<String, String> {
-        val owner = withContext(dispatcher) {
-            mutex.withLock {
-                val account = requireAccount()
-                val current = account.tracks.find { it.id == track.id }
-                    ?: publicCatalogTracks.value.find { it.id == track.id }?.let(::catalogTrack)
-                    ?: throw ApiFailure(AppError.Unauthorized)
-                if (track.audioUri != current.audioUri) throw ApiFailure(AppError.Unauthorized)
-                account.session.user.id.value
-            }
-        }
-        val headers = playbackHeaders(track)
-        if (activeAccountId != owner) throw ApiFailure(AppError.Unauthorized)
-        return headers
+    suspend fun exportHeaders(track: Track): Map<String, String> = withContext(dispatcher) {
+        val account = audioAccount(track)
+        resolveAudioHeaders(track, account)
     }
 
     suspend fun playbackHeaders(track: Track): Map<String, String> = withContext(dispatcher) {
-        mutex.withLock {
-            val source = track.audioUri?.let { java.net.URI(it) } ?: return@withLock emptyMap()
-            if (source.scheme !in setOf("http", "https")) return@withLock emptyMap()
-            val origin = java.net.URI(api.baseUrl)
-            if (source.scheme != origin.scheme || source.host != origin.host || source.port != origin.port) {
-                return@withLock emptyMap()
-            }
-            if (source.rawUserInfo != null || source.rawQuery != null || source.rawFragment != null) {
-                throw ApiFailure(AppError.Unauthorized)
-            }
-            val account = requireAccount()
-            val owner = activeAccountId ?: throw ApiFailure(AppError.Unauthorized)
-            val id = Uri.encode(track.id.value)
-            val owned =
-                source.rawPath == remoteTrackPath(track.id) + "/audio" && account.tracks.any { it.id == track.id }
-            val catalog = source.rawPath == "/v1/catalog/tracks/" + id + "/audio"
-            if (!owned && !catalog) throw ApiFailure(AppError.Unauthorized)
-            val token = account.token ?: return@withLock emptyMap()
-            api.authorization(token)
-            if (activeAccountId != owner) throw ApiFailure(AppError.Unauthorized)
-            api.audioHeaders(token)
+        val source = track.audioUri?.let { java.net.URI(it) } ?: return@withContext emptyMap()
+        if (source.scheme !in setOf("http", "https")) return@withContext emptyMap()
+        val origin = java.net.URI(api.baseUrl)
+        if (source.scheme != origin.scheme || source.host != origin.host || source.port != origin.port) {
+            return@withContext emptyMap()
         }
+        resolveAudioHeaders(track, audioAccount(track))
+    }
+
+    private fun audioAccount(track: Track): AccountSnapshot {
+        val account = requireAccount()
+        if (activeAccountId != account.session.user.id.value) throw ApiFailure(AppError.Unauthorized)
+        val current = account.tracks.find { it.id == track.id }
+        val catalog = publicCatalogTracks.value.find { it.id == track.id }
+        val catalogUri = if (account.token == null) {
+            catalog?.audioUri
+        } else {
+            catalog?.let { api.baseUrl + "/v1/catalog/tracks/" + Uri.encode(it.id.value) + "/audio" }
+        }
+        if (current == null && catalog == null) throw ApiFailure(AppError.Unauthorized)
+        val expected = if (current != null) current.audioUri else catalogUri
+        if (track.audioUri != expected) throw ApiFailure(AppError.Unauthorized)
+        if (expected == null) {
+            if (account.token != null) throw ApiFailure(AppError.Unauthorized)
+            return account
+        }
+        val source = java.net.URI(expected)
+        if (source.scheme in setOf("http", "https")) {
+            val path = if (current != null) {
+                remoteTrackPath(track.id)
+            } else {
+                "/v1/catalog/tracks/" + Uri.encode(track.id.value)
+            }
+            if (source != java.net.URI(api.baseUrl + path + "/audio")) throw ApiFailure(AppError.Unauthorized)
+        }
+        return account
+    }
+
+    private suspend fun resolveAudioHeaders(track: Track, account: AccountSnapshot): Map<String, String> {
+        val uri = track.audioUri ?: return emptyMap()
+        if (java.net.URI(uri).scheme !in setOf("http", "https")) return emptyMap()
+        val token = account.token ?: return emptyMap()
+        val bearer = api.authorization(token)
+        val current = audioAccount(track)
+        if (current.session.user.id != account.session.user.id || current.token != token) {
+            throw ApiFailure(AppError.Unauthorized)
+        }
+        return mapOf("Authorization" to "Bearer " + bearer)
     }
 
     internal suspend fun fetchCatalog(): Outcome<JSONObject> = operation {

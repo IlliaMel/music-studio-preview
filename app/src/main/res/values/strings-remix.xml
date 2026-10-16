@@ -3,5 +3,6 @@
     <string name="create_remix_source_limit">You can remix up to 4 original tracks. Remove a source to add another.</string>
     <string name="create_remix_original_only">Choose an original track. A remix cannot be remixed again.</string>
     <string name="create_remix_ready_only">Wait until the track is ready before adding it to a remix.</string>
-    <string name="create_remix_recording_reference">Audio recordings are references, not remix originals. Record or import audio with the attachment button.</string>
+    <string name="create_remix_recording_reference">Use the recording’s More menu to add it as an audio reference.</string>
+    <string name="create_menu_use_as_reference">Use as reference</string>
 </resources>

@@ -37,6 +37,11 @@ interface TrackRepository {
     suspend fun saveRecording(localUri: String, title: String, duration: kotlin.time.Duration): Outcome<Track> =
         Outcome.Failure(com.illiamelnyk.studio.core.domain.AppError.Unknown)
 
+    suspend fun prepareRecordingReference(id: TrackId): Outcome<RecordingReference> =
+        Outcome.Failure(com.illiamelnyk.studio.core.domain.AppError.InvalidReference)
+
+    fun isRecordingReferenceCurrent(reference: RecordingReference): Boolean = false
+
     suspend fun rename(id: TrackId, title: String): Outcome<Unit> =
         Outcome.Failure(com.illiamelnyk.studio.core.domain.AppError.Unknown)
 

@@ -26,7 +26,7 @@ class AndroidGenerationNotifications(
     private val choice: GenerationNotificationPreferences,
 ) : GenerationNotifications {
     private val preferences = context.getSharedPreferences("generation-notifications", Context.MODE_PRIVATE)
-    private val manager = context.getSystemService(NotificationManager::class.java)
+    private val manager by lazy { requireNotNull(context.getSystemService(NotificationManager::class.java)) }
     private val lock = Any()
 
     override fun record(ownerId: String?, tracks: List<Track>) = recordSnapshot(ownerId, tracks, emptySet())

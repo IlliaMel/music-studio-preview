@@ -36,6 +36,7 @@ data class CreateTrackUi(
     val dayLabel: UiText? = null,
     val variation: Int? = null,
     val variationGroupId: String? = null,
+    val canUseAsReference: Boolean = false,
 )
 
 /**
@@ -65,6 +66,7 @@ fun Track.toCreateUi(): CreateTrackUi {
             },
         ),
         isLiked = isLiked,
+        canUseAsReference = canUseAsReference,
         fix = (error as? AppError.InvalidPrompt)?.let { PromptFix(it.suggestion ?: prompt, it.suggestion != null) },
         canRetry = error != null && error !is AppError.InvalidPrompt &&
             error != AppError.ProviderOutcomeUnknown && error != AppError.UnsupportedMode &&

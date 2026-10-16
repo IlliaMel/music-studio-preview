@@ -84,8 +84,8 @@ val coreModule = module {
         )
     } bind PlaybackController::class
     single<AutoplayCatalog> {
-        val catalog: CatalogRepository = get()
         AutoplayCatalog {
+            val catalog: CatalogRepository = get()
             catalog.observeCollections().first().flatMap { it.tracks }.distinctBy { it.id }
         }
     }

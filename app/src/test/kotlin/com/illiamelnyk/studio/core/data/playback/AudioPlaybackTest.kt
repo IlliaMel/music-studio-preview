@@ -32,6 +32,7 @@ class AudioPlaybackTest {
 
     @org.junit.After
     fun clearPlaybackFixture() {
+        PlaybackPersistenceWriter.shared.flush()
         context.getSharedPreferences("playback", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
@@ -302,6 +303,86 @@ class AudioPlaybackTest {
         runCurrent()
         val restored = AndroidPlaybackController(context, backgroundScope, ownerId = { "owner-a" })
         assertTrue(restored.state.value.queue.isEmpty())
+    }
+
+    @Test
+    fun staleOtherOwnerStopDoesNotDeleteCurrentOwnersRestoredQueue() = runTest {
+        var owner = "stale-stop-a"
+        val first = track("old-owner-track", 20.seconds)
+        val second = track("new-owner-track", 20.seconds)
+        saveQueue(owner, listOf(first))
+        val stale = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        owner = "stale-stop-b"
+        saveQueue(owner, listOf(second), position = 6250)
+        val replacement = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        replacement.setAutoplay(true)
+        stale.stop()
+        val restored = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        assertEquals(second.id, restored.state.value.current?.id)
+        assertTrue(restored.state.value.autoplay)
+        assertFalse(restored.state.value.isPlaying)
+    }
+
+    @Test
+    fun staleSameOwnerControllerStopAndWriterCannotEraseReplacementQueue() = runTest {
+        val owner = "same-owner-replacement"
+        val first = track("old-controller-track", 20.seconds)
+        val second = track("new-controller-track", 20.seconds)
+        saveQueue(owner, listOf(first))
+        val stale = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        saveQueue(owner, listOf(second), position = 6250)
+        val replacement = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        replacement.setAutoplay(true)
+        stale.setAutoplay(false)
+        stale.stop()
+        runCurrent()
+        PlaybackPersistenceWriter.shared.flush()
+        val restored = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        assertEquals(second.id, restored.state.value.current?.id)
+        assertTrue(restored.state.value.autoplay)
+        assertEquals(6000L, restored.state.value.positionMs)
+        assertFalse(restored.state.value.isPlaying)
+    }
+
+    @Test
+    fun shutdownFlushReleasesPlaybackLockBeforeWaitingForCheckedDiskCommit() = runTest {
+        val song = track("flush-lock", 20.seconds)
+        saveQueue("flush-lock-owner", listOf(song), position = 4250)
+        val original = context.getSharedPreferences("playback", Context.MODE_PRIVATE)
+        var playbackLock: Any? = null
+        val committed = java.util.concurrent.CountDownLatch(1)
+        val wrapped = object : android.content.ContextWrapper(context) {
+            override fun getSharedPreferences(name: String, mode: Int): android.content.SharedPreferences {
+                if (name != "playback") return super.getSharedPreferences(name, mode)
+                return object : android.content.SharedPreferences by original {
+                    override fun edit(): android.content.SharedPreferences.Editor {
+                        val editor = original.edit()
+                        return object : android.content.SharedPreferences.Editor by editor {
+                            override fun commit(): Boolean {
+                                synchronized(requireNotNull(playbackLock)) {
+                                    committed.countDown()
+                                    return editor.commit()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        val playback = AndroidPlaybackController(wrapped, backgroundScope, ownerId = { "flush-lock-owner" })
+        playbackLock = AndroidPlaybackController::class.java.getDeclaredField("playbackLock").apply {
+            isAccessible = true
+        }.get(playback)
+        playback.seekTo(8500)
+        val caller = java.util.concurrent.Executors.newSingleThreadExecutor()
+        try {
+            caller.submit { playback.releaseForServiceShutdown() }.get(5, java.util.concurrent.TimeUnit.SECONDS)
+            assertTrue(committed.await(1, java.util.concurrent.TimeUnit.SECONDS))
+            val saved = JSONObject(requireNotNull(original.getString(playbackPreferenceKey("flush-lock-owner"), null)))
+            assertEquals(8000L, saved.getLong("position"))
+        } finally {
+            caller.shutdownNow()
+        }
     }
 
     @Test

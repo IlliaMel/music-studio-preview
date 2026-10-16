@@ -888,6 +888,139 @@ class DurableStudioRepositoryTest {
         assertEquals(listOf(original.id.value), api.lastGeneration!!.getJSONArray("remixTrackIds").strings())
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun playbackAndExportAuthorizationDoNotWaitForAnUnrelatedSuspendedServerOperation() = runTest {
+        val api = MemoryApi(context)
+        val repository = DurableStudioRepository(
+            context,
+            StudioStore(context),
+            api,
+            backgroundScope,
+            StandardTestDispatcher(testScheduler),
+        )
+        repository.signInServer()
+        val track = repository.observeMine().first().first()
+        api.holdProfile = true
+        val editing = async {
+            repository.updateProfile(com.illiamelnyk.studio.core.domain.session.ProfileUpdate(marketingOptIn = true))
+        }
+        runCurrent()
+        api.profileStarted.await()
+        val playback = async { repository.playbackHeaders(track) }
+        val export = async { repository.exportHeaders(track) }
+        runCurrent()
+        assertTrue("Playback authorization waited for the repository network mutex", playback.isCompleted)
+        assertTrue("Export authorization waited for the repository network mutex", export.isCompleted)
+        assertEquals(mapOf("Authorization" to "Bearer dev:illia"), playback.await())
+        assertEquals(playback.await(), export.await())
+        assertFalse(editing.isCompleted)
+        api.profileRelease.complete(Unit)
+        assertTrue(editing.await() is Outcome.Success)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun signOutWhileBearerRefreshIsSuspendedRejectsTheStalePlaybackAuthorization() = runTest {
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val api = MemoryApi(
+            context,
+            ApiConfiguration("https://api.studio.test", ApiAuthMode.Firebase, false),
+            BearerTokenProvider { uid ->
+                started.complete(Unit)
+                release.await()
+                FirebaseBearerToken(uid, "fixture.payload.signature", System.currentTimeMillis() + 3_600_000)
+            },
+        )
+        val repository = DurableStudioRepository(
+            context,
+            StudioStore(context),
+            api,
+            backgroundScope,
+            StandardTestDispatcher(testScheduler),
+        )
+        repository.signInFirebase("firebase-user")
+        val track = repository.observeMine().first().first()
+        val pending = async { runCatching { repository.playbackHeaders(track) } }
+        runCurrent()
+        started.await()
+        repository.signOut()
+        release.complete(Unit)
+        assertEquals(
+            com.illiamelnyk.studio.core.domain.AppError.Unauthorized,
+            (pending.await().exceptionOrNull() as ApiFailure).error,
+        )
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun deletionWhileBearerRefreshIsSuspendedRejectsTheStaleExportAuthorization() = runTest {
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val api = MemoryApi(
+            context,
+            ApiConfiguration("https://api.studio.test", ApiAuthMode.Firebase, false),
+            BearerTokenProvider { uid ->
+                started.complete(Unit)
+                release.await()
+                FirebaseBearerToken(uid, "fixture.payload.signature", System.currentTimeMillis() + 3_600_000)
+            },
+        )
+        val repository = DurableStudioRepository(
+            context,
+            StudioStore(context),
+            api,
+            backgroundScope,
+            StandardTestDispatcher(testScheduler),
+        )
+        repository.signInFirebase("firebase-user")
+        val track = repository.observeMine().first().first()
+        val pending = async { runCatching { repository.exportHeaders(track) } }
+        runCurrent()
+        started.await()
+        assertTrue(repository.delete(track.id) is Outcome.Success)
+        release.complete(Unit)
+        assertEquals(
+            com.illiamelnyk.studio.core.domain.AppError.Unauthorized,
+            (pending.await().exceptionOrNull() as ApiFailure).error,
+        )
+    }
+
+    @Test
+    fun authorizedLocalFixtureWithoutAudioUriCanExportButSignOutRejectsItsCachedAudio() = runTest {
+        val repository = DurableStudioRepository(context, StudioStore(context), MemoryApi(context), backgroundScope)
+        repository.signInDemo()
+        val track = (repository.create(GenerationRequest("Local fixture reference audio"), 1) as Outcome.Success)
+            .value.single()
+        assertNull(track.audioUri)
+        val files = com.illiamelnyk.studio.core.data.playback.AudioFiles(
+            context,
+            ownerId = { repository.activeAccountId },
+            authorization = repository::exportHeaders,
+        )
+        assertEquals(emptyMap<String, String>(), repository.exportHeaders(track))
+        val exported = files.export(track)
+        assertTrue(exported.length() > 44)
+        assertEquals("RIFF", exported.inputStream().use { String(it.readNBytes(4)) })
+        repository.signOut()
+        assertTrue(runCatching { files.export(track) }.isFailure)
+    }
+
+    @Test
+    fun ownedServerTrackWithoutAudioUriCannotFallBackToFixtureExport() = runTest {
+        val api = MemoryApi(context).apply { failures = listOf(failure("no-server-audio", "auto")) }
+        val repository = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
+        repository.signInServer()
+        val track = repository.observeMine().first().first { it.id.value == "no-server-audio" }
+        assertNull(track.audioUri)
+        val result = runCatching { repository.exportHeaders(track) }
+        assertEquals(
+            com.illiamelnyk.studio.core.domain.AppError.Unauthorized,
+            (result.exceptionOrNull() as ApiFailure).error,
+        )
+    }
+
     private class RetryingNotifications(context: Context) : GenerationNotifications {
         var enabled = true
         var failRecord = false

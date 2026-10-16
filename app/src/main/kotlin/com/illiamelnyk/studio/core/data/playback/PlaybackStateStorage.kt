@@ -11,9 +11,7 @@ internal val playbackPersistenceLock = Any()
 private val playbackGenerations = MutableStateFlow<Map<String, Long>>(emptyMap())
 internal val playbackPurgeGenerations = playbackGenerations.asStateFlow()
 
-internal fun playbackStateGeneration(owner: String): Long = synchronized(playbackPersistenceLock) {
-    playbackGenerations.value[owner] ?: 0L
-}
+internal fun playbackStateGeneration(owner: String): Long = playbackGenerations.value[owner] ?: 0L
 
 // Account metadata is cleared only after this checked durable commit succeeds.
 @SuppressLint("UseKtx")

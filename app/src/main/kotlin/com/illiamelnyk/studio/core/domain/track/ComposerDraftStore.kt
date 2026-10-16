@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 class ComposerDraftStore(private val ownerId: () -> String? = { null }) {
+    val currentOwner: String? get() = checkOwner()
     private var owner: String? = null
     private val mutableRevision = MutableStateFlow(0)
     val revision: StateFlow<Int> = owned(mutableRevision)

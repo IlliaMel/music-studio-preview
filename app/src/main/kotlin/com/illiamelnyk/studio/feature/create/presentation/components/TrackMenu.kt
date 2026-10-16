@@ -25,6 +25,7 @@ fun TrackMenu(
     onAction: (TrackMenuAction) -> Unit,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    canUseAsReference: Boolean = false,
 ) {
     StudioContextMenu(expanded = expanded, onDismissRequest = onDismissRequest, modifier = modifier) {
         ContextMenuItem(
@@ -52,6 +53,13 @@ fun TrackMenu(
             onClick = { onAction(TrackMenuAction.UsePrompt) },
             icon = StudioIcons.Notes,
         )
+        if (canUseAsReference) {
+            ContextMenuItem(
+                label = stringResource(R.string.create_menu_use_as_reference),
+                onClick = { onAction(TrackMenuAction.UseAsReference) },
+                icon = StudioIcons.Notes,
+            )
+        }
         ContextMenuDivider()
         ContextMenuItem(
             label = stringResource(R.string.create_menu_delete),

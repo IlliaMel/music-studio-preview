@@ -69,6 +69,7 @@ fun CreateTrackItem(
                 expanded = menuExpanded,
                 onAction = onMenuAction,
                 onDismissRequest = onMenuDismiss,
+                canUseAsReference = track.canUseAsReference,
             )
         }
         if (track.row.status is TrackUi.Status.Failed) {

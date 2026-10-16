@@ -1,7 +1,5 @@
 package com.illiamelnyk.studio.core.data.playback
 
-import android.annotation.SuppressLint
-import androidx.core.content.edit
 import com.illiamelnyk.studio.core.data.local.ApiFailure
 import com.illiamelnyk.studio.core.data.local.toJson
 import com.illiamelnyk.studio.core.data.local.toTrack
@@ -67,6 +65,9 @@ class AndroidPlaybackController(
         }.build()
     private val preferences = context.getSharedPreferences("playback", android.content.Context.MODE_PRIVATE)
 
+    private val persistence = PlaybackStatePersistence(preferences, ownerId)
+    private val persistenceEpoch = java.util.concurrent.atomic.AtomicLong()
+
     init {
         clearLegacyState()
         restoreQueue()
@@ -82,35 +83,31 @@ class AndroidPlaybackController(
             var lastSaved: String? = null
             mutableState.collect { observed ->
                 synchronized(playbackLock) {
-                    synchronized(playbackPersistenceLock) storage@{
-                        if (observed !== mutableState.value) return@storage
-                        val saved = snapshot(observed) ?: return@storage
-                        if (saved.second == lastSaved && preferences.contains(saved.first)) return@storage
-                        preferences.edit { putString(saved.first, saved.second) }
-                        lastSaved = saved.second
+                    if (observed === mutableState.value) {
+                        val saved = snapshot(observed)
+                        if (saved != null && (saved.second != lastSaved || !persistence.contains(saved.first))) {
+                            persistQueue(saved)
+                            lastSaved = saved.second
+                        }
                     }
                 }
             }
         }
     }
 
-    // The commit result must be checked before private account state can be discarded.
-    @SuppressLint("UseKtx")
     private fun clearLegacyState() {
-        synchronized(playbackPersistenceLock) {
-            if (preferences.contains("state")) {
-                check(preferences.edit().remove("state").commit()) { "Cannot clear unowned playback state" }
-            }
+        if (persistence.contains("state")) {
+            persistence.remove(listOf("state"))
+            persistence.flush()
         }
     }
 
-    @SuppressLint("UseKtx")
     private fun restoreQueue() {
-        synchronized(playbackPersistenceLock) {
-            val owner = ownerId() ?: return
-            val key = playbackPreferenceKey(owner)
-            runCatching {
-                val saved = preferences.getString(key, null)?.let { org.json.JSONObject(it) } ?: return@runCatching
+        val owner = ownerId() ?: return
+        val key = playbackPreferenceKey(owner)
+        runCatching {
+            synchronized(playbackPersistenceLock) {
+                val saved = persistence.read(key)?.let { org.json.JSONObject(it) } ?: return@runCatching
                 require(saved.getInt("version") == 2 && saved.getString("owner") == owner)
                 val array = saved.getJSONArray("original")
                 val original = (0 until array.length()).map { array.getJSONObject(it).toTrack() }
@@ -137,10 +134,17 @@ class AndroidPlaybackController(
                         (0 until values.length()).map { TrackId(values.getString(it)) }.toSet()
                     } ?: original.map { it.id }.toSet(),
                 )
-            }.onFailure {
-                check(preferences.edit().remove(key).commit()) { "Cannot clear invalid playback state" }
-                android.util.Log.w("StudioPlayback", "Discarded invalid or mismatched playback state")
+                val transferring = persistence.pending(key) || persistence.pending(autoplayPreferenceKey(owner))
+                persistence.claim(owner)
+                if (transferring) {
+                    persistAutoplay()
+                    persistQueue()
+                }
             }
+        }.onFailure {
+            persistence.remove(listOf(key))
+            persistence.flush()
+            android.util.Log.w("StudioPlayback", "Discarded invalid or mismatched playback state")
         }
     }
 
@@ -165,15 +169,15 @@ class AndroidPlaybackController(
         return playbackPreferenceKey(owner) to saved.toString()
     }
 
-    @SuppressLint("UseKtx")
-    private fun persistQueue() {
-        synchronized(playbackPersistenceLock) {
-            val saved = snapshot(mutableState.value) ?: return
-            check(preferences.edit().putString(saved.first, saved.second).commit()) { "Cannot persist playback queue" }
+    private fun persistQueue(saved: Pair<String, String>? = snapshot(mutableState.value)) {
+        val owner = playbackOwner ?: return
+        val snapshot = saved ?: return
+        val epoch = persistenceEpoch.get()
+        persistence.write(snapshot.first, snapshot.second, owner, playbackGeneration) {
+            persistenceEpoch.get() == epoch
         }
     }
 
-    @SuppressLint("UseKtx")
     private fun persistAutoplay() {
         val owner = playbackOwner ?: return
         val state = mutableState.value
@@ -181,16 +185,14 @@ class AndroidPlaybackController(
             put("enabled", state.autoplay)
             put("history", org.json.JSONArray(state.autoplayHistory.map { it.value }))
         }
-        synchronized(playbackPersistenceLock) {
-            if (owner != ownerId() || playbackGeneration != playbackStateGeneration(owner)) return
-            check(preferences.edit().putString(autoplayPreferenceKey(owner), saved.toString()).commit()) {
-                "Cannot persist autoplay preference"
-            }
+        val epoch = persistenceEpoch.get()
+        persistence.write(autoplayPreferenceKey(owner), saved.toString(), owner, playbackGeneration) {
+            persistenceEpoch.get() == epoch
         }
     }
 
     private fun autoplayPreference(owner: String): Pair<Boolean, Set<TrackId>> = runCatching {
-        val saved = preferences.getString(autoplayPreferenceKey(owner), null)?.let { org.json.JSONObject(it) }
+        val saved = persistence.read(autoplayPreferenceKey(owner))?.let { org.json.JSONObject(it) }
             ?: return@runCatching false to emptySet<TrackId>()
         saved.optBoolean("enabled") to (
             saved.optJSONArray("history")?.let { values ->
@@ -395,7 +397,7 @@ class AndroidPlaybackController(
             val retained = originalQueue.indices.filter { originalQueue[it].id != id }
             if (retained.isEmpty()) {
                 stop()
-                return
+                return@synchronized
             }
             val remap = retained.mapIndexed { index, old -> old to index }.toMap()
             val currentOriginal = playOrder[state.currentIndex]
@@ -427,6 +429,7 @@ class AndroidPlaybackController(
             )
             persistQueue()
         }
+        flushPersistence()
     }
 
     override fun clearUpNext() {
@@ -442,7 +445,9 @@ class AndroidPlaybackController(
         val owner = playbackOwner ?: return@synchronized null
         val state = mutableState.value
         val track = state.current ?: return@synchronized null
-        if (owner != ownerId() || playbackGeneration != playbackStateGeneration(owner)) return@synchronized null
+        if (owner != ownerId() || playbackGeneration != playbackStateGeneration(owner) || !persistence.owns(owner)) {
+            return@synchronized null
+        }
         val identity = owner + ":" + playbackGeneration + ":" + track.id.value
         val digest = java.security.MessageDigest.getInstance("SHA-256").digest(identity.toByteArray(Charsets.UTF_8))
         PlaybackResumption(digest.joinToString("") { "%02x".format(it.toInt() and 255) }, state)
@@ -466,11 +471,14 @@ class AndroidPlaybackController(
             }
             persistQueue()
         }
+        flushPersistence()
     }
 
-    @SuppressLint("UseKtx")
     override fun stop() {
+        val nested = Thread.holdsLock(playbackLock)
         synchronized(playbackLock) {
+            persistenceEpoch.incrementAndGet()
+            persistAutoplay()
             preparing?.cancel()
             audioManager.abandonAudioFocusRequest(focusRequest)
             hasFocus = false
@@ -480,17 +488,21 @@ class AndroidPlaybackController(
             prepared = false
             pendingSeek = null
             stopClock()
-            context.stopService(android.content.Intent(context, PlaybackService::class.java))
+            if (playbackOwner == ownerId() && playbackOwner?.let(persistence::owns) == true) {
+                context.stopService(android.content.Intent(context, PlaybackService::class.java))
+            }
             originalQueue = emptyList()
             playOrder = emptyList()
             mutableState.update { PlaybackState(shuffle = it.shuffle, repeat = it.repeat) }
-            synchronized(playbackPersistenceLock) {
-                val clear = preferences.edit().remove("state")
-                listOfNotNull(playbackOwner, ownerId()).distinct().forEach { clear.remove(playbackPreferenceKey(it)) }
-                check(clear.commit()) { "Cannot clear playback queue" }
-            }
+            playbackOwner?.let { persistence.removeQueue(it, playbackGeneration) }
             playbackOwner = null
         }
+        if (!nested) flushPersistence()
+    }
+
+    private fun flushPersistence() {
+        check(!Thread.holdsLock(playbackLock)) { "Playback persistence cannot flush under playback lock" }
+        persistence.flush()
     }
 
     private fun load(queue: List<Track>, startIndex: Int, stationName: String?) {
@@ -499,6 +511,7 @@ class AndroidPlaybackController(
         if (playbackOwner != null && playbackOwner != owner) stop()
         playbackOwner = owner
         playbackGeneration = playbackStateGeneration(owner)
+        persistence.claim(owner)
         pendingSeek = 0
         originalQueue = queue
         val autoplay = autoplayPreference(owner)
@@ -518,6 +531,7 @@ class AndroidPlaybackController(
             )
         }
         persistAutoplay()
+        persistQueue()
         startClock()
     }
 
@@ -545,7 +559,9 @@ class AndroidPlaybackController(
 
     private fun syncAudio() {
         val owner = playbackOwner
-        if (owner != null && (owner != ownerId() || playbackGeneration != playbackStateGeneration(owner))) {
+        if (owner != null &&
+            (owner != ownerId() || playbackGeneration != playbackStateGeneration(owner) || !persistence.owns(owner))
+        ) {
             stop()
             return
         }
@@ -673,9 +689,8 @@ class AndroidPlaybackController(
     private fun reportFailure(track: Track, error: AppError) {
         synchronized(playbackLock) {
             val owner = playbackOwner ?: return
-            if (owner != ownerId() || playbackGeneration != playbackStateGeneration(owner) ||
-                mutableState.value.current?.id != track.id
-            ) {
+            val activeOwner = owner == ownerId() && playbackGeneration == playbackStateGeneration(owner)
+            if (!activeOwner || !persistence.owns(owner) || mutableState.value.current?.id != track.id) {
                 return
             }
             failureSequence++
@@ -691,7 +706,7 @@ class AndroidPlaybackController(
 
     private fun ownsCurrentPlayer(candidate: android.media.MediaPlayer, track: Track): Boolean =
         player === candidate && mutableState.value.current?.id == track.id && playbackOwner == ownerId() &&
-            playbackOwner?.let { playbackGeneration == playbackStateGeneration(it) } == true
+            playbackOwner?.let { playbackGeneration == playbackStateGeneration(it) && persistence.owns(it) } == true
 
     private fun requestFocus(): Boolean {
         if (hasFocus) return true

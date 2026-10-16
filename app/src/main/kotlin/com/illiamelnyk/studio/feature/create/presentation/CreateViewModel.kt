@@ -62,10 +62,13 @@ class CreateViewModel(
     private var creditsLeft: Int? = null
     private var dailyLimit = 0
     private var isAnsweringNotifications = false
+    private var referenceSelection = 0L
+    private val composerOwner = drafts.currentOwner
 
     init {
         tracks.observeMine().onEach(::showTracks).launchIn(viewModelScope)
         drafts.sources.onEach { sources ->
+            referenceSelection += 1
             val firstSelection = settings.remixSourceIds.isEmpty() && sources.isNotEmpty()
             changeSettings {
                 copy(
@@ -170,6 +173,7 @@ class CreateViewModel(
             CreateIntent.ReferenceClicked -> setState { copy(sheet = CreateSheet.Reference) }
 
             is CreateIntent.ReferenceSelected -> {
+                referenceSelection += 1
                 drafts.clear()
                 changeSettings {
                     copy(referenceAudioUri = intent.uri, remixTrackId = null, remixTrackIds = emptyList())
@@ -181,6 +185,7 @@ class CreateViewModel(
             }
 
             CreateIntent.ReferenceRemoved -> {
+                referenceSelection += 1
                 drafts.clear()
                 changeSettings { copy(referenceAudioUri = null, remixTrackId = null, remixTrackIds = emptyList()) }
                 updateComposer {
@@ -302,11 +307,38 @@ class CreateViewModel(
 
             TrackMenuAction.UsePrompt -> updateComposer { copy(prompt = track.prompt) }
 
+            TrackMenuAction.UseAsReference -> useRecordingReference(track)
+
             TrackMenuAction.Share -> sendEffect(CreateEffect.ShareTrack(track.title, track.prompt, track))
 
             TrackMenuAction.Download -> sendEffect(CreateEffect.DownloadAudio(track))
 
             TrackMenuAction.Delete -> askToDelete(id)
+        }
+    }
+
+    private fun useRecordingReference(track: Track) {
+        if (!track.canUseAsReference || composerOwner == null || drafts.currentOwner != composerOwner) return
+        val selection = ++referenceSelection
+        viewModelScope.launch {
+            when (val result = tracks.prepareRecordingReference(track.id)) {
+                is Outcome.Success -> {
+                    if (selection != referenceSelection || drafts.currentOwner != composerOwner ||
+                        result.value.ownerId != composerOwner || !tracks.isRecordingReferenceCurrent(result.value)
+                    ) {
+                        return@launch
+                    }
+                    onIntent(CreateIntent.ReferenceSelected(result.value.uri, result.value.title))
+                }
+
+                is Outcome.Failure -> if (selection == referenceSelection) {
+                    toast(
+                        UiText.Resource(R.string.create_toast_error),
+                        result.error.toUiText(),
+                        StudioToastKind.Error,
+                    )
+                }
+            }
         }
     }
 

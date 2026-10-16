@@ -59,7 +59,7 @@ sealed interface CreateSheet {
 }
 
 /** What the menu of a track can do. */
-enum class TrackMenuAction { PlayNext, Share, Download, Rename, UsePrompt, Delete }
+enum class TrackMenuAction { PlayNext, Share, Download, Rename, UsePrompt, UseAsReference, Delete }
 
 sealed interface CreateIntent {
     data class ComingSoonClicked(val feature: ComingSoonFeature) : CreateIntent

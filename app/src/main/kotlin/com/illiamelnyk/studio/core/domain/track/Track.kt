@@ -46,4 +46,5 @@ data class Track(
     val remixSourceIds: List<String> get() = remixTrackIds.ifEmpty { listOfNotNull(remixTrackId) }
     val isRemix: Boolean get() = remixSourceIds.isNotEmpty()
     val canRemixOriginal: Boolean get() = status == TrackStatus.Ready && !isRemix && !id.isRecording
+    val canUseAsReference: Boolean get() = status == TrackStatus.Ready && id.isRecording && audioUri != null
 }

@@ -322,6 +322,48 @@ class RecordingDraftsTest {
         assertFalse(StudioStore(context).read().has("account-owner"))
     }
 
+    @Test
+    fun savedDraftReferenceChecksRemoteExistenceWithoutGenerationOrCreditMutation() = runTest {
+        val api = MemoryRecordings(context)
+        val repository = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
+        repository.signInServer()
+        val track = (
+            repository.saveRecording(source.toUri().toString(), "Reference idea", 12.seconds)
+                as Outcome.Success
+            ).value
+        val credits = repository.credits.first()
+        val reference = (repository.prepareRecordingReference(track.id) as Outcome.Success).value
+        assertEquals(track.audioUri, reference.uri)
+        assertEquals("Reference idea", reference.title)
+        assertTrue(repository.isRecordingReferenceCurrent(reference))
+        assertEquals(credits, repository.credits.first())
+        assertEquals(0, api.generationPosts)
+        api.rows.clear()
+        assertEquals(Outcome.Failure(AppError.InvalidReference), repository.prepareRecordingReference(track.id))
+        repository.signOut()
+        assertFalse(repository.isRecordingReferenceCurrent(reference))
+        assertEquals(0, api.generationPosts)
+    }
+
+    @Test
+    fun savedDraftReferenceRejectsNoncanonicalServerAudioBeforeAnyGeneration() = runTest {
+        val api = MemoryRecordings(context)
+        val repository = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
+        repository.signInServer()
+        val track = (
+            repository.saveRecording(source.toUri().toString(), "Owned idea", 12.seconds)
+                as Outcome.Success
+            ).value
+        val row = api.rows.values.single()
+        listOf("https://evil.test/audio", track.audioUri + "?token=secret", track.audioUri + "#fragment")
+            .forEach { uri ->
+                row.put("audioUrl", uri)
+                assertEquals(Outcome.Failure(AppError.InvalidReference), repository.prepareRecordingReference(track.id))
+            }
+        assertEquals(0, api.generationPosts)
+        assertEquals(25, repository.credits.first().remaining)
+    }
+
     private class MemoryRecordings(context: Context) : StudioApi(context) {
         var owner = "owner"
         var failPut = false
