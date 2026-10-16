@@ -140,13 +140,17 @@ class FirebaseDeletionRecoveryTest {
             )
         }
         fixture.api.failure = AppError.Network
-        DurableStudioRepository(
+        val restarted = DurableStudioRepository(
             context,
             fixture.store,
             fixture.api,
             backgroundScope,
             StandardTestDispatcher(testScheduler),
         )
+        assertNull(restarted.activeAccountId)
+        assertNull(restarted.session.first())
+        assertTrue(restarted.observeMine().first().isEmpty())
+        assertTrue(fixture.store.read().has("account-server-a"))
         runCurrent()
         val receipt = fixture.store.read().getJSONObject("deletion-server-a")
         assertTrue(receipt.getBoolean("remoteCompletionUnverified"))

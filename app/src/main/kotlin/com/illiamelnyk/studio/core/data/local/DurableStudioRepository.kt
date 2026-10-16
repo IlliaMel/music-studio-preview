@@ -955,11 +955,17 @@ class DurableStudioRepository(
         "/v1/tracks/" + id.value
     }
 
-    private fun loadActive(): AccountSnapshot? = store.read().stringOrNull("active")?.let(::loadAccount)
-        ?.takeIf { (api.isAvailable || it.token == null) && !store.read().has("deletion-" + it.session.user.id.value) }
-        ?.let { account ->
-            account.copy(tracks = account.tracks.map { it.copy(audioHeaders = authHeaders(account)) })
+    private fun loadActive(): AccountSnapshot? {
+        val snapshot = store.read()
+        val id = snapshot.stringOrNull("active") ?: return null
+        val account = snapshot.optJSONObject("account-" + id)?.let(AccountJsonCodec::decode) ?: return null
+        if ((!api.isAvailable && account.token != null) ||
+            snapshot.has("deletion-" + account.session.user.id.value)
+        ) {
+            return null
         }
+        return account.copy(tracks = account.tracks.map { it.copy(audioHeaders = authHeaders(account)) })
+    }
     private fun loadAccount(id: String): AccountSnapshot? =
         store.read().optJSONObject("account-" + id)?.let(AccountJsonCodec::decode)
 
