@@ -232,6 +232,64 @@ class RecordingDraftsTest {
     }
 
     @Test
+    fun deletedRecordingCannotBeReinsertedIntoPlaylistFromStalePicker() = runTest {
+        val api = MemoryRecordings(context).apply { playlistCreated = true }
+        val repository = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
+        repository.signInServer()
+        val track = (
+            repository.saveRecording(source.toUri().toString(), "Deleted idea", 12.seconds) as Outcome.Success
+            ).value
+        assertEquals(Outcome.Success(Unit), repository.delete(track.id))
+
+        assertEquals(Outcome.Failure(AppError.InvalidReference), repository.addTrack("playlist", track))
+        assertTrue(repository.observeAll().first().single().tracks.isEmpty())
+        assertEquals(0, api.generationPosts)
+        assertEquals(25, repository.credits.first().remaining)
+    }
+
+    @Test
+    fun previousOwnersRecordingCannotEnterNewOwnersPlaylist() = runTest {
+        val api = MemoryRecordings(context).apply { playlistCreated = true }
+        val repository = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
+        repository.signInServer()
+        val privateTrack = (
+            repository.saveRecording(source.toUri().toString(), "Private A", 12.seconds) as Outcome.Success
+            ).value
+        repository.signOut()
+        api.owner = "second-owner"
+        repository.signInServer()
+        assertTrue(repository.observeMine().first().isEmpty())
+
+        assertEquals(Outcome.Failure(AppError.InvalidReference), repository.addTrack("playlist", privateTrack))
+        assertTrue(repository.observeAll().first().single().tracks.isEmpty())
+        assertEquals(0, api.generationPosts)
+    }
+
+    @Test
+    fun playlistUsesCurrentRecordingMetadataRatherThanStaleOrCallerSuppliedTrack() = runTest {
+        val api = MemoryRecordings(context).apply { playlistCreated = true }
+        val repository = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
+        repository.signInServer()
+        val track = (
+            repository.saveRecording(source.toUri().toString(), "Original title", 12.seconds) as Outcome.Success
+            ).value
+        assertEquals(Outcome.Success(Unit), repository.rename(track.id, "Canonical title"))
+
+        assertEquals(
+            Outcome.Success(Unit),
+            repository.addTrack(
+                "playlist",
+                track.copy(title = "Stale private title", audioUri = "https://evil.test/audio"),
+            ),
+        )
+        assertEquals(
+            repository.observeMine().first().single(),
+            repository.observeAll().first().single().tracks.single(),
+        )
+        assertEquals(0, api.generationPosts)
+    }
+
+    @Test
     fun remoteRenameAndDeletionUpdateLocalRecordingPlaylistMembers() = runTest {
         val api = MemoryRecordings(context).apply { playlistCreated = true }
         val repository = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)

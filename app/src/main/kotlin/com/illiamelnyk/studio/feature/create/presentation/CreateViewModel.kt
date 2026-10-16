@@ -63,6 +63,7 @@ class CreateViewModel(
     private var dailyLimit = 0
     private var isAnsweringNotifications = false
     private var referenceSelection = 0L
+    private val renaming = mutableSetOf<TrackId>()
     private val composerOwner = drafts.currentOwner
 
     init {
@@ -420,15 +421,20 @@ class CreateViewModel(
         val draft = state.value.sheet as? CreateSheet.Rename ?: return
         val title = draft.title.trim()
         if (title.isBlank()) return
+        if (!renaming.add(draft.id)) return
         viewModelScope.launch {
-            when (val result = tracks.rename(draft.id, title)) {
-                is Outcome.Success -> {
-                    renames.rename(draft.id, title)
-                    setState { copy(sheet = null) }
-                    showTracks(myTracks)
-                }
+            try {
+                when (val result = tracks.rename(draft.id, title)) {
+                    is Outcome.Success -> {
+                        renames.rename(draft.id, title)
+                        setState { if (sheet === draft) copy(sheet = null) else this }
+                        showTracks(myTracks)
+                    }
 
-                is Outcome.Failure -> showError(result.error)
+                    is Outcome.Failure -> showError(result.error)
+                }
+            } finally {
+                renaming.remove(draft.id)
             }
         }
     }

@@ -34,6 +34,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -72,6 +73,8 @@ class CreateViewModelTest {
     private lateinit var tracks: FailingTrackRepository
     private lateinit var playback: FakePlaybackController
     private var submittedRequest: GenerationRequest? = null
+    private var renameGate: CompletableDeferred<Outcome<Unit>>? = null
+    private var renameCalls = 0
 
     @Test
     fun `the user's tracks load newest first, with a fix where the prompt was refused and a retry where it failed`() =
@@ -368,6 +371,81 @@ class CreateViewModelTest {
         assertNull(viewModel.state.value.menuTrackId)
         assertEquals(ids("seed-1", "seed-6", "seed-2", "seed-4"), playback.state.value.queue.map { it.id })
         assertEquals(TrackId("seed-1"), playback.state.value.current?.id)
+    }
+
+    @Test
+    fun delayedRenameDoesNotCloseReplacementSheetAndIgnoresDoubleSave() = runTest(mainDispatcherRule.testDispatcher) {
+        val vm = viewModel()
+        renameGate = CompletableDeferred()
+        vm.onIntent(CreateIntent.MoreClicked(TrackId("seed-2")))
+        vm.onIntent(CreateIntent.MenuActionClicked(TrackMenuAction.Rename))
+        vm.onIntent(CreateIntent.RenameChanged("Saved title"))
+        vm.onIntent(CreateIntent.RenameConfirmed)
+        vm.onIntent(CreateIntent.RenameConfirmed)
+        runCurrent()
+        assertEquals(1, renameCalls)
+        vm.onIntent(CreateIntent.SheetDismissed)
+        vm.onIntent(CreateIntent.SettingsClicked)
+        val replacement = vm.state.value.sheet
+        renameGate!!.complete(Outcome.Success(Unit))
+        runCurrent()
+        assertEquals(replacement, vm.state.value.sheet)
+        assertEquals("Saved title", vm.state.value.track("seed-2").row.title)
+    }
+
+    @Test
+    fun successfulOldRenameDoesNotDismissAnIdenticalReopenedRename() = runTest(mainDispatcherRule.testDispatcher) {
+        val vm = viewModel()
+        renameGate = CompletableDeferred()
+        vm.onIntent(CreateIntent.MoreClicked(TrackId("seed-2")))
+        vm.onIntent(CreateIntent.MenuActionClicked(TrackMenuAction.Rename))
+        vm.onIntent(CreateIntent.RenameConfirmed)
+        runCurrent()
+        val original = vm.state.value.sheet
+        vm.onIntent(CreateIntent.SheetDismissed)
+        vm.onIntent(CreateIntent.MoreClicked(TrackId("seed-2")))
+        vm.onIntent(CreateIntent.MenuActionClicked(TrackMenuAction.Rename))
+        assertEquals(original, vm.state.value.sheet)
+        renameGate!!.complete(Outcome.Success(Unit))
+        runCurrent()
+        assertEquals(original, vm.state.value.sheet)
+        vm.onIntent(CreateIntent.RenameConfirmed)
+        runCurrent()
+        assertNull(vm.state.value.sheet)
+        assertEquals(2, renameCalls)
+    }
+
+    @Test
+    fun delayedRenamePreservesEditedOrReopenedRenameAndFailureCanRetry() = runTest(mainDispatcherRule.testDispatcher) {
+        val vm = viewModel()
+        renameGate = CompletableDeferred()
+        vm.onIntent(CreateIntent.MoreClicked(TrackId("seed-2")))
+        vm.onIntent(CreateIntent.MenuActionClicked(TrackMenuAction.Rename))
+        vm.onIntent(CreateIntent.RenameChanged("First title"))
+        vm.onIntent(CreateIntent.RenameConfirmed)
+        runCurrent()
+        vm.onIntent(CreateIntent.RenameChanged("Newer edit"))
+        renameGate!!.complete(Outcome.Success(Unit))
+        runCurrent()
+        assertEquals("Newer edit", (vm.state.value.sheet as CreateSheet.Rename).title)
+        renameGate = CompletableDeferred()
+        vm.onIntent(CreateIntent.RenameConfirmed)
+        runCurrent()
+        vm.onIntent(CreateIntent.SheetDismissed)
+        vm.onIntent(CreateIntent.MoreClicked(TrackId("seed-2")))
+        vm.onIntent(CreateIntent.MenuActionClicked(TrackMenuAction.Rename))
+        val reopened = vm.state.value.sheet
+        renameGate!!.complete(Outcome.Failure(AppError.Network))
+        runCurrent()
+        assertEquals(reopened, vm.state.value.sheet)
+        assertEquals(StudioToastKind.Error, (vm.effects.first() as CreateEffect.ShowToast).toast.kind)
+        renameGate = null
+        vm.onIntent(CreateIntent.RenameChanged("Retry title"))
+        vm.onIntent(CreateIntent.RenameConfirmed)
+        runCurrent()
+        assertEquals(3, renameCalls)
+        assertNull(vm.state.value.sheet)
+        assertEquals("Retry title", vm.state.value.track("seed-2").row.title)
     }
 
     @Test
@@ -757,6 +835,12 @@ class CreateViewModelTest {
     private fun TestScope.viewModel(drafts: ComposerDraftStore = ComposerDraftStore { "test-owner" }): CreateViewModel {
         val fake = FakeTrackRepository(credits, FakeSessionRepository(), backgroundScope, clock)
         val capturing = object : TrackRepository by fake {
+            override suspend fun rename(id: TrackId, title: String): Outcome<Unit> {
+                renameCalls++
+                val result = renameGate?.await() ?: Outcome.Success(Unit)
+                return if (result is Outcome.Success) fake.rename(id, title) else result
+            }
+
             override suspend fun create(request: GenerationRequest, variants: Int): Outcome<List<Track>> {
                 submittedRequest = request
                 if (request.referenceAudioUri != null && request.remixTrackId != null) {

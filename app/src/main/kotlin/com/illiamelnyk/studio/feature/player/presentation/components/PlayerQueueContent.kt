@@ -89,7 +89,7 @@ private fun QueueModes(
 ) {
     Row(
         Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.xs),
+        horizontalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.s),
     ) {
         QueueToggle(
             StudioIcons.Shuffle,

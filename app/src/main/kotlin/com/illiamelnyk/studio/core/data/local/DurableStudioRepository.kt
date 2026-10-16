@@ -570,28 +570,42 @@ class DurableStudioRepository(
     }
 
     override suspend fun addTrack(playlistId: String, track: Track): Outcome<Unit> =
-        editPlaylist(playlistId, track.id, add = true) {
-            if (it.tracks.any { member -> member.id == track.id }) it else it.copy(tracks = it.tracks + track)
-        }
+        editPlaylist(playlistId, track.id, add = true)
 
     override suspend fun removeTrack(playlistId: String, trackId: TrackId): Outcome<Unit> =
-        editPlaylist(playlistId, trackId, add = false) {
-            it.copy(tracks = it.tracks.filterNot { member -> member.id == trackId })
-        }
+        editPlaylist(playlistId, trackId, add = false)
 
-    private suspend fun editPlaylist(
-        id: String,
-        trackId: TrackId,
-        add: Boolean,
-        edit: (Playlist) -> Playlist,
-    ): Outcome<Unit> = operation {
+    private suspend fun editPlaylist(id: String, trackId: TrackId, add: Boolean): Outcome<Unit> = operation {
         val account = requireAccount()
         if (account.playlists.none { it.id == id }) throw ApiFailure(AppError.Unknown)
+        val current = if (add) {
+            (
+                account.tracks.find { it.id == trackId }
+                    ?: publicCatalogTracks.value.find { it.id == trackId }?.let(::catalogTrack)
+                )
+                ?.takeIf { it.status == TrackStatus.Ready }
+                ?: throw ApiFailure(AppError.InvalidReference)
+        } else {
+            null
+        }
         if (account.token != null && !trackId.value.startsWith("recording-")) {
             val path = "/v1/playlists/" + id + "/tracks/" + trackId.value
             api.request(if (add) "PUT" else "DELETE", path, account.token)
         }
-        save(account.copy(playlists = account.playlists.map { if (it.id == id) edit(it) else it }))
+        save(
+            account.copy(
+                playlists = account.playlists.map { playlist ->
+                    if (playlist.id != id) {
+                        playlist
+                    } else if (current != null) {
+                        val members = playlist.tracks.map { if (it.id == trackId) current else it }
+                        playlist.copy(tracks = if (members.any { it.id == trackId }) members else members + current)
+                    } else {
+                        playlist.copy(tracks = playlist.tracks.filterNot { it.id == trackId })
+                    }
+                },
+            ),
+        )
     }
 
     override suspend fun clear() {

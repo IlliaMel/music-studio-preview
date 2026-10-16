@@ -51,7 +51,7 @@ fun TrackMenu(
         ContextMenuItem(
             label = stringResource(R.string.create_menu_use_prompt),
             onClick = { onAction(TrackMenuAction.UsePrompt) },
-            icon = StudioIcons.Notes,
+            icon = StudioIcons.Lyrics,
         )
         if (canUseAsReference) {
             ContextMenuItem(

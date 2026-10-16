@@ -33,14 +33,16 @@ fun PlayerSeekBar(clock: () -> PlaybackClock, onSeek: (fraction: Float) -> Unit,
     SeekBar(
         progress = { currentClock().fraction },
         onSeek = onSeek,
-        elapsed = (elapsedSeconds * MILLIS_PER_SECOND).millisToClockText(),
+        elapsed = (elapsedSeconds * MILLIS_PER_SECOND).toPlayerClockText(),
         remaining = stringResource(
             R.string.player_time_left,
-            (remainingSeconds * MILLIS_PER_SECOND).millisToClockText(),
+            (remainingSeconds * MILLIS_PER_SECOND).toPlayerClockText(),
         ),
         modifier = modifier,
     )
 }
+
+private fun Long.toPlayerClockText(): String = millisToClockText().padStart(5, '0')
 
 private const val MILLIS_PER_SECOND = 1_000L
 

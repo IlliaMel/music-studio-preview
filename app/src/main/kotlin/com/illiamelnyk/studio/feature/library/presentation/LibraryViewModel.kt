@@ -29,6 +29,7 @@ class LibraryViewModel(
 ) : MviViewModel<LibraryState, LibraryIntent, LibraryEffect>(LibraryState()) {
     private var liked: List<Track> = emptyList()
     private var lists: List<Playlist> = emptyList()
+    private var createRevision = 0L
 
     init {
         tracks.observeLiked().onEach { list ->
@@ -72,12 +73,17 @@ class LibraryViewModel(
         LibraryIntent.BackClicked -> if (state.value.selectedPlaylistId !=
             null
         ) {
+            createRevision++
             setState { copy(selectedPlaylistId = null) }
         } else {
+            createRevision++
             sendEffect(LibraryEffect.Close)
         }
 
-        LibraryIntent.ExploreClicked -> sendEffect(LibraryEffect.Explore)
+        LibraryIntent.ExploreClicked -> {
+            createRevision++
+            sendEffect(LibraryEffect.Explore)
+        }
 
         is LibraryIntent.TrackClicked -> play(intent.id)
 
@@ -85,16 +91,26 @@ class LibraryViewModel(
 
         LibraryIntent.DismissPicker -> setState { copy(pickerTrack = null) }
 
-        is LibraryIntent.TabSelected -> setState { copy(tab = intent.tab, selectedPlaylistId = null) }
+        is LibraryIntent.TabSelected -> {
+            createRevision++
+            setState { copy(tab = intent.tab, selectedPlaylistId = null) }
+        }
 
-        is LibraryIntent.PlaylistSelected -> setState { copy(selectedPlaylistId = intent.id) }
+        is LibraryIntent.PlaylistSelected -> {
+            createRevision++
+            setState { copy(selectedPlaylistId = intent.id) }
+        }
 
         is LibraryIntent.PlayPlaylist -> playPlaylist(intent.shuffle)
 
-        LibraryIntent.NewPlaylist -> setState { copy(showCreatePlaylist = true, failed = false) }
+        LibraryIntent.NewPlaylist -> {
+            createRevision++
+            setState { copy(showCreatePlaylist = true, failed = false) }
+        }
 
-        LibraryIntent.DismissCreate -> setState {
-            copy(showCreatePlaylist = false, playlistName = "", nameInvalid = false)
+        LibraryIntent.DismissCreate -> {
+            createRevision++
+            setState { copy(showCreatePlaylist = false, playlistName = "", nameInvalid = false) }
         }
 
         is LibraryIntent.PlaylistNameChanged -> setState {
@@ -137,12 +153,16 @@ class LibraryViewModel(
             setState { copy(nameInvalid = true) }
             return
         }
-        setState { copy(isBusy = true) }
+        setState { copy(isBusy = true, failed = false) }
+        val revision = createRevision
         viewModelScope.launch {
             when (val result = playlists.create(name)) {
-                is Outcome.Failure -> setState { copy(isBusy = false, failed = true) }
+                is Outcome.Failure -> setState {
+                    copy(isBusy = false, failed = failed || (revision == createRevision && showCreatePlaylist))
+                }
 
                 is Outcome.Success -> setState {
+                    if (revision != createRevision || !showCreatePlaylist) return@setState copy(isBusy = false)
                     copy(
                         isBusy = false,
                         showCreatePlaylist = false,

@@ -6,12 +6,15 @@ import com.illiamelnyk.studio.core.data.fake.FakePlaybackController
 import com.illiamelnyk.studio.core.data.fake.FakePlaylistRepository
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.Outcome
+import com.illiamelnyk.studio.core.domain.playlist.Playlist
+import com.illiamelnyk.studio.core.domain.playlist.PlaylistRepository
 import com.illiamelnyk.studio.core.domain.track.GenerationRequest
 import com.illiamelnyk.studio.core.domain.track.Track
 import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.core.domain.track.TrackRepository
 import com.illiamelnyk.studio.testing.MainDispatcherRule
 import com.illiamelnyk.studio.testing.MemoryTrackRepository
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -84,5 +87,67 @@ class LibraryViewModelTest {
         assertEquals(LibraryTab.Playlists, vm.state.value.tab)
         assertEquals("Morning", playlists.observeAll().first().single().name)
         assertEquals(playlists.observeAll().first().single().id, vm.state.value.selectedPlaylistId)
+    }
+
+    @Test fun delayedCreateAfterDismissAndTabChangeStoresPlaylistWithoutRedirecting() = runTest(main.testDispatcher) {
+        val repository = FakePlaylistRepository()
+        val gate = CompletableDeferred<Unit>()
+        var calls = 0
+        val delayed = object : PlaylistRepository by repository {
+            override suspend fun create(name: String): Outcome<Playlist> {
+                calls++
+                gate.await()
+                return repository.create(name)
+            }
+        }
+        val vm = LibraryViewModel(MemoryTrackRepository(), FakePlaybackController(backgroundScope), delayed)
+        vm.onIntent(LibraryIntent.NewPlaylist)
+        vm.onIntent(LibraryIntent.PlaylistNameChanged("Saved mix"))
+        vm.onIntent(LibraryIntent.CreatePlaylist)
+        vm.onIntent(LibraryIntent.CreatePlaylist)
+        runCurrent()
+        assertEquals(1, calls)
+        vm.onIntent(LibraryIntent.DismissCreate)
+        vm.onIntent(LibraryIntent.TabSelected(LibraryTab.Liked))
+        gate.complete(Unit)
+        runCurrent()
+        assertEquals("Saved mix", repository.observeAll().first().single().name)
+        assertEquals(LibraryTab.Liked, vm.state.value.tab)
+        assertEquals(null, vm.state.value.selectedPlaylistId)
+        assertFalse(vm.state.value.isBusy)
+        assertFalse(vm.state.value.showCreatePlaylist)
+    }
+
+    @Test fun oldCreateFailureDoesNotMarkReopenedDialogAndCurrentFailureCanRetry() = runTest(main.testDispatcher) {
+        val repository = FakePlaylistRepository()
+        var gate: CompletableDeferred<Outcome<Playlist>>? = CompletableDeferred()
+        val delayed = object : PlaylistRepository by repository {
+            override suspend fun create(name: String): Outcome<Playlist> = gate?.await() ?: repository.create(name)
+        }
+        val vm = LibraryViewModel(MemoryTrackRepository(), FakePlaybackController(backgroundScope), delayed)
+        vm.onIntent(LibraryIntent.NewPlaylist)
+        vm.onIntent(LibraryIntent.PlaylistNameChanged("Old"))
+        vm.onIntent(LibraryIntent.CreatePlaylist)
+        runCurrent()
+        vm.onIntent(LibraryIntent.DismissCreate)
+        vm.onIntent(LibraryIntent.NewPlaylist)
+        vm.onIntent(LibraryIntent.PlaylistNameChanged("Fresh"))
+        gate!!.complete(Outcome.Failure(AppError.Network))
+        runCurrent()
+        assertTrue(vm.state.value.showCreatePlaylist)
+        assertEquals("Fresh", vm.state.value.playlistName)
+        assertFalse(vm.state.value.failed)
+        assertFalse(vm.state.value.isBusy)
+        gate = CompletableDeferred()
+        vm.onIntent(LibraryIntent.CreatePlaylist)
+        runCurrent()
+        gate!!.complete(Outcome.Failure(AppError.Network))
+        runCurrent()
+        assertTrue(vm.state.value.failed)
+        gate = null
+        vm.onIntent(LibraryIntent.CreatePlaylist)
+        runCurrent()
+        assertFalse(vm.state.value.failed)
+        assertEquals(repository.observeAll().first().single().id, vm.state.value.selectedPlaylistId)
     }
 }
