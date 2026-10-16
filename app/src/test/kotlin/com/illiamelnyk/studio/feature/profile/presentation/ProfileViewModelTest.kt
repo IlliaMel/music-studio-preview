@@ -244,12 +244,60 @@ class ProfileViewModelTest {
         assertEquals("Unsaved draft", vm.state.value.name)
     }
 
+    @Test
+    fun confirmedRemoteDeletionWithLocalFlushFailureShowsOnlyLocalCleanupError() = runTest(main.testDispatcher) {
+        val native = FakePlaybackController(backgroundScope)
+        val playback = object : com.illiamelnyk.studio.core.domain.playback.PlaybackController by native {
+            override suspend fun stopDurably() {
+                native.stop()
+                throw java.io.IOException("checked writer failure")
+            }
+        }
+        val vm = viewModel(playbackController = playback)
+        runCurrent()
+        vm.onIntent(ProfileIntent.DeleteClicked)
+        vm.onIntent(ProfileIntent.DeleteConfirmed)
+        advanceUntilIdle()
+        assertNull(sessions.session.first())
+        assertFalse(vm.state.value.isDeleting)
+        assertEquals(UiText.Resource(R.string.error_local_cleanup), toasts.message.value!!.title)
+        assertNull(toasts.message.value!!.detail)
+        assertTrue(toasts.message.value!!.isError)
+    }
+
+    @Test
+    fun unconfirmedRemoteDeletionWithLocalFlushFailureShowsBothAccurateErrors() = runTest(main.testDispatcher) {
+        val uncertain = object : SessionRepository by sessions {
+            override suspend fun deleteAccount(): Outcome<Unit> {
+                sessions.deleteAccount()
+                return Outcome.Failure(AppError.Network)
+            }
+        }
+        val native = FakePlaybackController(backgroundScope)
+        val playback = object : com.illiamelnyk.studio.core.domain.playback.PlaybackController by native {
+            override suspend fun stopDurably() {
+                native.stop()
+                throw java.io.IOException("checked writer failure")
+            }
+        }
+        val vm = viewModel(uncertain, playbackController = playback)
+        runCurrent()
+        vm.onIntent(ProfileIntent.DeleteClicked)
+        vm.onIntent(ProfileIntent.DeleteConfirmed)
+        advanceUntilIdle()
+        assertFalse(vm.state.value.isDeleting)
+        assertEquals(UiText.Resource(R.string.error_local_cleanup), toasts.message.value!!.title)
+        assertEquals(UiText.Resource(R.string.profile_deletion_unconfirmed), toasts.message.value!!.detail)
+        assertTrue(toasts.message.value!!.isError)
+    }
+
     private fun TestScope.viewModel(
         repository: SessionRepository = sessions,
         themeRepository: ThemePreferenceRepository = themes,
+        playbackController: com.illiamelnyk.studio.core.domain.playback.PlaybackController? = null,
     ): ProfileViewModel {
         toasts = ToastController(backgroundScope)
-        val playback = FakePlaybackController(backgroundScope)
+        val playback = playbackController ?: FakePlaybackController(backgroundScope)
         val tracks = FakeTrackRepository(credits, repository, backgroundScope, Clock.System)
         return ProfileViewModel(
             repository,

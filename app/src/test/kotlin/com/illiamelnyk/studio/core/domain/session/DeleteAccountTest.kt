@@ -190,4 +190,42 @@ class DeleteAccountTest {
         assertEquals(replacementTracks, native.state.value.queue)
         assertTrue(native.state.value.isPlaying)
     }
+
+    @Test
+    fun checkedPlaybackFlushFailureReturnsLocalOutcomeAndContinuesTrackCleanup() = runTest {
+        for (remoteUnconfirmed in listOf(false, true)) {
+            val sessions = FakeSessionRepository()
+            sessions.signIn("cleanup", SignInMethod.Google, "Cleanup", useProviderProfile = true)
+            val deleting = object : SessionRepository by sessions {
+                override suspend fun deleteAccount(): Outcome<Unit> {
+                    sessions.deleteAccount()
+                    return if (remoteUnconfirmed) Outcome.Failure(AppError.Network) else Outcome.Success(Unit)
+                }
+            }
+            val native = FakePlaybackController(backgroundScope)
+            val playback = object : com.illiamelnyk.studio.core.domain.playback.PlaybackController by native {
+                override suspend fun stopDurably() {
+                    native.stop()
+                    throw java.io.IOException("checked writer failure")
+                }
+            }
+            val stored = FakeTrackRepository(FakeCreditsRepository(), sessions, backgroundScope, Clock.System)
+            val before = stored.observeMine().first()
+            assertTrue(before.isNotEmpty())
+            var cleanupAttempts = 0
+            val tracks = object : com.illiamelnyk.studio.core.domain.track.TrackRepository by stored {
+                override suspend fun delete(id: com.illiamelnyk.studio.core.domain.track.TrackId): Outcome<Unit> {
+                    cleanupAttempts++
+                    return stored.delete(id)
+                }
+            }
+            native.play(before)
+            val result = DeleteAccount(deleting, playback, tracks)()
+            assertEquals(Outcome.Failure(AppError.LocalCleanupFailed(remoteUnconfirmed)), result)
+            assertEquals(before.size, cleanupAttempts)
+            assertTrue(stored.observeMine().first().isEmpty())
+            assertNull(sessions.session.first())
+            assertNull(native.state.value.current)
+        }
+    }
 }

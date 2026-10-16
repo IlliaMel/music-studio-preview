@@ -34,6 +34,12 @@ import org.robolectric.util.ReflectionHelpers
 class MediaBrowserDiscoveryTest {
     @get:Rule
     val main = MainDispatcherRule()
+    private val playbackScopes = PlaybackTestScopes(main.testDispatcher.scheduler)
+
+    @org.junit.After
+    fun closePlaybackScopes() {
+        playbackScopes.close()
+    }
 
     @Test
     fun trustedRecentDiscoveryRestoresPausedWithoutForegroundOrAudioAndRejectsOwnerLoss() = runTest {
@@ -45,7 +51,7 @@ class MediaBrowserDiscoveryTest {
             .put("index", 0).put("position", 4_250)
         val preferences = context.getSharedPreferences("playback", Context.MODE_PRIVATE)
         preferences.edit().putString(playbackPreferenceKey("owner-a"), saved.toString()).commit()
-        val playback = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val playback = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         startKoin { modules(module { single<PlaybackController> { playback } }) }
         val service = Robolectric.buildService(PlaybackService::class.java).create()
         try {
@@ -65,6 +71,7 @@ class MediaBrowserDiscoveryTest {
         } finally {
             service.destroy()
             playback.stop()
+            playbackScopes.close()
             preferences.edit().clear().commit()
             stopKoin()
         }

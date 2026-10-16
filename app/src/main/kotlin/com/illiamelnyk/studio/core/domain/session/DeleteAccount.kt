@@ -1,9 +1,11 @@
 package com.illiamelnyk.studio.core.domain.session
 
+import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.playback.PlaybackController
 import com.illiamelnyk.studio.core.domain.track.ComposerDraftStore
 import com.illiamelnyk.studio.core.domain.track.TrackRepository
+import java.io.IOException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -19,16 +21,25 @@ class DeleteAccount(
         val draftOwner = drafts?.currentOwner
         val ids = tracks.observeMine().first().map { it.id }
         val result = sessions.deleteAccount()
+        var localCleanupFailed = false
         val currentOwner = sessions.session.first()?.user?.id
         if ((result is Outcome.Success || currentOwner == null) && (currentOwner == null || currentOwner == owner)) {
             drafts?.clearIfOwner(draftOwner)
-            playback.stopDurably()
+            try {
+                playback.stopDurably()
+            } catch (_: IOException) {
+                localCleanupFailed = true
+            }
             for (id in ids) {
                 val active = sessions.session.first()?.user?.id
                 if (active != null && active != owner) break
                 tracks.delete(id)
             }
         }
-        result
+        if (localCleanupFailed) {
+            Outcome.Failure(AppError.LocalCleanupFailed(remoteDeletionUnconfirmed = result is Outcome.Failure))
+        } else {
+            result
+        }
     }
 }

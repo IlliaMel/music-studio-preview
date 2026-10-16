@@ -39,6 +39,8 @@ sealed interface AppError {
 
     data object ProviderOutcomeUnknown : AppError
 
+    data class LocalCleanupFailed(val remoteDeletionUnconfirmed: Boolean) : AppError
+
     /** Anything else; the details go to the log, not to the user. */
     data object Unknown : AppError
 }

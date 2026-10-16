@@ -29,6 +29,17 @@ internal class PlaybackStatePersistence(
         }
     }
 
+    fun claimIfUnchanged(owner: String, generation: Long, observed: Any?): Boolean = synchronized(identityLock) {
+        val nextLease = Any()
+        val key = playbackPreferenceKey(owner)
+        val claimed = writer.claimIfUnchanged(preferences, key, nextLease, observed, failure) {
+            writer.owns(preferences, key, nextLease) && ownerId() == owner &&
+                playbackStateGeneration(owner) == generation
+        }
+        if (claimed) lease = nextLease
+        claimed
+    }
+
     fun owns(owner: String): Boolean = writer.owns(preferences, playbackPreferenceKey(owner), lease)
 
     fun read(key: String): String? = writer.read(preferences, key) as String?
@@ -111,6 +122,32 @@ internal class PlaybackPersistenceWriter(
             leases.entries.removeAll { it.value.get() == null }
             leases[Key(preferences, key)] = WeakReference(lease)
         }
+    }
+
+    fun claimIfUnchanged(
+        preferences: SharedPreferences,
+        key: String,
+        lease: Any,
+        observed: Any?,
+        failure: AtomicReference<Throwable?>,
+        current: () -> Boolean,
+    ): Boolean = synchronized(queueLock) {
+        val storageKey = Key(preferences, key)
+        val queued = accepted[storageKey]?.takeIf { it.current() }
+        val value = if (queued != null) queued.value else storedValue(preferences, key)
+        if (value != observed) return@synchronized false
+        leases.entries.removeAll { it.value.get() == null }
+        leases[storageKey] = WeakReference(lease)
+        if (queued != null) {
+            val transferred = Write(storageKey, queued.value, failure, current)
+            pendingWrites[storageKey] = transferred
+            accepted[storageKey] = transferred
+            if (!draining) {
+                draining = true
+                executor.execute(::drain)
+            }
+        }
+        true
     }
 
     fun owns(preferences: SharedPreferences, key: String, lease: Any): Boolean =

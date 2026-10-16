@@ -29,5 +29,7 @@ fun AppError.toUiText(): UiText = when (this) {
 
     AppError.ProviderOutcomeUnknown -> UiText.Resource(R.string.error_provider_outcome_unknown)
 
+    is AppError.LocalCleanupFailed -> UiText.Resource(R.string.error_local_cleanup)
+
     AppError.Unknown -> UiText.Resource(R.string.error_unknown)
 }

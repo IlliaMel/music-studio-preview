@@ -28,12 +28,13 @@ import org.robolectric.RobolectricTestRunner
 class AudioPlaybackTest {
     @get:Rule
     val main = MainDispatcherRule()
+    private val playbackScopes = PlaybackTestScopes(main.testDispatcher.scheduler)
 
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @org.junit.After
     fun clearPlaybackFixture() {
-        PlaybackPersistenceWriter.shared.flush()
+        playbackScopes.close()
         context.getSharedPreferences("playback", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
@@ -42,19 +43,39 @@ class AudioPlaybackTest {
         val song = track("autoplay-native", 20.seconds)
         val next = track("autoplay-next", 20.seconds)
         saveQueue("autoplay-owner", listOf(song))
-        val playback = AndroidPlaybackController(context, backgroundScope, ownerId = { "autoplay-owner" })
+        val playback =
+            AndroidPlaybackController(
+                context,
+                playbackScopes.wrap(backgroundScope),
+                ownerId = { "autoplay-owner" },
+            )
         playback.setAutoplay(true)
         playback.appendAutoplay(playback.state.value, next)
-        val restored = AndroidPlaybackController(context, backgroundScope, ownerId = { "autoplay-owner" })
+        val restored =
+            AndroidPlaybackController(
+                context,
+                playbackScopes.wrap(backgroundScope),
+                ownerId = { "autoplay-owner" },
+            )
         assertTrue(restored.state.value.autoplay)
         assertFalse(restored.state.value.isPlaying)
         assertEquals(listOf(song.id, next.id), restored.state.value.queue.map { it.id })
         assertTrue(next.id in restored.state.value.autoplayHistory)
-        val other = AndroidPlaybackController(context, backgroundScope, ownerId = { "another-owner" })
+        val other =
+            AndroidPlaybackController(
+                context,
+                playbackScopes.wrap(backgroundScope),
+                ownerId = { "another-owner" },
+            )
         assertFalse(other.state.value.autoplay)
         assertTrue(other.state.value.autoplayHistory.isEmpty())
         clearPlaybackState(context, "autoplay-owner")
-        val cleared = AndroidPlaybackController(context, backgroundScope, ownerId = { "autoplay-owner" })
+        val cleared =
+            AndroidPlaybackController(
+                context,
+                playbackScopes.wrap(backgroundScope),
+                ownerId = { "autoplay-owner" },
+            )
         assertFalse(cleared.state.value.autoplay)
         assertFalse(
             context.getSharedPreferences(
@@ -69,7 +90,7 @@ class AudioPlaybackTest {
         var owner = "autoplay-original"
         val song = track("autoplay-owned", 20.seconds)
         saveQueue(owner, listOf(song))
-        val playback = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val playback = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         playback.setAutoplay(true)
         val expected = playback.state.value
         owner = "autoplay-other"
@@ -172,7 +193,7 @@ class AudioPlaybackTest {
     fun `saved playback restores queue position and pauses instead of autoplaying`() = runTest {
         val song = track("restore-audio", 20.seconds)
         saveQueue("owner-a", listOf(song), position = 4250, shuffle = true, repeat = "All")
-        val playback = AndroidPlaybackController(context, backgroundScope, ownerId = { "owner-a" })
+        val playback = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { "owner-a" })
         val restored = playback.state.value
         assertNotNull(restored.current)
         assertEquals(song.id, restored.current?.id)
@@ -186,15 +207,26 @@ class AudioPlaybackTest {
     fun noActiveAccountAndMismatchedOwnerNeverRestorePrivateQueue() = runTest {
         val song = track("private-audio", 20.seconds).copy(audioHeaders = mapOf("Authorization" to "Bearer fixture"))
         saveQueue("owner-a", listOf(song))
-        val signedOut = AndroidPlaybackController(context, backgroundScope, ownerId = { null })
+        val signedOut = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { null })
         assertTrue(signedOut.state.value.queue.isEmpty())
-        val otherOwner = AndroidPlaybackController(context, backgroundScope, ownerId = { "owner-b" })
+        val otherOwner =
+            AndroidPlaybackController(
+                context,
+                playbackScopes.wrap(backgroundScope),
+                ownerId = { "owner-b" },
+            )
         assertTrue(otherOwner.state.value.queue.isEmpty())
         val preferences = context.getSharedPreferences("playback", Context.MODE_PRIVATE)
         val privateState = preferences.getString(playbackPreferenceKey("owner-a"), null)
         preferences.edit().putString(playbackPreferenceKey("owner-b"), privateState).commit()
-        val mismatched = AndroidPlaybackController(context, backgroundScope, ownerId = { "owner-b" })
+        val mismatched =
+            AndroidPlaybackController(
+                context,
+                playbackScopes.wrap(backgroundScope),
+                ownerId = { "owner-b" },
+            )
         assertTrue(mismatched.state.value.queue.isEmpty())
+        PlaybackPersistenceWriter.shared.flush()
         assertFalse(preferences.contains(playbackPreferenceKey("owner-b")))
     }
 
@@ -203,8 +235,9 @@ class AudioPlaybackTest {
         val preferences = context.getSharedPreferences("playback", Context.MODE_PRIVATE)
         val legacy = JSONObject().put("queue", JSONArray().put(track("legacy", 20.seconds).toJson()))
         preferences.edit().putString("state", legacy.toString()).commit()
-        val playback = AndroidPlaybackController(context, backgroundScope, ownerId = { "owner-a" })
+        val playback = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { "owner-a" })
         assertTrue(playback.state.value.queue.isEmpty())
+        PlaybackPersistenceWriter.shared.flush()
         assertFalse(preferences.contains("state"))
     }
 
@@ -212,18 +245,18 @@ class AudioPlaybackTest {
     fun stopClearsBeforeSessionChangeAndDelayedCollectorCannotResurrectQueue() = runTest {
         var owner: String? = "owner-a"
         saveQueue("owner-a", listOf(track("private-audio", 20.seconds)), position = 4250)
-        val playback = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val playback = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         playback.seekTo(8500)
-        playback.stop()
+        playback.stopDurably()
         owner = null
         val preferences = context.getSharedPreferences("playback", Context.MODE_PRIVATE)
         assertFalse(preferences.contains(playbackPreferenceKey("owner-a")))
-        val signedOut = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val signedOut = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         assertTrue(signedOut.state.value.queue.isEmpty())
         runCurrent()
         assertFalse(preferences.contains(playbackPreferenceKey("owner-a")))
         owner = "owner-b"
-        val other = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val other = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         assertTrue(other.state.value.queue.isEmpty())
         assertFalse(preferences.contains(playbackPreferenceKey("owner-b")))
     }
@@ -232,7 +265,7 @@ class AudioPlaybackTest {
     fun delayedOldOwnerWritesCannotBeRelabelledAsTheNewOwner() = runTest {
         var owner: String? = "owner-a"
         saveQueue("owner-a", listOf(track("private-audio", 20.seconds)), position = 4250)
-        val playback = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val playback = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         playback.seekTo(9000)
         owner = "owner-b"
         runCurrent()
@@ -246,7 +279,7 @@ class AudioPlaybackTest {
     fun accountPurgeInvalidatesDelayedPausedWriterEvenWhenAccountIdIsReused() = runTest {
         var owner: String? = "local-demo"
         saveQueue("local-demo", listOf(track("private-draft", 20.seconds)), position = 4250)
-        val playback = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val playback = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         playback.seekTo(9000)
         owner = null
         clearPlaybackState(context, "local-demo")
@@ -255,7 +288,7 @@ class AudioPlaybackTest {
         assertTrue(playback.state.value.queue.isEmpty())
         val preferences = context.getSharedPreferences("playback", Context.MODE_PRIVATE)
         assertFalse(preferences.contains(playbackPreferenceKey("local-demo")))
-        val recreated = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val recreated = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         assertTrue(recreated.state.value.queue.isEmpty())
     }
 
@@ -263,11 +296,11 @@ class AudioPlaybackTest {
     fun shuffledRestartRetainsOriginalOrderForTurningShuffleOff() = runTest {
         val songs = listOf("a", "b", "c", "d").map { track(it, 20.seconds) }
         saveQueue("owner-a", songs, index = 2)
-        val playback = AndroidPlaybackController(context, backgroundScope, ownerId = { "owner-a" })
+        val playback = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { "owner-a" })
         playback.setShuffle(true)
         val shuffled = playback.state.value.queue.map { it.id }
         runCurrent()
-        val restored = AndroidPlaybackController(context, backgroundScope, ownerId = { "owner-a" })
+        val restored = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { "owner-a" })
         assertEquals(shuffled, restored.state.value.queue.map { it.id })
         assertEquals(songs[2].id, restored.state.value.current?.id)
         restored.setShuffle(false)
@@ -279,30 +312,31 @@ class AudioPlaybackTest {
     fun removingUpcomingTrackPreservesCurrentClockAndPersistsRemovalImmediately() = runTest {
         val songs = listOf("a", "b", "c").map { track(it, 20.seconds) }
         saveQueue("owner-a", songs, position = 4250)
-        val playback = AndroidPlaybackController(context, backgroundScope, ownerId = { "owner-a" })
+        val playback = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { "owner-a" })
         playback.removeTrack(songs[1].id)
         assertEquals(listOf(songs[0].id, songs[2].id), playback.state.value.queue.map { it.id })
         assertEquals(4250L, playback.state.value.positionMs)
-        val restored = AndroidPlaybackController(context, backgroundScope, ownerId = { "owner-a" })
+        val restored = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { "owner-a" })
         assertEquals(playback.state.value.queue.map { it.id }, restored.state.value.queue.map { it.id })
         assertEquals(songs[0].id, restored.state.value.current?.id)
     }
 
     @Test
-    fun removingCurrentTrackSelectsNextAndRemovingLastTrackDurablyStops() = runTest {
+    fun removingCurrentTrackSelectsNextAndLastRemovalPersistsAfterWriterFlush() = runTest {
         val songs = listOf("a", "b").map { track(it, 20.seconds) }
         saveQueue("owner-a", songs, position = 4250)
-        val playback = AndroidPlaybackController(context, backgroundScope, ownerId = { "owner-a" })
+        val playback = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { "owner-a" })
         playback.removeTrack(songs[0].id)
         assertEquals(songs[1].id, playback.state.value.current?.id)
         assertEquals(0L, playback.state.value.positionMs)
         assertFalse(playback.state.value.isPlaying)
         playback.removeTrack(songs[1].id)
         assertTrue(playback.state.value.queue.isEmpty())
+        PlaybackPersistenceWriter.shared.flush()
         val preferences = context.getSharedPreferences("playback", Context.MODE_PRIVATE)
         assertFalse(preferences.contains(playbackPreferenceKey("owner-a")))
         runCurrent()
-        val restored = AndroidPlaybackController(context, backgroundScope, ownerId = { "owner-a" })
+        val restored = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { "owner-a" })
         assertTrue(restored.state.value.queue.isEmpty())
     }
 
@@ -312,13 +346,13 @@ class AudioPlaybackTest {
         val first = track("old-owner-track", 20.seconds)
         val second = track("new-owner-track", 20.seconds)
         saveQueue(owner, listOf(first))
-        val stale = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val stale = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         owner = "stale-stop-b"
         saveQueue(owner, listOf(second), position = 6250)
-        val replacement = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val replacement = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         replacement.setAutoplay(true)
         stale.stop()
-        val restored = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val restored = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         assertEquals(second.id, restored.state.value.current?.id)
         assertTrue(restored.state.value.autoplay)
         assertFalse(restored.state.value.isPlaying)
@@ -330,15 +364,15 @@ class AudioPlaybackTest {
         val first = track("old-controller-track", 20.seconds)
         val second = track("new-controller-track", 20.seconds)
         saveQueue(owner, listOf(first))
-        val stale = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val stale = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         saveQueue(owner, listOf(second), position = 6250)
-        val replacement = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val replacement = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         replacement.setAutoplay(true)
         stale.setAutoplay(false)
         stale.stop()
         runCurrent()
         PlaybackPersistenceWriter.shared.flush()
-        val restored = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val restored = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         assertEquals(second.id, restored.state.value.current?.id)
         assertTrue(restored.state.value.autoplay)
         assertEquals(6000L, restored.state.value.positionMs)
@@ -346,7 +380,7 @@ class AudioPlaybackTest {
     }
 
     @Test
-    fun shutdownFlushReleasesPlaybackLockBeforeWaitingForCheckedDiskCommit() = runTest {
+    fun shutdownCommitCanReacquirePlaybackLockAndPersistsQueuedSnapshot() = runTest {
         val song = track("flush-lock", 20.seconds)
         saveQueue("flush-lock-owner", listOf(song), position = 4250)
         val original = context.getSharedPreferences("playback", Context.MODE_PRIVATE)
@@ -370,7 +404,12 @@ class AudioPlaybackTest {
                 }
             }
         }
-        val playback = AndroidPlaybackController(wrapped, backgroundScope, ownerId = { "flush-lock-owner" })
+        val playback =
+            AndroidPlaybackController(
+                wrapped,
+                playbackScopes.wrap(backgroundScope),
+                ownerId = { "flush-lock-owner" },
+            )
         playbackLock = AndroidPlaybackController::class.java.getDeclaredField("playbackLock").apply {
             isAccessible = true
         }.get(playback)
@@ -379,6 +418,7 @@ class AudioPlaybackTest {
         try {
             caller.submit { playback.releaseForServiceShutdown() }.get(5, java.util.concurrent.TimeUnit.SECONDS)
             assertTrue(committed.await(1, java.util.concurrent.TimeUnit.SECONDS))
+            PlaybackPersistenceWriter.shared.flush()
             val saved = JSONObject(requireNotNull(original.getString(playbackPreferenceKey("flush-lock-owner"), null)))
             assertEquals(8000L, saved.getLong("position"))
         } finally {
@@ -421,7 +461,7 @@ class AudioPlaybackTest {
         val songs = listOf("a", "b", "c").map {
             track(it, 20.seconds).copy(audioUri = "https://audio.fixture/" + it + ".wav")
         }
-        val playback = AndroidPlaybackController(context, backgroundScope, ownerId = { "owner-a" })
+        val playback = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { "owner-a" })
         try {
             playback.play(songs)
             runCurrent()
@@ -454,7 +494,7 @@ class AudioPlaybackTest {
         }
         org.robolectric.shadows.ShadowMediaPlayer.setCreateListener { _, shadow -> created += shadow }
         val song = track("owner-audio", 20.seconds).copy(audioUri = "https://audio.fixture/owner.wav")
-        val playback = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val playback = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         try {
             playback.play(listOf(song))
             runCurrent()
@@ -465,6 +505,7 @@ class AudioPlaybackTest {
             advanceTimeBy(251)
             runCurrent()
             assertTrue(playback.state.value.queue.isEmpty())
+            PlaybackPersistenceWriter.shared.flush()
             val preferences = context.getSharedPreferences("playback", Context.MODE_PRIVATE)
             assertFalse(preferences.contains(playbackPreferenceKey("owner-a")))
         } finally {
@@ -479,12 +520,12 @@ class AudioPlaybackTest {
         val song = track("public-catalog-id", 20.seconds)
         saveQueue("owner-a", listOf(song), position = 4_250)
         saveQueue("owner-b", listOf(song), position = 7_250)
-        val first = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val first = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         val firstId = requireNotNull(first.systemSnapshot()).mediaId
         assertFalse(first.state.value.isPlaying)
         owner = "owner-b"
         assertNull(first.systemSnapshot())
-        val replacement = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val replacement = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         val secondId = requireNotNull(replacement.systemSnapshot()).mediaId
         assertFalse(firstId == secondId)
         assertFalse(resumeSystemPlayback(replacement, firstId))
@@ -493,7 +534,7 @@ class AudioPlaybackTest {
         assertTrue(replacement.state.value.isPlaying)
         replacement.releaseForServiceShutdown()
         assertFalse(replacement.state.value.isPlaying)
-        val restored = AndroidPlaybackController(context, backgroundScope, ownerId = { owner })
+        val restored = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         assertEquals(secondId, restored.systemSnapshot()?.mediaId)
         assertEquals(7_000L, restored.state.value.positionMs)
         assertFalse(restored.state.value.isPlaying)
@@ -511,7 +552,7 @@ class AudioPlaybackTest {
         }
         org.robolectric.shadows.ShadowMediaPlayer.setCreateListener { _, shadow -> created += shadow }
         val song = track("shutdown-audio", 20.seconds).copy(audioUri = "https://audio.fixture/shutdown.wav")
-        val playback = AndroidPlaybackController(context, backgroundScope, ownerId = { "owner-a" })
+        val playback = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { "owner-a" })
         try {
             playback.play(listOf(song))
             runCurrent()
@@ -523,7 +564,12 @@ class AudioPlaybackTest {
             assertFalse(native.isReallyPlaying)
             assertFalse(playback.state.value.isPlaying)
             assertEquals(song.id, playback.state.value.current?.id)
-            val restored = AndroidPlaybackController(context, backgroundScope, ownerId = { "owner-a" })
+            val restored =
+                AndroidPlaybackController(
+                    context,
+                    playbackScopes.wrap(backgroundScope),
+                    ownerId = { "owner-a" },
+                )
             assertEquals(song.id, restored.state.value.current?.id)
             assertEquals(8_000L, restored.state.value.positionMs)
             assertFalse(restored.state.value.isPlaying)
@@ -546,7 +592,7 @@ class AudioPlaybackTest {
         org.robolectric.shadows.ShadowMediaPlayer.setCreateListener { _, shadow -> created += shadow }
         val playback = AndroidPlaybackController(
             context,
-            backgroundScope,
+            playbackScopes.wrap(backgroundScope),
             ownerId = { owner },
             audioHeaders = {
                 headersRequested = true
@@ -581,7 +627,7 @@ class AudioPlaybackTest {
         }
         org.robolectric.shadows.ShadowMediaPlayer.setCreateListener { _, shadow -> created += shadow }
         val song = track("failure-audio", 20.seconds).copy(audioUri = "https://audio.fixture/failure.wav")
-        val playback = AndroidPlaybackController(context, backgroundScope, ownerId = { "owner-a" })
+        val playback = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { "owner-a" })
         try {
             playback.play(listOf(song))
             runCurrent()
@@ -621,7 +667,7 @@ class AudioPlaybackTest {
         val song = track("header-failure", 20.seconds).copy(audioUri = "https://audio.fixture/private.wav")
         val playback = AndroidPlaybackController(
             context,
-            backgroundScope,
+            playbackScopes.wrap(backgroundScope),
             ownerId = { "owner-a" },
             audioHeaders = {
                 throw com.illiamelnyk.studio.core.data.local.ApiFailure(
@@ -636,7 +682,12 @@ class AudioPlaybackTest {
         var owner = "owner-a"
         val pending = kotlinx.coroutines.CompletableDeferred<Map<String, String>>()
         val changed =
-            AndroidPlaybackController(context, backgroundScope, ownerId = { owner }, audioHeaders = { pending.await() })
+            AndroidPlaybackController(
+                context,
+                playbackScopes.wrap(backgroundScope),
+                ownerId = { owner },
+                audioHeaders = { pending.await() },
+            )
         try {
             changed.play(listOf(song))
             runCurrent()

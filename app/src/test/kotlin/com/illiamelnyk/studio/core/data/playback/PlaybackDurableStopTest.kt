@@ -36,7 +36,13 @@ import org.robolectric.RobolectricTestRunner
 class PlaybackDurableStopTest {
     @get:Rule
     val main = MainDispatcherRule()
+    private val playbackScopes = PlaybackTestScopes(main.testDispatcher.scheduler)
     private val context: Context = ApplicationProvider.getApplicationContext()
+
+    @org.junit.After
+    fun closePlaybackScopes() {
+        playbackScopes.close()
+    }
 
     @Test
     fun durableStopKeepsNativeStopOnMainWhileBlockedCommitAllowsMainWork() = runTest {
@@ -53,7 +59,7 @@ class PlaybackDurableStopTest {
             check(release.await(5, TimeUnit.SECONDS))
             true
         }
-        val playback = AndroidPlaybackController(wrapped, backgroundScope, ownerId = { owner })
+        val playback = AndroidPlaybackController(wrapped, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         val stopping = async { playback.stopDurably() }
         try {
             runCurrent()
@@ -82,7 +88,7 @@ class PlaybackDurableStopTest {
                 wrapped(preferences, stoppedThread) {
                     false
                 },
-                backgroundScope,
+                playbackScopes.wrap(backgroundScope),
                 ownerId = { owner },
             )
         val failure = runCatching { playback.stopDurably() }.exceptionOrNull()
@@ -101,7 +107,7 @@ class PlaybackDurableStopTest {
                 wrapped(preferences, AtomicReference()) {
                     allowCommit.get()
                 },
-                backgroundScope,
+                playbackScopes.wrap(backgroundScope),
                 ownerId = { owner },
             )
         assertTrue(runCatching { playback.stopDurably() }.exceptionOrNull() is IOException)
@@ -117,10 +123,10 @@ class PlaybackDurableStopTest {
         val preferences = restoredQueue(owner)
         val allowCommit = AtomicBoolean(false)
         val wrapped = wrapped(preferences, AtomicReference()) { allowCommit.get() }
-        val old = AndroidPlaybackController(wrapped, backgroundScope, ownerId = { owner })
+        val old = AndroidPlaybackController(wrapped, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         assertTrue(runCatching { old.stopDurably() }.exceptionOrNull() is IOException)
         allowCommit.set(true)
-        val replacement = AndroidPlaybackController(wrapped, backgroundScope, ownerId = { owner })
+        val replacement = AndroidPlaybackController(wrapped, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         replacement.seekTo(12000)
         replacement.releaseForServiceShutdown()
         old.stopDurably()
@@ -139,7 +145,7 @@ class PlaybackDurableStopTest {
                 wrapped(preferences, AtomicReference()) {
                     allowCommit.get()
                 },
-                backgroundScope,
+                playbackScopes.wrap(backgroundScope),
                 ownerId = { owner },
             )
         assertTrue(runCatching { playback.stopDurably() }.exceptionOrNull() is IOException)
@@ -147,6 +153,7 @@ class PlaybackDurableStopTest {
         val replacement = track("same-controller-fresh-track", 20.seconds)
         playback.play(listOf(replacement))
         playback.releaseForServiceShutdown()
+        PlaybackPersistenceWriter.shared.flush()
         val saved = JSONObject(requireNotNull(preferences.getString(playbackPreferenceKey(owner), null)))
         assertEquals(replacement.id.value, saved.getJSONArray("original").getJSONObject(0).getString("id"))
         assertEquals(replacement.id, playback.state.value.current?.id)

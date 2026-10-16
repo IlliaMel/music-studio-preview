@@ -99,18 +99,17 @@ class AndroidPlaybackController(
     private fun clearLegacyState() {
         if (persistence.contains("state")) {
             persistence.remove(listOf("state"))
-            persistence.flush()
+            flushPersistenceAsync()
         }
     }
 
     private fun restoreQueue() {
         val owner = ownerId() ?: return
         val key = playbackPreferenceKey(owner)
+        val generation = playbackRestoreGeneration(owner) ?: return
         var observed: Any? = null
-        var generation = playbackStateGeneration(owner)
         runCatching {
-            synchronized(playbackPersistenceLock) {
-                generation = playbackStateGeneration(owner)
+            repeat(3) {
                 observed = persistence.readValue(key)
                 val saved = observed?.let { org.json.JSONObject(it as String) } ?: return@runCatching
                 require(saved.getInt("version") == 2 && saved.getString("owner") == owner)
@@ -122,12 +121,8 @@ class AndroidPlaybackController(
                 require(original.isNotEmpty() && order.sorted() == original.indices.toList())
                 val index = saved.getInt("index")
                 require(index in order.indices)
-                originalQueue = original
-                playOrder = order
-                playbackOwner = owner
-                playbackGeneration = playbackStateGeneration(owner)
                 val duration = original[order[index]].duration.inWholeMilliseconds
-                mutableState.value = PlaybackState(
+                val restored = PlaybackState(
                     queue = order.map(original::get),
                     currentIndex = index,
                     positionMs = saved.optLong("position").coerceIn(0, duration),
@@ -139,16 +134,29 @@ class AndroidPlaybackController(
                         (0 until values.length()).map { TrackId(values.getString(it)) }.toSet()
                     } ?: original.map { it.id }.toSet(),
                 )
-                val transferring = persistence.pending(key) || persistence.pending(autoplayPreferenceKey(owner))
-                persistence.claim(owner)
+                var transferring = false
+                val claimed = synchronized(playbackRestoreLock) {
+                    if (ownerId() != owner || playbackRestoreGeneration(owner) != generation) return@runCatching
+                    val pending = persistence.pending(key) || persistence.pending(autoplayPreferenceKey(owner))
+                    if (!persistence.claimIfUnchanged(owner, generation, observed)) return@synchronized false
+                    originalQueue = original
+                    playOrder = order
+                    playbackOwner = owner
+                    playbackGeneration = generation
+                    mutableState.value = restored
+                    transferring = pending
+                    true
+                }
+                if (!claimed) return@repeat
                 if (transferring) {
                     persistAutoplay()
                     persistQueue()
                 }
+                return@runCatching
             }
         }.onFailure {
             persistence.removeUnclaimed(owner, generation, observed)
-            persistence.flush()
+            flushPersistenceAsync()
             android.util.Log.w("StudioPlayback", "Discarded invalid or mismatched playback state")
         }
     }
@@ -434,7 +442,7 @@ class AndroidPlaybackController(
             )
             persistQueue()
         }
-        flushPersistence()
+        flushPersistenceAsync()
     }
 
     override fun clearUpNext() {
@@ -476,13 +484,13 @@ class AndroidPlaybackController(
             }
             persistQueue()
         }
-        flushPersistence()
+        flushPersistenceAsync()
     }
 
     override fun stop() {
         val nested = Thread.holdsLock(playbackLock)
         stopInternal()
-        if (!nested) flushPersistence()
+        if (!nested) flushPersistenceAsync()
     }
 
     override suspend fun stopDurably() {
@@ -514,6 +522,18 @@ class AndroidPlaybackController(
         }
     }
 
+    private fun flushPersistenceAsync() {
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                flushPersistence()
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                android.util.Log.e("StudioPlayback", "Playback persistence failed: " + error.javaClass.simpleName)
+            }
+        }
+    }
+
     private fun flushPersistence() {
         check(!Thread.holdsLock(playbackLock)) { "Playback persistence cannot flush under playback lock" }
         persistence.flush()
@@ -522,31 +542,42 @@ class AndroidPlaybackController(
     private fun load(queue: List<Track>, startIndex: Int, stationName: String?) {
         require(startIndex in queue.indices) { "Start index $startIndex is outside the queue of ${queue.size}" }
         val owner = ownerId() ?: return
+        val generation = playbackRestoreGeneration(owner) ?: return
         if (playbackOwner != null && playbackOwner != owner) stop()
-        playbackOwner = owner
-        playbackGeneration = playbackStateGeneration(owner)
-        persistence.claim(owner)
-        pendingSeek = 0
-        originalQueue = queue
         val autoplay = autoplayPreference(owner)
         val shuffle = mutableState.value.shuffle
-        playOrder = if (shuffle) shuffledOrder(first = startIndex) else queue.indices.toList()
-        mutableState.update {
-            it.copy(
-                queue = playOrder.map(queue::get),
-                currentIndex = if (shuffle) 0 else startIndex,
-                positionMs = 0,
-                isPlaying = true,
-                stationName = stationName,
-                autoplayWaiting = false,
-                failure = null,
-                autoplay = autoplay.first,
-                autoplayHistory = autoplay.second + queue.map { track -> track.id },
-            )
+        val order = if (shuffle) {
+            listOf(startIndex) + queue.indices.filter {
+                it != startIndex
+            }.shuffled(random)
+        } else {
+            queue.indices.toList()
+        }
+        synchronized(playbackRestoreLock) {
+            if (ownerId() != owner || playbackRestoreGeneration(owner) != generation) return
+            playbackOwner = owner
+            playbackGeneration = generation
+            persistence.claim(owner)
+            pendingSeek = 0
+            originalQueue = queue
+            playOrder = order
+            mutableState.update {
+                it.copy(
+                    queue = order.map(queue::get),
+                    currentIndex = if (shuffle) 0 else startIndex,
+                    positionMs = 0,
+                    isPlaying = true,
+                    stationName = stationName,
+                    autoplayWaiting = false,
+                    failure = null,
+                    autoplay = autoplay.first,
+                    autoplayHistory = autoplay.second + queue.map { track -> track.id },
+                )
+            }
         }
         persistAutoplay()
         persistQueue()
-        startClock()
+        if (ownerId() == owner && playbackStateGeneration(owner) == generation && persistence.owns(owner)) startClock()
     }
 
     private fun startClock() {

@@ -125,7 +125,16 @@ class ProfileViewModel(
             withContext(NonCancellable) {
                 if (result is Outcome.Failure) {
                     setState { copy(isDeleting = false) }
-                    if (sessions.session.first() == null) {
+                    val cleanup = result.error as? AppError.LocalCleanupFailed
+                    if (cleanup != null) {
+                        toasts.show(
+                            cleanup.toUiText(),
+                            UiText.Resource(R.string.profile_deletion_unconfirmed).takeIf {
+                                cleanup.remoteDeletionUnconfirmed
+                            },
+                            isError = true,
+                        )
+                    } else if (sessions.session.first() == null) {
                         toasts.show(
                             UiText.Resource(R.string.profile_deleted_locally),
                             UiText.Resource(R.string.profile_deletion_unconfirmed),

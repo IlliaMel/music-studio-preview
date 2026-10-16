@@ -181,6 +181,7 @@
     <string name="player_queue_move_down">Move down</string>
     <string name="profile_deleted_locally">Local data removed</string>
     <string name="profile_deletion_unconfirmed">Server deletion could not be confirmed. You may need to sign in again and retry.</string>
+    <string name="error_local_cleanup">Some saved data could not be removed from this device.</string>
     <string name="error_preferences">Couldn’t access saved preferences. Please try again.</string>
     <string name="ui_close">Close</string>
     <string name="generation_notification_channel">Track generation</string>
