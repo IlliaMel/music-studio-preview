@@ -3,6 +3,7 @@ import { ApiError } from '../../core/http/errors.js'
 import type { AudioStorage, StoredFile } from '../../core/storage/audio-storage.js'
 import { catalogTracks } from '../library/catalog.js'
 import { type ModelId, type MusicProvider, ProviderError } from './generation/music-provider.js'
+import { remixSourceIds } from './tracks.model.js'
 import type { TrackCursor, TracksRepository } from './tracks.repository.js'
 import type { Track } from './tracks.table.js'
 
@@ -16,6 +17,7 @@ export type CreateTrackInput = {
   customLyrics?: string
   referenceUploadId?: string
   remixTrackId?: string
+  remixTrackIds?: string[]
 }
 
 export type Quota = { limit: number; used: number; remaining: number; resetsAt: Date }
@@ -46,13 +48,29 @@ export class TracksService {
     input: CreateTrackInput,
   ): Promise<{ track: Track; created: boolean }> {
     const now = this.now()
+    if (input.remixTrackId !== undefined && input.remixTrackIds !== undefined)
+      throw new ApiError(
+        400,
+        'VALIDATION',
+        'Choose remixTrackIds or the legacy remixTrackId, not both',
+      )
+    const sourceIds = remixSourceIds(input)
+    if (sourceIds.length > 4 || new Set(sourceIds).size !== sourceIds.length)
+      throw new ApiError(400, 'VALIDATION', 'Choose up to four distinct remix originals')
+    if (sourceIds.length && input.referenceUploadId)
+      throw new ApiError(
+        422,
+        'INVALID_REFERENCE',
+        'Choose remix originals or an uploaded reference',
+      )
     const request = {
       prompt: input.prompt,
       variants: input.variants ?? 1,
       quality: input.quality ?? 'auto',
       customLyrics: input.customLyrics ?? null,
       referenceUploadId: input.referenceUploadId ?? null,
-      remixTrackId: input.remixTrackId ?? null,
+      remixTrackId: sourceIds[0] ?? null,
+      remixTrackIds: sourceIds,
       lengthMs: input.lengthMs ?? null,
       instrumental: input.instrumental,
       modelId: input.modelId ?? this.options.defaultModel,
@@ -72,21 +90,37 @@ export class TracksService {
       !(await this.repository.ownsUpload(user.id, input.referenceUploadId))
     )
       throw new ApiError(404, 'UPLOAD_NOT_FOUND', 'No such audio upload')
-    if (input.remixTrackId && !catalogTracks.some((track) => track.id === input.remixTrackId)) {
-      const source = await this.get(user, input.remixTrackId)
+    if (this.provider?.paid && sourceIds.length > 1)
+      throw new ApiError(
+        422,
+        'UNSUPPORTED_MODE',
+        'The current live adapter supports one remix original',
+      )
+    for (const id of sourceIds) {
+      if (catalogTracks.some((track) => track.id === id)) {
+        if (this.provider?.paid)
+          throw new ApiError(422, 'UNSUPPORTED_MODE', 'Mock catalog tracks cannot be remixed live')
+        continue
+      }
+      const source = await this.get(user, id)
+      if (remixSourceIds(source).length)
+        throw new ApiError(409, 'REMIX_OF_REMIX', 'Choose an original track to remix')
+      if (source.status !== 'done')
+        throw new ApiError(409, 'NOT_READY', 'The original track is not ready')
       if (this.provider?.paid && (source.providerName !== this.provider.name || !source.songId))
         throw new ApiError(
           422,
           'UNSUPPORTED_MODE',
           'Live remix requires a live original stored with enterprise references enabled',
         )
-      if (source.remixTrackId)
-        throw new ApiError(409, 'REMIX_OF_REMIX', 'Choose an original track to remix')
-      if (source.status !== 'done')
-        throw new ApiError(409, 'NOT_READY', 'The original track is not ready')
     }
     try {
-      this.provider?.validate?.({ ...input, modelId: request.modelId })
+      this.provider?.validate?.({
+        ...input,
+        remixTrackId: sourceIds[0],
+        remixTrackIds: sourceIds,
+        modelId: request.modelId,
+      })
     } catch (error) {
       if (error instanceof ProviderError) throw new ApiError(422, error.code, error.message)
       throw error
@@ -97,6 +131,16 @@ export class TracksService {
       now,
     )
     switch (outcome.kind) {
+      case 'invalid-remix-source':
+        throw new ApiError(
+          outcome.code === 'TRACK_NOT_FOUND'
+            ? 404
+            : outcome.code === 'UNSUPPORTED_MODE'
+              ? 422
+              : 409,
+          outcome.code,
+          'Choose an available original track owned by this account',
+        )
       case 'upload-not-found':
         throw new ApiError(404, 'UPLOAD_NOT_FOUND', 'No such unexpired audio upload')
       case 'account-deleting':
@@ -216,6 +260,7 @@ const sameRequest = (
     | 'variants'
     | 'customLyrics'
     | 'remixTrackId'
+    | 'remixTrackIds'
     | 'referenceUploadId'
     | 'quality'
   >,
@@ -224,7 +269,7 @@ const sameRequest = (
   track.referenceUploadId === request.referenceUploadId &&
   track.variants === request.variants &&
   track.customLyrics === request.customLyrics &&
-  track.remixTrackId === request.remixTrackId &&
+  JSON.stringify(remixSourceIds(track)) === JSON.stringify(remixSourceIds(request)) &&
   track.prompt === request.prompt &&
   track.lengthMs === request.lengthMs &&
   track.instrumental === request.instrumental &&

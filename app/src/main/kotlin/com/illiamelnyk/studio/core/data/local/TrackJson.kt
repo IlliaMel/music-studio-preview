@@ -21,7 +21,8 @@ internal fun Track.toJson(): JSONObject = JSONObject().apply {
     put("variantIndex", variantIndex)
     put("variants", variants)
     put("quality", quality.name.lowercase())
-    put("remixTrackId", remixTrackId)
+    put("remixTrackId", remixSourceIds.firstOrNull())
+    put("remixTrackIds", JSONArray(remixSourceIds))
     put("referenceUploadId", referenceUploadId)
     put("title", title)
     put("artist", artist)
@@ -87,7 +88,8 @@ internal fun JSONObject.toTrack(artist: String = "", headers: Map<String, String
         variantIndex = optInt("variantIndex"),
         variants = optInt("variants", 1),
         quality = Quality.entries.firstOrNull { it.name.equals(optString("quality"), true) } ?: Quality.Auto,
-        remixTrackId = stringOrNull("remixTrackId"),
+        remixTrackId = remixSources().firstOrNull(),
+        remixTrackIds = remixSources(),
         referenceUploadId = stringOrNull("referenceUploadId"),
         title = stringOrNull("title") ?: getString("prompt").take(40),
         artist = optString("artist", artist),
@@ -145,7 +147,7 @@ internal fun GenerationRequest.toJson(): JSONObject = JSONObject().apply {
     put("instrumental", instrumental)
     put("customLyrics", customLyrics)
     put("referenceUploadId", referenceUploadId)
-    put("remixTrackId", remixTrackId)
+    if (remixSourceIds.isNotEmpty()) put("remixTrackIds", JSONArray(remixSourceIds))
     put("referenceAudioUri", referenceAudioUri)
 }
 
@@ -157,7 +159,8 @@ internal fun JSONObject.toRequest(): GenerationRequest = GenerationRequest(
     instrumental = optBoolean("instrumental"),
     customLyrics = stringOrNull("customLyrics"),
     referenceUploadId = stringOrNull("referenceUploadId"),
-    remixTrackId = stringOrNull("remixTrackId"),
+    remixTrackId = remixSources().firstOrNull(),
+    remixTrackIds = remixSources(),
     referenceAudioUri = stringOrNull("referenceAudioUri"),
 )
 
@@ -169,7 +172,7 @@ internal fun apiError(code: String, suggestion: String? = null): AppError = when
     "UNAUTHORIZED", "ACCOUNT_DELETED", "ACCOUNT_DISABLED" -> AppError.Unauthorized
     "TIMEOUT", "GENERATION_TIMEOUT" -> AppError.Timeout
     "UNSUPPORTED_MODE" -> AppError.UnsupportedMode
-    "INVALID_REFERENCE" -> AppError.InvalidReference
+    "INVALID_REFERENCE", "REMIX_OF_REMIX", "NOT_READY", "TRACK_NOT_FOUND" -> AppError.InvalidReference
     "PROVIDER_OUTCOME_UNKNOWN" -> AppError.ProviderOutcomeUnknown
     else -> AppError.Server
 }
@@ -182,4 +185,10 @@ private fun errorCode(error: AppError): String = when (error) {
     AppError.InvalidReference -> "INVALID_REFERENCE"
     AppError.ProviderOutcomeUnknown -> "PROVIDER_OUTCOME_UNKNOWN"
     else -> "SERVER"
+}
+
+private fun JSONObject.remixSources(): List<String> = if (has("remixTrackIds")) {
+    getJSONArray("remixTrackIds").strings()
+} else {
+    listOfNotNull(stringOrNull("remixTrackId"))
 }

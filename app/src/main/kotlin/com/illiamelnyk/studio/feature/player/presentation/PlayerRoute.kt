@@ -24,6 +24,7 @@ import com.illiamelnyk.studio.core.presentation.ObserveEffects
 import com.illiamelnyk.studio.core.presentation.ToastController
 import com.illiamelnyk.studio.core.presentation.asString
 import com.illiamelnyk.studio.core.presentation.audio.AudioActions
+import com.illiamelnyk.studio.core.presentation.audio.audioDownloadLocation
 import com.illiamelnyk.studio.core.presentation.playlist.PlaylistPickerRoute
 import com.illiamelnyk.studio.core.ui.components.StudioToastKind
 import kotlinx.coroutines.launch
@@ -93,7 +94,7 @@ fun PlayerRoute(
                 runCatching { audioActions.download(context, effect.track) }.onSuccess {
                     feedback.show(
                         com.illiamelnyk.studio.core.presentation.UiText.Resource(R.string.player_download_saved),
-                        com.illiamelnyk.studio.core.presentation.UiText.Resource(R.string.player_download_location),
+                        audioDownloadLocation(android.os.Build.VERSION.SDK_INT),
                     )
                 }.onFailure {
                     feedback.show(

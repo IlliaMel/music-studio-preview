@@ -31,6 +31,7 @@ import java.io.IOException
 import java.time.ZoneId
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
@@ -64,11 +65,39 @@ class CreateViewModel(
 
     init {
         tracks.observeMine().onEach(::showTracks).launchIn(viewModelScope)
-        drafts.pending.onEach { track ->
-            if (track != null) {
-                changeSettings { copy(remixTrackId = track.id.value, referenceAudioUri = null) }
-                updateComposer { copy(prompt = track.prompt, referenceLabel = track.title) }
-                drafts.clear()
+        drafts.sources.onEach { sources ->
+            val firstSelection = settings.remixSourceIds.isEmpty() && sources.isNotEmpty()
+            changeSettings {
+                copy(
+                    remixTrackId = sources.firstOrNull()?.id?.value,
+                    remixTrackIds = sources.map { it.id.value },
+                    referenceAudioUri = if (sources.isNotEmpty()) null else referenceAudioUri,
+                )
+            }
+            updateComposer {
+                copy(
+                    prompt = if (firstSelection &&
+                        sources.first().prompt.isNotBlank()
+                    ) {
+                        sources.first().prompt
+                    } else {
+                        prompt
+                    },
+                    referenceLabel =
+                        sources.firstOrNull()?.title ?: referenceLabel.takeIf { settings.referenceAudioUri != null },
+                    remixSources = sources.map { RemixSourceUi(it.id, it.title) }.toImmutableList(),
+                )
+            }
+        }.launchIn(viewModelScope)
+        drafts.problem.onEach { problem ->
+            if (problem != null) {
+                val message = when (problem) {
+                    ComposerDraftStore.Problem.TooMany -> R.string.create_remix_source_limit
+                    ComposerDraftStore.Problem.AlreadyRemixed -> R.string.create_remix_original_only
+                    ComposerDraftStore.Problem.NotReady -> R.string.create_remix_ready_only
+                }
+                toast(UiText.Resource(R.string.create_toast_error), UiText.Resource(message), StudioToastKind.Error)
+                drafts.problemShown()
             }
         }.launchIn(viewModelScope)
         playback.state.map { it.current?.id }
@@ -140,14 +169,29 @@ class CreateViewModel(
             CreateIntent.ReferenceClicked -> setState { copy(sheet = CreateSheet.Reference) }
 
             is CreateIntent.ReferenceSelected -> {
-                changeSettings { copy(referenceAudioUri = intent.uri, remixTrackId = null) }
-                updateComposer { copy(referenceLabel = intent.title) }
+                drafts.clear()
+                changeSettings {
+                    copy(referenceAudioUri = intent.uri, remixTrackId = null, remixTrackIds = emptyList())
+                }
+                updateComposer {
+                    copy(referenceLabel = intent.title, remixSources = kotlinx.collections.immutable.persistentListOf())
+                }
                 setState { copy(sheet = null) }
             }
 
             CreateIntent.ReferenceRemoved -> {
-                changeSettings { copy(referenceAudioUri = null, remixTrackId = null) }
-                updateComposer { copy(referenceLabel = null) }
+                drafts.clear()
+                changeSettings { copy(referenceAudioUri = null, remixTrackId = null, remixTrackIds = emptyList()) }
+                updateComposer {
+                    copy(referenceLabel = null, remixSources = kotlinx.collections.immutable.persistentListOf())
+                }
+            }
+
+            is CreateIntent.RemixSourceRemoved -> drafts.remove(intent.id)
+
+            is CreateIntent.RemixSourceClicked -> drafts.sources.value.find { it.id == intent.id }?.let {
+                playback.play(listOf(it))
+                sendEffect(CreateEffect.OpenPlayer)
             }
 
             is CreateIntent.RecordingSaved -> viewModelScope.launch {
@@ -317,7 +361,12 @@ class CreateViewModel(
             }
             when (result) {
                 is Outcome.Success -> {
-                    if (clearReference) changeSettings { copy(referenceAudioUri = null, remixTrackId = null) }
+                    if (clearReference) {
+                        drafts.clear()
+                        changeSettings {
+                            copy(referenceAudioUri = null, remixTrackId = null, remixTrackIds = emptyList())
+                        }
+                    }
                     setState { copy(filter = TracksFilter.Drafts) }
                     sendEffect(CreateEffect.TracksStarted)
                     try {

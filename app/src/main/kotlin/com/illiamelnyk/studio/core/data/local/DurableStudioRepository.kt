@@ -243,12 +243,18 @@ class DurableStudioRepository(
             throw ApiFailure(AppError.InvalidPrompt(null))
         }
         val account = requireAccount()
-        request.remixTrackId?.let { sourceId ->
+        val remixSources = request.remixSourceIds
+        if (remixSources.size > 4 || remixSources.distinct().size != remixSources.size ||
+            (remixSources.isNotEmpty() && (request.referenceAudioUri != null || request.referenceUploadId != null))
+        ) {
+            throw ApiFailure(AppError.InvalidReference)
+        }
+        remixSources.forEach { sourceId ->
             val source = account.tracks.find { it.id.value == sourceId }
                 ?: publicCatalogTracks.value.find { it.id.value == sourceId }
-                ?: throw ApiFailure(AppError.InvalidPrompt(null))
-            if (source.remixTrackId != null || source.status != TrackStatus.Ready) {
-                throw ApiFailure(AppError.InvalidPrompt(null))
+                ?: throw ApiFailure(AppError.InvalidReference)
+            if (source.isRemix || source.status != TrackStatus.Ready) {
+                throw ApiFailure(AppError.InvalidReference)
             }
         }
 
@@ -275,7 +281,7 @@ class DurableStudioRepository(
             }
             val signature = body.toString()
             val pending = store.read().optJSONObject("pending-" + account.session.user.id.value)
-            val key = if (pending?.optString("signature") == signature) {
+            val key = if (pending?.stringOrNull("signature")?.let { sameGenerationSignature(it, signature) } == true) {
                 pending.getString("key")
             } else {
                 UUID.randomUUID().toString()
@@ -314,7 +320,9 @@ class DurableStudioRepository(
                     customLyrics = request.customLyrics,
                     generationId = group, variantIndex = index, variants = variants,
                     quality = request.quality,
-                    remixTrackId = request.remixTrackId, referenceUploadId = request.referenceUploadId,
+                    remixTrackId = remixSources.firstOrNull(),
+                    remixTrackIds = remixSources,
+                    referenceUploadId = request.referenceUploadId,
                 )
             }
         }
@@ -359,7 +367,7 @@ class DurableStudioRepository(
                 quality = track.quality,
                 instrumental = track.instrumental,
                 customLyrics = track.customLyrics,
-                remixTrackId = track.remixTrackId,
+                remixTrackIds = track.remixSourceIds,
                 referenceUploadId = track.referenceUploadId,
             )
         val created = createLocked(original, 1).single()
@@ -807,6 +815,27 @@ class DurableStudioRepository(
         val account = requireAccount()
         api.request("GET", "/v1/catalog", account.token ?: throw ApiFailure(AppError.UnsupportedMode))
     }
+
+    private fun sameGenerationSignature(old: String, current: String): Boolean = runCatching {
+        fun normalized(value: String): JSONObject = JSONObject(value).apply {
+            val ids = if (has(
+                    "remixTrackIds",
+                )
+            ) {
+                getJSONArray("remixTrackIds").strings()
+            } else {
+                listOfNotNull(stringOrNull("remixTrackId"))
+            }
+            remove("remixTrackId")
+            if (ids.isEmpty()) remove("remixTrackIds") else put("remixTrackIds", org.json.JSONArray(ids))
+        }
+        fun fields(value: String): Map<String, Any> = normalized(value).let { json ->
+            json.keys().asSequence().associateWith { key ->
+                json.get(key).let { if (it is org.json.JSONArray) it.toString() else it }
+            }
+        }
+        fields(old) == fields(current)
+    }.getOrDefault(false)
 
     private fun remoteTrackPath(id: TrackId): String = if (id.value.startsWith("recording-")) {
         "/v1/recordings/" + id.value.removePrefix("recording-")

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { validAudio } from '../../../core/audio/audio-container.js'
+import { remixSourceIds } from '../tracks.model.js'
 import { boundedBody, invalidResponse, Plan, parseDetailed } from './elevenlabs-response.js'
 import { type ComposeRequest, type MusicProvider, ProviderError } from './music-provider.js'
 
@@ -36,6 +37,14 @@ export class ElevenLabsMusicProvider implements MusicProvider {
   ) {}
 
   validate(request: ComposeRequest): void {
+    const remixIds = remixSourceIds(request)
+    const remixTrackId = remixIds[0]
+    if (remixIds.length > 1)
+      throw new ProviderError(
+        'UNSUPPORTED_MODE',
+        'The current live adapter supports one remix original',
+        false,
+      )
     if (request.quality && request.quality !== 'auto')
       throw new ProviderError(
         'UNSUPPORTED_MODE',
@@ -48,22 +57,21 @@ export class ElevenLabsMusicProvider implements MusicProvider {
         'Custom lyrics cannot be combined with instrumental mode',
         false,
       )
-    if ((request.referenceUploadId || request.remixTrackId) && !this.options.references)
+    if ((request.referenceUploadId || remixTrackId) && !this.options.references)
       throw new ProviderError(
         'UNSUPPORTED_MODE',
         'Audio references require ElevenLabs enterprise inpainting access and ELEVENLABS_ENABLE_REFERENCES=true',
         false,
       )
-    if (request.referenceUploadId && request.remixTrackId)
+    if (request.referenceUploadId && remixTrackId)
       throw new ProviderError('UNSUPPORTED_MODE', 'Choose one reference source', false)
-    if (request.remixTrackId && !/^[0-9a-f-]{36}$/i.test(request.remixTrackId))
+    if (remixTrackId && !/^[0-9a-f-]{36}$/i.test(remixTrackId))
       throw new ProviderError(
         'UNSUPPORTED_MODE',
         'Mock catalog tracks cannot be remixed with the live provider',
         false,
       )
-    if (request.customLyrics || request.referenceUploadId || request.remixTrackId)
-      buildChunks(request)
+    if (request.customLyrics || request.referenceUploadId || remixTrackId) buildChunks(request)
     if (request.customLyrics?.split('\n').some((line) => line.length > 200))
       throw new ProviderError(
         'UNSUPPORTED_MODE',
@@ -73,6 +81,7 @@ export class ElevenLabsMusicProvider implements MusicProvider {
   }
 
   async compose(request: ComposeRequest, signal: AbortSignal) {
+    request = { ...request, remixTrackId: remixSourceIds(request)[0] }
     this.validate(request)
     signal.throwIfAborted()
     let body: Record<string, unknown> = {

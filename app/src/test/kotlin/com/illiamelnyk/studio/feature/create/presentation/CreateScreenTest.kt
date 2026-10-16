@@ -46,6 +46,26 @@ class CreateScreenTest {
     private var state by mutableStateOf(CreateState(tracks = CreatePreviewData.tracks, isLoading = false))
 
     @Test
+    fun remixSourcesShowSeparateNamedChipsAndRemoveOnlyTheTappedSource() {
+        val first = RemixSourceUi(TrackId("first-original"), "First original")
+        val second = RemixSourceUi(TrackId("second-original"), "Second original")
+        state =
+            state.copy(
+                composer = ComposerUi(
+                    prompt = "Blend these original tracks",
+                    remixSources = persistentListOf(first, second),
+                ),
+            )
+        show()
+        composeRule.onNodeWithText(first.title).assertExists()
+        composeRule.onNodeWithText(second.title).assertExists()
+        composeRule.onNodeWithContentDescription(
+            composeRule.activity.getString(R.string.ui_remove, second.title),
+        ).performClick()
+        assertEquals(CreateIntent.RemixSourceRemoved(second.id), intents.last())
+    }
+
+    @Test
     fun `typing reports the prompt, and send sends it once it can`() {
         show()
         val send = composeRule.onNodeWithContentDescription(string(R.string.ui_send))

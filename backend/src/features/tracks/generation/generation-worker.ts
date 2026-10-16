@@ -1,5 +1,6 @@
 import type { Logger } from '../../../core/logger.js'
 import type { AudioStorage } from '../../../core/storage/audio-storage.js'
+import { remixSourceIds } from '../tracks.model.js'
 import type { TrackFailure, TracksRepository } from '../tracks.repository.js'
 import type { Track } from '../tracks.table.js'
 import { abortableDelay } from './abortable-delay.js'
@@ -145,7 +146,8 @@ export class GenerationWorker {
               quality: track.quality as 'auto' | 'deep' | 'fast',
               customLyrics: track.customLyrics ?? undefined,
               referenceUploadId: track.referenceUploadId ?? undefined,
-              remixTrackId: track.remixTrackId ?? undefined,
+              remixTrackId: remixSourceIds(track)[0],
+              remixTrackIds: remixSourceIds(track).length ? remixSourceIds(track) : undefined,
               lengthMs: track.lengthMs ?? undefined,
               instrumental: track.instrumental,
               modelId: track.modelId as ModelId,

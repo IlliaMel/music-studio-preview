@@ -27,7 +27,6 @@ fun WelcomeScreen(
     ) {
         WelcomeCollage(modifier = Modifier.weight(1f))
         WelcomeActions(
-            onTryDemoClick = { onIntent(WelcomeIntent.TryDemoClicked) },
             isSigningIn = state.isSigningIn,
             notice = state.notice,
             onContinueWithGoogleClick = { onIntent(WelcomeIntent.ContinueWithGoogleClicked) },

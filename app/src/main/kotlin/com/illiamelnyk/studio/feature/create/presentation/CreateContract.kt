@@ -120,6 +120,10 @@ sealed interface CreateIntent {
 
     data object ReferenceRemoved : CreateIntent
 
+    data class RemixSourceRemoved(val id: TrackId) : CreateIntent
+
+    data class RemixSourceClicked(val id: TrackId) : CreateIntent
+
     data class RecordingSaved(val uri: String, val title: String, val durationMs: Long) : CreateIntent
 
     data class LyricsSelected(val instrumental: Boolean) : CreateIntent

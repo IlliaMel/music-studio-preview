@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
@@ -34,14 +35,21 @@ fun AppRoot(state: AppState, modifier: Modifier = Modifier) {
 
             RootContent.SignedOut -> SignedOutFlow()
 
-            RootContent.Tabs -> TabsShell(
-                variant = state.shellVariant,
-                avatarSeed = state.avatarSeed,
-                creditsLeft = state.creditsLeft,
-                hasPlayback = state.hasPlayback,
-            )
+            RootContent.Tabs -> OwnerScopedTabs(state.ownerId) {
+                TabsShell(
+                    variant = state.shellVariant,
+                    avatarSeed = state.avatarSeed,
+                    creditsLeft = state.creditsLeft,
+                    hasPlayback = state.hasPlayback,
+                )
+            }
         }
     }
+}
+
+@Composable
+internal fun OwnerScopedTabs(ownerId: String?, content: @Composable () -> Unit) {
+    key(ownerId) { content() }
 }
 
 private sealed interface RootContent {

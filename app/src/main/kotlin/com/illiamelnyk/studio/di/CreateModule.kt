@@ -14,6 +14,8 @@ import com.illiamelnyk.studio.feature.create.presentation.CreateViewModel
 import com.illiamelnyk.studio.feature.create.presentation.recording.RecorderViewModel
 import com.illiamelnyk.studio.feature.create.presentation.tool.ToolViewModel
 import com.illiamelnyk.studio.feature.create.presentation.tools.ToolsViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.viewModel
@@ -25,7 +27,14 @@ import org.koin.dsl.module
 /** The Create tab and its tools. A tool's screen gets the tool as a parameter. */
 val createModule = module {
     single { TrackRenames() }
-    single { ComposerDraftStore() }
+    single {
+        val repository: DurableStudioRepository = get()
+        ComposerDraftStore { repository.activeAccountId }.also { drafts ->
+            get<CoroutineScope>(named("appScope")).launch {
+                repository.session.collect { drafts.refreshOwner() }
+            }
+        }
+    }
     single { DataStoreNotificationChoice(get(named("settings"))) } bind NotificationChoice::class
     factory<AudioRecorder> {
         AndroidAudioRecorder(androidContext(), get<DurableStudioRepository>()::referenceDirectory)

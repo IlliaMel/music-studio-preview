@@ -248,7 +248,11 @@ class DurableStudioRepositoryTest {
         assertEquals("deep", api.lastGeneration?.getString("quality"))
         val remix = com.illiamelnyk.studio.core.domain.track.TrackId("failed-remix")
         assertTrue(repo.retry(remix) is Outcome.Success)
-        assertEquals(FakeCatalog.glassHarbor.id.value, api.lastGeneration?.getString("remixTrackId"))
+        assertEquals(
+            listOf(FakeCatalog.glassHarbor.id.value),
+            api.lastGeneration?.getJSONArray("remixTrackIds")?.strings(),
+        )
+        assertFalse(requireNotNull(api.lastGeneration).has("remixTrackId"))
         assertEquals("fast", api.lastGeneration?.getString("quality"))
     }
 
@@ -778,6 +782,75 @@ class DurableStudioRepositoryTest {
         assertTrue(context.getSystemService(android.app.NotificationManager::class.java).activeNotifications.isEmpty())
     }
 
+    @Test
+    fun multipleRemixSourcesPersistInOrderAndProviderLimitRejectsBeforeMutation() = runTest {
+        val api = MemoryApi(context)
+        val store = StudioStore(context)
+        val repository = DurableStudioRepository(context, store, api, backgroundScope)
+        repository.signInServer()
+        val sources = FakeCatalog.tracks.take(2).map { it.id.value }
+        val request = GenerationRequest("Blend two original catalogue moods", remixTrackIds = sources)
+        val result = repository.create(request, 1) as Outcome.Success
+        assertEquals(sources, api.lastGeneration!!.getJSONArray("remixTrackIds").strings())
+        assertFalse(api.lastGeneration!!.has("remixTrackId"))
+        assertEquals(sources, result.value.single().remixSourceIds)
+        val restored = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
+        assertEquals(sources, restored.observeById(result.value.single().id).first()!!.remixSourceIds)
+        val credits = repository.credits.first()
+        api.maxRemixSources = 1
+        assertEquals(
+            Outcome.Failure(com.illiamelnyk.studio.core.domain.AppError.UnsupportedMode),
+            repository.create(request, 1),
+        )
+        assertEquals(1, api.generationRequests)
+        assertEquals(credits, repository.credits.first())
+    }
+
+    @Test
+    fun legacyPendingScalarSignatureReusesItsIdempotencyKeyForTheEquivalentArrayRequest() = runTest {
+        val api = MemoryApi(context)
+        val store = StudioStore(context)
+        val repository = DurableStudioRepository(context, store, api, backgroundScope)
+        repository.signInServer()
+        val source = FakeCatalog.tracks.first().id.value
+        val request = GenerationRequest("Keep the original accepted remix identity", remixTrackIds = listOf(source))
+        val legacyBody = request.toJson().apply {
+            remove("remixTrackIds")
+            remove("referenceAudioUri")
+            put("remixTrackId", source)
+            put("variants", 1)
+        }
+        store.change { root ->
+            root.put(
+                "pending-server-user",
+                org.json.JSONObject()
+                    .put("signature", legacyBody.toString()).put("key", "existing-accepted-key"),
+            )
+        }
+        assertTrue(repository.create(request, 1) is Outcome.Success)
+        assertEquals("existing-accepted-key", api.lastGenerationKey)
+        assertEquals(listOf(source), api.lastGeneration!!.getJSONArray("remixTrackIds").strings())
+    }
+
+    @Test
+    fun deletingAnOriginalAfterSelectionRejectsItsStaleRemixReferenceBeforePostingOrSpendingCredit() = runTest {
+        val api = MemoryApi(context)
+        val repository = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
+        repository.signInServer()
+        val original = repository.observeMine().first().first()
+        val credits = repository.credits.first()
+        assertTrue(repository.delete(original.id) is Outcome.Success)
+        assertEquals(
+            Outcome.Failure(com.illiamelnyk.studio.core.domain.AppError.InvalidReference),
+            repository.create(
+                GenerationRequest("Try a stale original reference", remixTrackIds = listOf(original.id.value)),
+                1,
+            ),
+        )
+        assertEquals(0, api.generationRequests)
+        assertEquals(credits, repository.credits.first())
+    }
+
     private class RetryingNotifications(context: Context) : GenerationNotifications {
         var enabled = true
         var failRecord = false
@@ -833,6 +906,8 @@ class DurableStudioRepositoryTest {
         var renamedTitle: String? = null
         var failures: List<org.json.JSONObject> = emptyList()
         var lastGeneration: org.json.JSONObject? = null
+        var lastGenerationKey: String? = null
+        var maxRemixSources = 4
         var holdProfile = false
         var deleted = false
         var deleteRequests = 0
@@ -870,7 +945,7 @@ class DurableStudioRepositoryTest {
                 .put("provider", "mock")
                 .put("qualityModes", org.json.JSONArray(listOf("auto", "deep", "fast")))
                 .put("customLyrics", true).put("variants", org.json.JSONArray(listOf(1, 2)))
-                .put("audioReferences", "mock").put("liveCatalogRemix", false)
+                .put("audioReferences", "mock").put("liveCatalogRemix", false).put("maxRemixSources", maxRemixSources)
 
             path == "/v1/me" && method == "DELETE" -> {
                 deleteRequests++
@@ -906,8 +981,10 @@ class DurableStudioRepositoryTest {
             path == "/v1/tracks" && method == "POST" -> {
                 generationRequests++
                 lastGeneration = body?.let { org.json.JSONObject(it.toString()) }
+                lastGenerationKey = key
                 track.put("id", returnedGenerationId ?: "replacement-" + key.hashCode())
                     .put("status", "queued").put("audioUrl", org.json.JSONObject.NULL)
+                    .put("remixTrackIds", body?.optJSONArray("remixTrackIds") ?: org.json.JSONArray())
             }
 
             path == "/v1/tracks/server-track" && method == "PATCH" -> {

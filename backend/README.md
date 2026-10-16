@@ -165,3 +165,7 @@ Account deletion uses a durable deletionRequestedAt marker (migration0003). Othe
 ## Persistent recording Drafts
 
 Owner-scoped recordings now support idempotent raw uploads, list/rename/delete and private byte-range playback, independently of temporary reference uploads. See [the recording contract](RECORDINGS.md) for limits, recovery, retention and client integration.
+
+## Ordered remix sources
+
+Mock generations accept up to four ordered originals with owner/original/readiness checks, durable identity and idempotency; live currently permits one entitled source and rejects larger requests before billing. [Contract and limitations](REMIX.md).

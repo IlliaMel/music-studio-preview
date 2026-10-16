@@ -69,6 +69,14 @@ export function composeApp(services: AppServices, extraFeatures: readonly Featur
               : 'disabled-enterprise-entitlement-required'
             : 'mock',
           liveCatalogRemix: false,
+          maxRemixSources: services.provider.paid
+            ? services.provider.capabilities?.references
+              ? 1
+              : 0
+            : 4,
+          remixOutput: services.provider.paid
+            ? 'single-source-conditioning'
+            : 'fixture-no-audio-blending',
           uploads: {
             maxFiles: 20,
             maxBytes: 100 * 1024 * 1024,

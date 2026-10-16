@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 internal data class ArtworkTile(
     val id: String,
@@ -48,16 +49,30 @@ internal class ArtworkLibrary private constructor(private val atlas: ArtworkAtla
     }
 }
 
-internal object ArtworkLibraryCache {
+internal class ArtworkLibraryLoader(
+    private val loadAtlas: suspend (AssetManager, CoroutineDispatcher) -> ArtworkAtlas? = { assets, dispatcher ->
+        ArtworkAtlasCache.load(assets, dispatcher)
+    },
+) {
     private val mutex = Mutex()
 
     @Volatile private var library: ArtworkLibrary? = null
     val current: ArtworkLibrary? get() = library
 
     suspend fun load(assets: AssetManager, dispatcher: CoroutineDispatcher = Dispatchers.IO): ArtworkLibrary? =
-        mutex.withLock {
-            library ?: ArtworkAtlasCache.load(assets, dispatcher)?.let(ArtworkLibrary::from)?.also { library = it }
+        withContext(dispatcher) {
+            mutex.withLock {
+                library ?: loadAtlas(assets, dispatcher)?.let(ArtworkLibrary::from)?.also { library = it }
+            }
         }
+}
+
+internal object ArtworkLibraryCache {
+    private val loader = ArtworkLibraryLoader()
+    val current: ArtworkLibrary? get() = loader.current
+
+    suspend fun load(assets: AssetManager, dispatcher: CoroutineDispatcher = Dispatchers.IO): ArtworkLibrary? =
+        loader.load(assets, dispatcher)
 
     const val RETRY_MS = ArtworkAtlasCache.RETRY_MS
 }

@@ -85,6 +85,8 @@ class FakeTrackRepository(
                 isLiked = false,
                 customLyrics = request.customLyrics,
                 quality = request.quality,
+                remixTrackId = request.remixSourceIds.firstOrNull(),
+                remixTrackIds = request.remixSourceIds,
             )
         }
         tracks.update { batch + it }

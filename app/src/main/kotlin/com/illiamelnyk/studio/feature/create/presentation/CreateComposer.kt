@@ -1,9 +1,12 @@
 package com.illiamelnyk.studio.feature.create.presentation
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.illiamelnyk.studio.core.ui.components.StudioChip
+import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.create.presentation.common.ComingSoonFeature
 import com.illiamelnyk.studio.feature.create.presentation.components.ComposerBar
 import com.illiamelnyk.studio.feature.create.presentation.components.ComposerOptions
@@ -25,10 +28,20 @@ fun CreateComposer(composer: ComposerUi, onIntent: (CreateIntent) -> Unit, modif
         modifier = modifier,
     ) {
         Column {
-            composer.referenceLabel?.let { title ->
-                StudioChip(title, onClick = {
-                    onIntent(CreateIntent.ReferenceClicked)
-                }, onRemove = { onIntent(CreateIntent.ReferenceRemoved) })
+            if (composer.remixSources.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.xs)) {
+                    composer.remixSources.forEach { source ->
+                        StudioChip(source.title, onClick = {
+                            onIntent(CreateIntent.RemixSourceClicked(source.id))
+                        }, onRemove = { onIntent(CreateIntent.RemixSourceRemoved(source.id)) })
+                    }
+                }
+            } else {
+                composer.referenceLabel?.let { title ->
+                    StudioChip(title, onClick = {
+                        onIntent(CreateIntent.ReferenceClicked)
+                    }, onRemove = { onIntent(CreateIntent.ReferenceRemoved) })
+                }
             }
             if (composer.lyricsMode == com.illiamelnyk.studio.feature.create.domain.LyricsMode.Custom) {
                 StudioChip(

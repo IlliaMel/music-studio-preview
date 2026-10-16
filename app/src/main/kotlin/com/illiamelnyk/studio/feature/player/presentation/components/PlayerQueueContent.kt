@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -51,7 +52,8 @@ fun PlayerQueueContent(
 ) {
     val spacing = StudioTheme.dimens.spacing.xs
     val size = StudioTheme.dimens.size
-    val minimumPinnedHeight = size.touchTarget * 3 + size.component.trackRow + spacing * 3
+    val minimumPinnedHeight =
+        (size.touchTarget * 3 + size.component.trackRow + spacing * 3) * LocalDensity.current.fontScale
     BoxWithConstraints(modifier.fillMaxSize()) {
         if (maxHeight < minimumPinnedHeight) {
             LazyColumn(

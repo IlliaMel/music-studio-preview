@@ -7,8 +7,10 @@ import android.content.Intent
 import android.provider.MediaStore
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
+import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.domain.playback.AudioExporter
 import com.illiamelnyk.studio.core.domain.track.Track
+import com.illiamelnyk.studio.core.presentation.UiText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -56,3 +58,13 @@ class AudioActions(private val exporter: AudioExporter) {
         uri
     }
 }
+
+internal fun audioDownloadLocation(sdk: Int): UiText = UiText.Resource(
+    if (sdk >=
+        android.os.Build.VERSION_CODES.Q
+    ) {
+        R.string.player_download_location
+    } else {
+        R.string.player_download_location_legacy
+    },
+)

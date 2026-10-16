@@ -154,7 +154,6 @@
     <string name="listen_model_v2">v2</string>
     <string name="listen_model_v2_5">v2.5</string>
     <string name="welcome_terms">By continuing you agree to the Terms and Privacy Policy.</string>
-    <string name="welcome_try_demo">Try the demo</string>
     <string name="profile_close">Close settings</string>
     <string name="profile_settings">Account Settings</string>
     <string name="profile_save">Save</string>
@@ -174,6 +173,9 @@
     <string name="network_retry">Retry</string>
     <string name="player_download_saved">Audio saved</string>
     <string name="player_download_location">Download/MusicStudio</string>
+    <string name="player_download_location_legacy">Saved in Music Studio app storage</string>
+    <string name="player_playback_failed">Could not play audio. Tap Play to retry.</string>
+    <string name="player_station_playback_failed">Could not play this station. Stop and reopen it to retry.</string>
     <string name="player_queue_reorder">Reorder %1$s</string>
     <string name="player_queue_move_up">Move up</string>
     <string name="player_queue_move_down">Move down</string>

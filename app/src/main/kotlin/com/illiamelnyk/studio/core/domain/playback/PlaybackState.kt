@@ -23,6 +23,7 @@ data class PlaybackState(
     val autoplay: Boolean = false,
     val autoplayWaiting: Boolean = false,
     val autoplayHistory: Set<TrackId> = emptySet(),
+    val failure: PlaybackFailure? = null,
 ) {
     /** The track that is playing or paused, `null` when nothing is loaded. */
     val current: Track? get() = queue.getOrNull(currentIndex)

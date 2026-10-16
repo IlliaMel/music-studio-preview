@@ -2,9 +2,12 @@ package com.illiamelnyk.studio.core.data.playback
 
 import android.annotation.SuppressLint
 import androidx.core.content.edit
+import com.illiamelnyk.studio.core.data.local.ApiFailure
 import com.illiamelnyk.studio.core.data.local.toJson
 import com.illiamelnyk.studio.core.data.local.toTrack
+import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.playback.PlaybackController
+import com.illiamelnyk.studio.core.domain.playback.PlaybackFailure
 import com.illiamelnyk.studio.core.domain.playback.PlaybackResumption
 import com.illiamelnyk.studio.core.domain.playback.PlaybackState
 import com.illiamelnyk.studio.core.domain.playback.RepeatMode
@@ -34,6 +37,7 @@ class AndroidPlaybackController(
     private val mutableState = MutableStateFlow(PlaybackState())
     override val state: StateFlow<PlaybackState> = mutableState.asStateFlow()
 
+    private var failureSequence = 0L
     private var playbackOwner: String? = null
     private var playbackGeneration = 0L
     private var originalQueue: List<Track> = emptyList()
@@ -245,7 +249,8 @@ class AndroidPlaybackController(
                 val atEnd = state.positionMs >= state.durationMs
                 if (atEnd) pendingSeek = 0
                 mutableState.update {
-                    it.copy(isPlaying = true, positionMs = if (atEnd) 0 else it.positionMs, autoplayWaiting = false)
+                    val position = if (atEnd) 0 else it.positionMs
+                    it.copy(isPlaying = true, positionMs = position, autoplayWaiting = false, failure = null)
                 }
                 startClock()
             }
@@ -507,6 +512,7 @@ class AndroidPlaybackController(
                 isPlaying = true,
                 stationName = stationName,
                 autoplayWaiting = false,
+                failure = null,
                 autoplay = autoplay.first,
                 autoplayHistory = autoplay.second + queue.map { track -> track.id },
             )
@@ -613,7 +619,16 @@ class AndroidPlaybackController(
                             next.release()
                             player = null
                             prepared = false
-                            mutableState.update { it.copy(isPlaying = false, autoplayWaiting = false) }
+                            val failure = when {
+                                extra == android.media.MediaPlayer.MEDIA_ERROR_TIMED_OUT -> AppError.Timeout
+
+                                extra == android.media.MediaPlayer.MEDIA_ERROR_IO && track.isRemoteAudio() -> {
+                                    AppError.Network
+                                }
+
+                                else -> AppError.Unknown
+                            }
+                            reportFailure(track, failure)
                         }
                         true
                     }
@@ -628,7 +643,13 @@ class AndroidPlaybackController(
                         player?.release()
                         player = null
                         prepared = false
-                        mutableState.update { it.copy(isPlaying = false, autoplayWaiting = false) }
+                        val failure = when (error) {
+                            is ApiFailure -> error.error
+                            is java.net.SocketTimeoutException -> AppError.Timeout
+                            is java.io.IOException -> if (track.isRemoteAudio()) AppError.Network else AppError.Unknown
+                            else -> AppError.Unknown
+                        }
+                        reportFailure(track, failure)
                     }
                 }
             }
@@ -646,6 +667,25 @@ class AndroidPlaybackController(
         if (seek != null || kotlin.math.abs(active.currentPosition.toLong() - state.positionMs) > 600) {
             active.seekTo((seek ?: state.positionMs).toInt())
             pendingSeek = null
+        }
+    }
+
+    private fun reportFailure(track: Track, error: AppError) {
+        synchronized(playbackLock) {
+            val owner = playbackOwner ?: return
+            if (owner != ownerId() || playbackGeneration != playbackStateGeneration(owner) ||
+                mutableState.value.current?.id != track.id
+            ) {
+                return
+            }
+            failureSequence++
+            mutableState.update {
+                it.copy(
+                    isPlaying = false,
+                    autoplayWaiting = false,
+                    failure = PlaybackFailure(failureSequence, track.id, error),
+                )
+            }
         }
     }
 
@@ -675,7 +715,12 @@ class AndroidPlaybackController(
     }
 }
 
-private fun PlaybackState.atTrack(index: Int) = copy(currentIndex = index, positionMs = 0, autoplayWaiting = false)
+private fun PlaybackState.atTrack(index: Int) = copy(
+    currentIndex = index,
+    positionMs = 0,
+    autoplayWaiting = false,
+    failure = null,
+)
 
 private fun PlaybackState.advancedBy(elapsedMs: Long): PlaybackState {
     if (!isPlaying || current == null) return this
@@ -687,4 +732,9 @@ private fun PlaybackState.advancedBy(elapsedMs: Long): PlaybackState {
         loops -> atTrack(0)
         else -> copy(positionMs = durationMs, isPlaying = false, autoplayWaiting = autoplay && !isStation)
     }
+}
+
+private fun Track.isRemoteAudio(): Boolean {
+    val uri = audioUri ?: return false
+    return uri.startsWith("https://") || uri.startsWith("http://")
 }

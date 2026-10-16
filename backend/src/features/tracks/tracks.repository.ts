@@ -16,6 +16,7 @@ import {
 import type { Database } from '../../core/db/database.js'
 import { likes, playlistTracks, uploads } from '../library/library.table.js'
 import { users } from '../users/users.table.js'
+import { remixSourceIds } from './tracks.model.js'
 import { type Track, tracks } from './tracks.table.js'
 
 export type NewTrack = Pick<
@@ -27,6 +28,7 @@ export type NewTrack = Pick<
       Track,
       | 'customLyrics'
       | 'remixTrackId'
+      | 'remixTrackIds'
       | 'referenceUploadId'
       | 'variants'
       | 'quality'
@@ -50,6 +52,10 @@ export type CreateOutcome =
   | { kind: 'limit-reached'; used: number }
   | { kind: 'account-deleting' }
   | { kind: 'upload-not-found' }
+  | {
+      kind: 'invalid-remix-source'
+      code: 'TRACK_NOT_FOUND' | 'REMIX_OF_REMIX' | 'NOT_READY' | 'UNSUPPORTED_MODE'
+    }
 
 /**
  * Failures the provider does not charge for: it refused the request before generating anything.
@@ -124,6 +130,28 @@ export class TracksRepository {
             ),
           )
         if (!upload) return { kind: 'upload-not-found' }
+      }
+      const generatedSources = remixSourceIds(input).filter((id) => /^[0-9a-f-]{36}$/i.test(id))
+      if (generatedSources.length) {
+        const sources = await tx
+          .select()
+          .from(tracks)
+          .where(
+            and(inArray(tracks.id, generatedSources), eq(tracks.userId, input.userId), visible),
+          )
+          .orderBy(asc(tracks.id))
+          .for('share')
+        if (sources.length !== generatedSources.length)
+          return { kind: 'invalid-remix-source', code: 'TRACK_NOT_FOUND' }
+        if (sources.some((source) => remixSourceIds(source).length))
+          return { kind: 'invalid-remix-source', code: 'REMIX_OF_REMIX' }
+        if (sources.some((source) => source.status !== 'done'))
+          return { kind: 'invalid-remix-source', code: 'NOT_READY' }
+        if (
+          input.providerName === 'elevenlabs' &&
+          sources.some((source) => source.providerName !== 'elevenlabs' || !source.songId)
+        )
+          return { kind: 'invalid-remix-source', code: 'UNSUPPORTED_MODE' }
       }
       const [{ used = 0 } = {}] = await tx
         .select({ used: countDistinct(tracks.generationId) })
@@ -348,6 +376,7 @@ export class TracksRepository {
           customLyrics: null,
           referenceUploadId: null,
           remixTrackId: null,
+          remixTrackIds: [],
           errorMessage: null,
           promptSuggestion: null,
           deletedAt: now,

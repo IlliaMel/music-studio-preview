@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="create_remix_source_limit">You can remix up to 4 original tracks. Remove a source to add another.</string>
+    <string name="create_remix_original_only">Choose an original track. A remix cannot be remixed again.</string>
+    <string name="create_remix_ready_only">Wait until the track is ready before adding it to a remix.</string>
+</resources>

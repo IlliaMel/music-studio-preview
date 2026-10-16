@@ -48,7 +48,10 @@ data class GenerationSettings(
     val customLyrics: String = "",
     val referenceAudioUri: String? = null,
     val remixTrackId: String? = null,
+    val remixTrackIds: List<String> = emptyList(),
 ) {
+    val remixSourceIds: List<String> get() = remixTrackIds.ifEmpty { listOfNotNull(remixTrackId) }
+
     init {
         require(duration == null || duration in TrackLengths.all) { "$duration is not one of the track lengths" }
         require(variants in 1..MAX_VARIANTS) { "Variants must be between 1 and $MAX_VARIANTS, was $variants" }

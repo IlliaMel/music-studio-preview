@@ -338,7 +338,7 @@ class PlayerViewModelTest {
         runTest(mainDispatcherRule.testDispatcher) {
             val playback = playback()
             playback.play(listOf(sung), startIndex = 0)
-            val drafts = com.illiamelnyk.studio.core.domain.track.ComposerDraftStore()
+            val drafts = com.illiamelnyk.studio.core.domain.track.ComposerDraftStore { "test-owner" }
             val viewModel = PlayerViewModel(playback, lyrics, tracks, drafts)
             viewModel.effects.test {
                 viewModel.onIntent(PlayerIntent.ComingSoonClicked(SoonFeature.Remix))
@@ -353,7 +353,7 @@ class PlayerViewModelTest {
         val remix = sung.copy(remixTrackId = "original")
         val playback = playback()
         playback.play(listOf(remix))
-        val drafts = com.illiamelnyk.studio.core.domain.track.ComposerDraftStore()
+        val drafts = com.illiamelnyk.studio.core.domain.track.ComposerDraftStore { "test-owner" }
         val viewModel = PlayerViewModel(playback, lyrics, tracks, drafts)
         assertFalse(viewModel.state.value.content.canRemix)
         viewModel.effects.test {

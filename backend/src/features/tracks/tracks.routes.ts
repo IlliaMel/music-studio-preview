@@ -7,10 +7,19 @@ import { fileResponse } from '../../core/http/file-response.js'
 import { validate } from '../../core/http/validation.js'
 import { catalogTracks } from '../library/catalog.js'
 import { MODEL_IDS } from './generation/music-provider.js'
+import { remixSourceIds } from './tracks.model.js'
 import type { TrackCursor } from './tracks.repository.js'
 import type { TracksService } from './tracks.service.js'
 import type { Track } from './tracks.table.js'
 
+const RemixSourceId = z
+  .string()
+  .min(1)
+  .max(100)
+  .refine(
+    (id) => z.uuid().safeParse(id).success || catalogTracks.some((track) => track.id === id),
+    { message: 'Choose an existing track' },
+  )
 const CreateTrackBody = z.strictObject({
   prompt: z.string().trim().min(10).max(2000),
   // Omitted: the model picks the length ("Auto" in the composer).
@@ -20,15 +29,8 @@ const CreateTrackBody = z.strictObject({
   quality: z.enum(['auto', 'deep', 'fast']).default('auto'),
   variants: z.union([z.literal(1), z.literal(2)]).default(1),
   customLyrics: z.string().trim().min(1).max(10000).optional(),
-  remixTrackId: z
-    .string()
-    .min(1)
-    .max(100)
-    .refine(
-      (id) => z.uuid().safeParse(id).success || catalogTracks.some((track) => track.id === id),
-      { message: 'Choose an existing track' },
-    )
-    .optional(),
+  remixTrackId: RemixSourceId.optional(),
+  remixTrackIds: z.array(RemixSourceId).max(4).optional(),
   referenceUploadId: z.uuid().optional(),
 })
 
@@ -136,7 +138,8 @@ const toTrack = (track: Track, audioUrl: string) => ({
   provider: track.providerName,
   customLyrics: track.customLyrics,
   referenceUploadId: track.referenceUploadId,
-  remixTrackId: track.remixTrackId,
+  remixTrackId: remixSourceIds(track)[0] ?? null,
+  remixTrackIds: remixSourceIds(track),
   status: track.status,
   prompt: track.prompt,
   lengthMs: track.lengthMs,

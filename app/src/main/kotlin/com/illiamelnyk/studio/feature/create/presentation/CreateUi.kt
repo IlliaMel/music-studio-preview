@@ -106,6 +106,7 @@ data class ComposerUi(
     val variants: Int = 1,
     val customLyrics: String = "",
     val referenceLabel: String? = null,
+    val remixSources: ImmutableList<RemixSourceUi> = persistentListOf(),
     val canSend: Boolean = false,
     val notice: UiText? = null,
     val isSending: Boolean = false,
@@ -148,3 +149,6 @@ enum class TracksFilter(@param:StringRes val label: Int) {
     /** Tracks on the public profile; coming soon. */
     Published(R.string.create_published),
 }
+
+@Immutable
+data class RemixSourceUi(val id: com.illiamelnyk.studio.core.domain.track.TrackId, val title: String)

@@ -73,6 +73,7 @@ fun StudioChip(
             style = StudioTheme.typography.bodyMedium,
             color = if (isInput) colors.content.secondary else colors.content.primary,
             maxLines = 1,
+            modifier = if (onRemove != null) Modifier.weight(1f, fill = false) else Modifier,
         )
         if (onRemove != null) {
             StudioIcon(

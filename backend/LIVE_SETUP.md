@@ -19,7 +19,7 @@ Production additionally requires NODE_ENV=production, DATABASE_URL for Postgres,
 - Upload to ElevenLabs is itself billable, including possible partial charges on copyright rejection. Local POST /v1/uploads only stores bytes and does not contact ElevenLabs; transfer happens when a referenced generation runs. MP3, WAV and MP4/M4A container signatures and byte bounds are checked locally; ElevenLabs performs full codec/copyright inspection and extracted-plan duration validation (3 seconds–10 minutes). Signature checks are not a full local audio decoder. Other local mock MIME formats are explicitly unsupported in real mode.
 - Completed live originals stored with references enabled can be remixed by owner. Mock catalog/original tracks cannot be remixed with the live provider and return UNSUPPORTED_MODE. Generated originals without a reusable provider song ID cannot be remixed. Remix-of-remix remains forbidden.
 
-GET /v1/capabilities reports the selected provider, supported qualities, reference enablement and upload limits. Never infer entitlement merely from a successful local upload.
+GET /v1/capabilities reports the selected provider, supported qualities, reference enablement, maxRemixSources and upload limits. Ordered multi-source mock remix is supported; the current live adapter has a hard one-source bound and rejects larger arrays before quota or paid work. See REMIX.md. Never infer entitlement merely from a successful local upload.
 
 ## Paid request interruption and recovery
 

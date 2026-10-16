@@ -12,14 +12,18 @@ internal data class GenerationCapabilities(
     val variants: Set<Int>,
     val audioReferences: Boolean,
     val liveCatalogRemix: Boolean,
+    val maxRemixSources: Int,
 ) {
     fun rejection(request: GenerationRequest, count: Int): AppError? {
         if (request.quality.name.lowercase() !in qualityModes || count !in variants) return AppError.UnsupportedMode
         val hasReference = request.referenceAudioUri != null || request.referenceUploadId != null
-        val hasRemix = request.remixTrackId != null
+        val sources = request.remixSourceIds
+        val hasRemix = sources.isNotEmpty()
+        if (sources.size > maxRemixSources) return AppError.UnsupportedMode
+        if (sources.distinct().size != sources.size || sources.any { it.isBlank() }) return AppError.InvalidReference
         if ((hasReference || hasRemix) && !audioReferences) return AppError.UnsupportedMode
         if (provider == "elevenlabs" && hasRemix && !liveCatalogRemix &&
-            !UUID_PATTERN.matches(request.remixTrackId.orEmpty())
+            sources.any { !UUID_PATTERN.matches(it) }
         ) {
             return AppError.UnsupportedMode
         }
@@ -49,6 +53,8 @@ internal data class GenerationCapabilities(
             require(quality.isNotEmpty() && quality.all { it in setOf("auto", "deep", "fast") })
             require(variants.isNotEmpty() && variants.all { it in 1..2 })
             require(references in setOf("mock", "enabled-enterprise", "disabled-enterprise-entitlement-required"))
+            val maxRemixSources = if (json.has("maxRemixSources")) json.getInt("maxRemixSources") else 1
+            require(maxRemixSources in 0..4)
             return GenerationCapabilities(
                 provider,
                 quality,
@@ -56,6 +62,7 @@ internal data class GenerationCapabilities(
                 variants,
                 references != "disabled-enterprise-entitlement-required",
                 json.getBoolean("liveCatalogRemix"),
+                maxRemixSources,
             )
         }
     }

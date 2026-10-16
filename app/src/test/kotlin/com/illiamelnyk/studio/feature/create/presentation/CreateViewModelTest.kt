@@ -613,7 +613,7 @@ class CreateViewModelTest {
 
     @Test
     fun replacingRemixWithRecordingGeneratesUsingOnlyTheNewReference() = runTest(mainDispatcherRule.testDispatcher) {
-        val drafts = ComposerDraftStore()
+        val drafts = ComposerDraftStore { "test-owner" }
         val viewModel = viewModel(drafts)
         val original = tracks.observeMine().first().first()
         drafts.remix(original)
@@ -636,7 +636,7 @@ class CreateViewModelTest {
 
     @Test
     fun replacingRecordingWithRemixGeneratesUsingOnlyTheNewOriginal() = runTest(mainDispatcherRule.testDispatcher) {
-        val drafts = ComposerDraftStore()
+        val drafts = ComposerDraftStore { "test-owner" }
         val viewModel = viewModel(drafts)
         viewModel.onIntent(CreateIntent.ReferenceSelected("content://recordings/old-reference", "Old recording"))
         val original = tracks.observeMine().first().first()
@@ -655,7 +655,106 @@ class CreateViewModelTest {
         assertEquals(7, credits.credits.first().remaining)
     }
 
-    private fun TestScope.viewModel(drafts: ComposerDraftStore = ComposerDraftStore()): CreateViewModel {
+    @Test
+    fun multipleSourcesSurviveNavigationRemoveIndividuallyAndSubmitInOrder() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val drafts = ComposerDraftStore { "test-owner" }
+            val firstScreen = viewModel(drafts)
+            val originals = tracks.observeMine().first().filter {
+                it.status ==
+                    com.illiamelnyk.studio.core.domain.track.TrackStatus.Ready
+            }.take(3)
+            drafts.remix(originals[0])
+            drafts.remix(originals[1])
+            runCurrent()
+            firstScreen.onIntent(CreateIntent.PromptChanged("Keep this custom remix prompt"))
+            drafts.remix(originals[2])
+            drafts.remix(originals[0])
+            runCurrent()
+            assertEquals("Keep this custom remix prompt", firstScreen.state.value.composer.prompt)
+            assertEquals(originals.map { it.id }, firstScreen.state.value.composer.remixSources.map { it.id })
+            val restoredScreen = viewModel(drafts)
+            assertEquals(originals.map { it.id }, restoredScreen.state.value.composer.remixSources.map { it.id })
+            restoredScreen.onIntent(CreateIntent.RemixSourceRemoved(originals[1].id))
+            runCurrent()
+            restoredScreen.effects.test {
+                send(restoredScreen, "Blend these original moods together")
+                assertEquals(CreateEffect.TracksStarted, awaitItem())
+            }
+            assertEquals(listOf(originals[0].id.value, originals[2].id.value), submittedRequest!!.remixTrackIds)
+            assertEquals(emptyList<Track>(), drafts.sources.value)
+            assertEquals(7, credits.credits.first().remaining)
+        }
+
+    @Test
+    fun failedSubmissionKeepsEveryNamedSourceForRetry() = runTest(mainDispatcherRule.testDispatcher) {
+        val drafts = ComposerDraftStore { "test-owner" }
+        val viewModel = viewModel(drafts)
+        val originals = tracks.observeMine().first().filter {
+            it.status ==
+                com.illiamelnyk.studio.core.domain.track.TrackStatus.Ready
+        }.take(2)
+        originals.forEach(drafts::remix)
+        runCurrent()
+        tracks.failWith = AppError.Network
+        viewModel.effects.test {
+            send(viewModel, "Retry these two original ideas")
+            assertEquals(StudioToastKind.Error, (awaitItem() as CreateEffect.ShowToast).toast.kind)
+        }
+        assertEquals(originals, drafts.sources.value)
+        assertEquals(originals.map { it.id }, viewModel.state.value.composer.remixSources.map { it.id })
+        assertEquals(8, credits.credits.first().remaining)
+    }
+
+    @Test
+    fun recordingReferenceClearsAllRemixSourcesAndSourcesReplaceTheRecording() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val drafts = ComposerDraftStore { "test-owner" }
+            val viewModel = viewModel(drafts)
+            val originals = tracks.observeMine().first().filter {
+                it.status ==
+                    com.illiamelnyk.studio.core.domain.track.TrackStatus.Ready
+            }.take(2)
+            originals.forEach(drafts::remix)
+            runCurrent()
+            viewModel.onIntent(CreateIntent.ReferenceSelected("content://reference/new", "Fresh recording"))
+            runCurrent()
+            assertEquals(emptyList<Track>(), drafts.sources.value)
+            assertEquals("Fresh recording", viewModel.state.value.composer.referenceLabel)
+            assertEquals(0, viewModel.state.value.composer.remixSources.size)
+            drafts.remix(originals[1])
+            runCurrent()
+            viewModel.effects.test {
+                send(viewModel, "Remix just the newly selected source")
+                assertEquals(CreateEffect.TracksStarted, awaitItem())
+            }
+            assertEquals(listOf(originals[1].id.value), submittedRequest!!.remixTrackIds)
+            assertNull(submittedRequest!!.referenceAudioUri)
+        }
+
+    @Test
+    fun backgroundDeletionThenNewOwnerCreatesAnEmptyComposerWithoutThePreviousPrivateSource() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            var owner: String? = "owner-a"
+            val drafts = ComposerDraftStore { owner }
+            val first = viewModel(drafts)
+            val privateSource = tracks.observeMine().first().first().copy(
+                title = "Owner A private idea",
+                prompt = "Owner A private musical prompt",
+            )
+            drafts.remix(privateSource)
+            runCurrent()
+            assertEquals(privateSource.title, first.state.value.composer.referenceLabel)
+            owner = null
+            owner = "owner-b"
+            val second = viewModel(drafts)
+            assertEquals(0, second.state.value.composer.remixSources.size)
+            assertNull(second.state.value.composer.referenceLabel)
+            assertEquals("", second.state.value.composer.prompt)
+            assertEquals(emptyList<Track>(), drafts.sources.value)
+        }
+
+    private fun TestScope.viewModel(drafts: ComposerDraftStore = ComposerDraftStore { "test-owner" }): CreateViewModel {
         val fake = FakeTrackRepository(credits, FakeSessionRepository(), backgroundScope, clock)
         val capturing = object : TrackRepository by fake {
             override suspend fun create(request: GenerationRequest, variants: Int): Outcome<List<Track>> {

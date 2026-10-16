@@ -39,4 +39,8 @@ data class Track(
     val remixTrackId: String? = null,
     val referenceUploadId: String? = null,
     val quality: Quality = Quality.Auto,
-)
+    val remixTrackIds: List<String> = emptyList(),
+) {
+    val remixSourceIds: List<String> get() = remixTrackIds.ifEmpty { listOfNotNull(remixTrackId) }
+    val isRemix: Boolean get() = remixSourceIds.isNotEmpty()
+}

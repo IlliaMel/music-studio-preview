@@ -491,6 +491,86 @@ class AudioPlaybackTest {
         }
     }
 
+    @Test
+    fun nativeFailuresSurfaceTypedCauseOnceAndPlayRetriesWithoutStaleCallbackErrors() = runTest {
+        val created = mutableListOf<org.robolectric.shadows.ShadowMediaPlayer>()
+        org.robolectric.shadows.ShadowMediaPlayer.setMediaInfoProvider {
+            org.robolectric.shadows.ShadowMediaPlayer.MediaInfo(20_000, 10_000)
+        }
+        org.robolectric.shadows.ShadowMediaPlayer.setCreateListener { _, shadow -> created += shadow }
+        val song = track("failure-audio", 20.seconds).copy(audioUri = "https://audio.fixture/failure.wav")
+        val playback = AndroidPlaybackController(context, backgroundScope, ownerId = { "owner-a" })
+        try {
+            playback.play(listOf(song))
+            runCurrent()
+            val native = created.single()
+            native.invokePreparedListener()
+            playback.togglePlayPause()
+            assertNull(playback.state.value.failure)
+            playback.togglePlayPause()
+            native.invokeErrorListener(1, android.media.MediaPlayer.MEDIA_ERROR_IO)
+            val first = playback.state.value.failure!!
+            assertEquals(com.illiamelnyk.studio.core.domain.AppError.Network, first.error)
+            assertEquals(song.id, first.trackId)
+            assertFalse(playback.state.value.isPlaying)
+            assertFalse(playback.state.value.autoplayWaiting)
+            playback.togglePlayPause()
+            assertNull(playback.state.value.failure)
+            advanceTimeBy(251)
+            runCurrent()
+            val replacement = created.last()
+            assertEquals(2, created.size)
+            native.invokeErrorListener(1, android.media.MediaPlayer.MEDIA_ERROR_IO)
+            assertNull(playback.state.value.failure)
+            replacement.invokeErrorListener(1, android.media.MediaPlayer.MEDIA_ERROR_TIMED_OUT)
+            val second = playback.state.value.failure!!
+            assertEquals(com.illiamelnyk.studio.core.domain.AppError.Timeout, second.error)
+            assertTrue(second.id > first.id)
+            playback.stop()
+            assertNull(playback.state.value.failure)
+        } finally {
+            playback.stop()
+            org.robolectric.shadows.ShadowMediaPlayer.resetStaticState()
+        }
+    }
+
+    @Test
+    fun typedHeaderFailureSurfacesButOwnerChangeDuringFailureDoesNotLeakFeedback() = runTest {
+        val song = track("header-failure", 20.seconds).copy(audioUri = "https://audio.fixture/private.wav")
+        val playback = AndroidPlaybackController(
+            context,
+            backgroundScope,
+            ownerId = { "owner-a" },
+            audioHeaders = {
+                throw com.illiamelnyk.studio.core.data.local.ApiFailure(
+                    com.illiamelnyk.studio.core.domain.AppError.Unauthorized,
+                )
+            },
+        )
+        playback.play(listOf(song))
+        runCurrent()
+        assertEquals(com.illiamelnyk.studio.core.domain.AppError.Unauthorized, playback.state.value.failure?.error)
+        playback.stop()
+        var owner = "owner-a"
+        val pending = kotlinx.coroutines.CompletableDeferred<Map<String, String>>()
+        val changed =
+            AndroidPlaybackController(context, backgroundScope, ownerId = { owner }, audioHeaders = { pending.await() })
+        try {
+            changed.play(listOf(song))
+            runCurrent()
+            owner = "owner-b"
+            pending.completeExceptionally(
+                com.illiamelnyk.studio.core.data.local.ApiFailure(
+                    com.illiamelnyk.studio.core.domain.AppError.Unauthorized,
+                ),
+            )
+            runCurrent()
+            assertNull(changed.state.value.failure)
+        } finally {
+            changed.stop()
+        }
+    }
+
     private fun saveQueue(
         owner: String,
         songs: List<com.illiamelnyk.studio.core.domain.track.Track>,

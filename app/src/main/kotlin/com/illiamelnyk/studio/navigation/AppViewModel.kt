@@ -3,17 +3,23 @@ package com.illiamelnyk.studio.navigation
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.domain.credits.CreditsRepository
 import com.illiamelnyk.studio.core.domain.playback.PlaybackController
 import com.illiamelnyk.studio.core.domain.session.Session
 import com.illiamelnyk.studio.core.domain.session.SessionRepository
 import com.illiamelnyk.studio.core.domain.settings.ThemePreference
 import com.illiamelnyk.studio.core.domain.settings.ThemePreferenceRepository
+import com.illiamelnyk.studio.core.presentation.ToastController
+import com.illiamelnyk.studio.core.presentation.UiText
+import com.illiamelnyk.studio.core.presentation.toUiText
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 
 /** Which part of the app the session allows. */
@@ -48,6 +54,7 @@ data class AppState(
     val avatarSeed: String = "",
     val creditsLeft: Int = 0,
     val hasPlayback: Boolean = false,
+    val ownerId: String? = null,
 )
 
 /**
@@ -60,7 +67,27 @@ class AppViewModel(
     themes: ThemePreferenceRepository,
     shellVariants: ShellVariantSource,
     playback: PlaybackController,
+    feedback: ToastController,
 ) : ViewModel() {
+
+    init {
+        playback.state.map { state -> state.failure?.let { it to state.isStation } }
+            .distinctUntilChanged().onEach { failed ->
+                if (failed != null) {
+                    feedback.show(
+                        UiText.Resource(
+                            if (failed.second) {
+                                R.string.player_station_playback_failed
+                            } else {
+                                R.string.player_playback_failed
+                            },
+                        ),
+                        failed.first.error.toUiText(),
+                        isError = true,
+                    )
+                }
+            }.launchIn(viewModelScope)
+    }
 
     val state: StateFlow<AppState> = combine(
         sessions.session,
@@ -76,6 +103,7 @@ class AppViewModel(
             avatarSeed = session?.user?.avatarSeed?.value.orEmpty(),
             creditsLeft = credits.remaining,
             hasPlayback = hasPlayback,
+            ownerId = session?.user?.id?.value,
         )
     }
         // Kept through a configuration change, so the app doesn't pass through Loading again.

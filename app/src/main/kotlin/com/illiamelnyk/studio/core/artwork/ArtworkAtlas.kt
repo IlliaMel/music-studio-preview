@@ -85,7 +85,7 @@ internal class ArtworkAtlas(
     }
 }
 
-internal object ArtworkAtlasCache {
+internal class ArtworkAtlasLoader(private val read: (AssetManager) -> ArtworkAtlas = ArtworkAtlas::read) {
     private val mutex = Mutex()
 
     @Volatile private var atlas: ArtworkAtlas? = null
@@ -93,19 +93,29 @@ internal object ArtworkAtlasCache {
     private var retryAfter = 0L
 
     suspend fun load(assets: AssetManager, dispatcher: CoroutineDispatcher = Dispatchers.IO): ArtworkAtlas? =
-        mutex.withLock {
-            atlas?.let { return@withLock it }
-            if (System.currentTimeMillis() < retryAfter) return@withLock null
-            try {
-                withContext(dispatcher) { ArtworkAtlas.read(assets) }.also { atlas = it }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (error: Exception) {
-                Log.w("StudioArtwork", "Artwork unavailable", error)
-                retryAfter = System.currentTimeMillis() + RETRY_MS
-                null
+        withContext(dispatcher) {
+            mutex.withLock {
+                atlas?.let { return@withLock it }
+                if (System.currentTimeMillis() < retryAfter) return@withLock null
+                try {
+                    read(assets).also { atlas = it }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    Log.w("StudioArtwork", "Artwork unavailable", error)
+                    retryAfter = System.currentTimeMillis() + ArtworkAtlasCache.RETRY_MS
+                    null
+                }
             }
         }
+}
+
+internal object ArtworkAtlasCache {
+    private val loader = ArtworkAtlasLoader()
+    val current: ArtworkAtlas? get() = loader.current
+
+    suspend fun load(assets: AssetManager, dispatcher: CoroutineDispatcher = Dispatchers.IO): ArtworkAtlas? =
+        loader.load(assets, dispatcher)
 
     const val RETRY_MS = 5_000L
 }

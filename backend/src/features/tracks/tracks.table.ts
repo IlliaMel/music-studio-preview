@@ -39,6 +39,7 @@ export const tracks = pgTable(
     customLyrics: text('custom_lyrics'),
     referenceUploadId: uuid('reference_upload_id'),
     remixTrackId: text('reference_track_id'),
+    remixTrackIds: jsonb('remix_track_ids').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     providerName: text('provider_name').notNull().default('mock'),
     status: trackStatus('status').notNull().default('queued'),
 

@@ -52,9 +52,15 @@ fun PlayerLayout(
     BoxWithConstraints(modifier.fillMaxSize()) {
         val landscape = maxWidth > maxHeight
         val horizontalInset = (maxWidth * PLAYER_SIDE_INSET_FRACTION).coerceAtLeast(dimens.layout.screenPadding)
-        val portraitArtworkHeight = maxWidth - horizontalInset * 2 + dimens.spacing.m + dimens.spacing.xl
+        val compactArtworkHeight = if (queueMode) {
+            dimens.size.touchTarget * 3 + dimens.size.component.trackRow + dimens.spacing.xs * 3 +
+                dimens.size.touchTarget * (fontScale - 1f).coerceAtLeast(0f)
+        } else {
+            minOf(maxWidth - horizontalInset * 2, dimens.size.cover.l)
+        }
+        val portraitArtworkHeight = compactArtworkHeight + dimens.spacing.m * 2 + dimens.spacing.xl
         val compactHeight = maxHeight < (dimens.size.cover.l + dimens.size.touchTarget * 7) * fontScale
-        val compactPortrait = !landscape && !queueMode && !stationMode && compactHeight
+        val compactPortrait = !landscape && compactHeight
         val movableDetails = remember(details, compactHeight) {
             movableContentWithReceiverOf<ColumnScope> { details(compactHeight) }
         }

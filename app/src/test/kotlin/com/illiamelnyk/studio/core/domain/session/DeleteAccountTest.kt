@@ -6,7 +6,10 @@ import com.illiamelnyk.studio.core.data.fake.FakeSessionRepository
 import com.illiamelnyk.studio.core.data.fake.FakeTrackRepository
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.Outcome
+import com.illiamelnyk.studio.core.domain.track.ComposerDraftStore
+import com.illiamelnyk.studio.feature.player.fake.track
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -33,7 +36,12 @@ class DeleteAccountTest {
         val before = tracks.observeMine().first()
         playback.play(before)
 
-        assertEquals(Outcome.Failure(AppError.Network), DeleteAccount(failure, playback, tracks)())
+        val drafts = ComposerDraftStore { "test-owner" }.apply { remix(track("private-remix-source", 20.seconds)) }
+        val source = drafts.pending.value
+        assertNotNull(source)
+        assertEquals(Outcome.Failure(AppError.Network), DeleteAccount(failure, playback, tracks, drafts)())
+        assertEquals(source, drafts.pending.value)
+        assertEquals(listOf(source), drafts.sources.value)
         assertEquals(before, tracks.observeMine().first())
         assertEquals(activeSession, sessions.session.first())
         assertTrue(playback.state.value.isPlaying)
@@ -56,11 +64,31 @@ class DeleteAccountTest {
         assertFalse(playback.state.value.queue.isEmpty())
         assertTrue(playback.state.value.isPlaying)
 
-        assertEquals(Outcome.Failure(AppError.Network), DeleteAccount(uncertain, playback, tracks)())
+        val drafts = ComposerDraftStore { "test-owner" }.apply { remix(track("purged-remix-source", 20.seconds)) }
+        assertEquals(Outcome.Failure(AppError.Network), DeleteAccount(uncertain, playback, tracks, drafts)())
+        assertNull(drafts.pending.value)
+        assertTrue(drafts.sources.value.isEmpty())
 
         assertNull(sessions.session.first())
         assertTrue(playback.state.value.queue.isEmpty())
         assertFalse(playback.state.value.isPlaying)
+    }
+
+    @Test
+    fun successfulDeletionClearsRetainedRemixSources() = runTest {
+        val sessions = FakeSessionRepository()
+        sessions.signIn("demo", SignInMethod.Google, "Demo listener", useProviderProfile = true)
+        val playback = FakePlaybackController(backgroundScope)
+        val tracks = FakeTrackRepository(FakeCreditsRepository(), sessions, backgroundScope, Clock.System)
+        val drafts = ComposerDraftStore { "test-owner" }.apply {
+            remix(track("private-one", 20.seconds))
+            remix(track("private-two", 20.seconds))
+        }
+        assertEquals(2, drafts.sources.value.size)
+        assertEquals(Outcome.Success(Unit), DeleteAccount(sessions, playback, tracks, drafts)())
+        assertNull(drafts.pending.value)
+        assertTrue(drafts.sources.value.isEmpty())
+        assertNull(drafts.problem.value)
     }
 
     @Test

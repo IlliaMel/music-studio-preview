@@ -11,6 +11,7 @@ export type ComposeRequest = {
   customLyrics?: string
   referenceUploadId?: string
   remixTrackId?: string
+  remixTrackIds?: string[]
   /** Undefined lets the model choose the length. */
   lengthMs?: number
   instrumental: boolean

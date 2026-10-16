@@ -90,7 +90,7 @@ class GenerateTracksTest {
     }
 
     @Test
-    fun customLyricsAndReferencesReachDataContract() = runTest {
+    fun customLyricsAndRecordingReferenceReachDataContract() = runTest {
         val tracks = FakeTrackRepository(credits, FakeSessionRepository(), backgroundScope, clock)
         var captured: com.illiamelnyk.studio.core.domain.track.GenerationRequest? = null
         val repository = object : com.illiamelnyk.studio.core.domain.track.TrackRepository by tracks {
@@ -103,19 +103,77 @@ class GenerateTracksTest {
             }
         }
         val generate = GenerateTracks(repository, credits)
-        generate(
+        val result = generate(
             "Original acoustic melody",
             GenerationSettings(
                 lyricsMode = LyricsMode.Custom,
                 customLyrics = "A new day\nA new song",
                 referenceAudioUri = "file:///reference.m4a",
-                remixTrackId = "source-track",
             ),
         )
+        assertEquals(true, result is Outcome.Success)
         assertEquals("A new day\nA new song", captured?.customLyrics)
         assertEquals("file:///reference.m4a", captured?.referenceAudioUri)
-        assertEquals("source-track", captured?.remixTrackId)
+        assertEquals(emptyList<String>(), captured?.remixSourceIds)
         assertEquals(false, captured?.instrumental)
+        assertEquals(7, credits.credits.first().remaining)
+    }
+
+    @Test
+    fun customLyricsAndOrderedRemixSourcesReachDataContract() = runTest {
+        val tracks = FakeTrackRepository(credits, FakeSessionRepository(), backgroundScope, clock)
+        var captured: com.illiamelnyk.studio.core.domain.track.GenerationRequest? = null
+        val repository = object : com.illiamelnyk.studio.core.domain.track.TrackRepository by tracks {
+            override suspend fun create(
+                request: com.illiamelnyk.studio.core.domain.track.GenerationRequest,
+                variants: Int,
+            ): Outcome<List<com.illiamelnyk.studio.core.domain.track.Track>> {
+                captured = request
+                return tracks.create(request, variants)
+            }
+        }
+        val sources = listOf("source-second", "source-first")
+        val result = GenerateTracks(repository, credits)(
+            "Blend two original acoustic ideas",
+            GenerationSettings(
+                lyricsMode = LyricsMode.Custom,
+                customLyrics = "A new day\nA new song",
+                remixTrackIds = sources,
+            ),
+        )
+        assertEquals(true, result is Outcome.Success)
+        assertEquals(sources, captured?.remixTrackIds)
+        assertEquals("source-second", captured?.remixTrackId)
+        assertEquals(null, captured?.referenceAudioUri)
+        assertEquals("A new day\nA new song", captured?.customLyrics)
+        assertEquals(7, credits.credits.first().remaining)
+    }
+
+    @Test
+    fun combinedRecordingAndRemixReferencesFailBeforeAnyRepositoryMutationOrCredit() = runTest {
+        val tracks = FakeTrackRepository(credits, FakeSessionRepository(), backgroundScope, clock)
+        var mutations = 0
+        val repository = object : com.illiamelnyk.studio.core.domain.track.TrackRepository by tracks {
+            override suspend fun create(
+                request: com.illiamelnyk.studio.core.domain.track.GenerationRequest,
+                variants: Int,
+            ): Outcome<List<com.illiamelnyk.studio.core.domain.track.Track>> {
+                mutations++
+                return tracks.create(request, variants)
+            }
+        }
+        val before = tracks.observeMine().first()
+        val result = GenerateTracks(repository, credits)(
+            "Original acoustic melody",
+            GenerationSettings(
+                referenceAudioUri = "file:///reference.m4a",
+                remixTrackIds = listOf("source-first", "source-second"),
+            ),
+        )
+        assertEquals(Outcome.Failure(AppError.InvalidReference), result)
+        assertEquals(0, mutations)
+        assertEquals(before, tracks.observeMine().first())
+        assertEquals(8, credits.credits.first().remaining)
     }
 
     @Test

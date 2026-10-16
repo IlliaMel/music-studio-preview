@@ -32,4 +32,7 @@ data class GenerationRequest(
     val referenceUploadId: String? = null,
     val remixTrackId: String? = null,
     val referenceAudioUri: String? = null,
-)
+    val remixTrackIds: List<String> = emptyList(),
+) {
+    val remixSourceIds: List<String> get() = remixTrackIds.ifEmpty { listOfNotNull(remixTrackId) }
+}

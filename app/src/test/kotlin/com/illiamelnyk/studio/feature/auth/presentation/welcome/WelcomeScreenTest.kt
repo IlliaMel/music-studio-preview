@@ -15,13 +15,12 @@ class WelcomeScreenTest {
     @get:Rule val compose = createComposeRule()
 
     @Test
-    fun `welcome offers Google and demo without extra onboarding choices`() {
+    fun `welcome requires server sign in without a local demo entry`() {
         var intent: WelcomeIntent? = null
         compose.setContent { StudioTheme { WelcomeScreen(WelcomeState(), onIntent = { intent = it }) } }
         compose.onNodeWithText("Continue with local server").performClick()
         assertEquals(WelcomeIntent.ContinueWithGoogleClicked, intent)
-        compose.onNodeWithText("Try the demo").performClick()
-        assertEquals(WelcomeIntent.TryDemoClicked, intent)
+        compose.onNodeWithText("Try the demo").assertDoesNotExist()
         compose.onNodeWithText("18+").assertDoesNotExist()
     }
 }
