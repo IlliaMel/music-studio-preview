@@ -47,7 +47,7 @@ import com.illiamelnyk.studio.feature.create.presentation.CreatePreviewData
 
 /**
  * The composer at the bottom of Create, over a fade of the screen color so the list scrolls away
- * under it. It expands while it has focus or a prompt: then the [options] row shows above
+ * under it. It expands while it has focus, a prompt or a selected source: then the [options] row shows above
  * the field, with Enhance, Lyrics and the character count in the actions. [ComposerUi.notice] says
  * why a prompt can't be sent, such as no credits left.
  *
@@ -71,7 +71,8 @@ fun ComposerBar(
     val dimens = StudioTheme.dimens
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
-    val expanded = focused || composer.prompt.isNotEmpty() || composer.lyricsMode == LyricsMode.Custom
+    val expanded = focused || composer.prompt.isNotEmpty() || composer.lyricsMode == LyricsMode.Custom ||
+        composer.referenceLabel != null || composer.remixSources.isNotEmpty()
     Column(
         modifier = modifier
             .fillMaxWidth()

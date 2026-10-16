@@ -5,9 +5,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotFocused
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.hasScrollToIndexAction
@@ -22,11 +25,13 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.create.domain.Tool
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -46,23 +51,59 @@ class CreateScreenTest {
     private var state by mutableStateOf(CreateState(tracks = CreatePreviewData.tracks, isLoading = false))
 
     @Test
-    fun remixSourcesShowSeparateNamedChipsAndRemoveOnlyTheTappedSource() {
+    fun remixSourcesShowWithoutPromptOrFocusAndRemovingLastSourceCollapsesComposer() {
         val first = RemixSourceUi(TrackId("first-original"), "First original")
         val second = RemixSourceUi(TrackId("second-original"), "Second original")
-        state =
-            state.copy(
-                composer = ComposerUi(
-                    prompt = "Blend these original tracks",
-                    remixSources = persistentListOf(first, second),
-                ),
-            )
-        show()
-        composeRule.onNodeWithText(first.title).assertExists()
-        composeRule.onNodeWithText(second.title).assertExists()
+        state = state.copy(composer = ComposerUi(remixSources = persistentListOf(first, second)))
+        show { intent ->
+            if (intent is CreateIntent.RemixSourceRemoved) {
+                state = state.copy(
+                    composer = state.composer.copy(
+                        remixSources = state.composer.remixSources.filterNot { it.id == intent.id }.toImmutableList(),
+                    ),
+                )
+            }
+        }
+        composeRule.onNode(hasSetTextAction()).assertIsNotFocused()
+        composeRule.onNodeWithText(first.title).assertIsDisplayed()
+        composeRule.onNodeWithText(second.title).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(string(R.string.ui_send)).assertIsDisplayed()
         composeRule.onNodeWithContentDescription(
             composeRule.activity.getString(R.string.ui_remove, second.title),
-        ).performClick()
+        ).performTouchInput { click() }
         assertEquals(CreateIntent.RemixSourceRemoved(second.id), intents.last())
+        composeRule.onNodeWithText(second.title).assertDoesNotExist()
+        composeRule.onNodeWithText(first.title).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(
+            composeRule.activity.getString(R.string.ui_remove, first.title),
+        ).performTouchInput { click() }
+        assertEquals(CreateIntent.RemixSourceRemoved(first.id), intents.last())
+        composeRule.onNodeWithText(first.title).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription(string(R.string.ui_send)).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription(string(R.string.create_composer_settings)).assertIsDisplayed()
+        composeRule.onNode(hasSetTextAction()).assertIsNotFocused()
+    }
+
+    @Test
+    fun audioReferenceShowsWithoutPromptOrFocusAndCanBeRemovedByPointer() {
+        val title = "Saved audio reference"
+        state = state.copy(composer = ComposerUi(referenceLabel = title))
+        show { intent ->
+            if (intent == CreateIntent.ReferenceRemoved) {
+                state = state.copy(composer = state.composer.copy(referenceLabel = null))
+            }
+        }
+        composeRule.onNode(hasSetTextAction()).assertIsNotFocused()
+        composeRule.onNodeWithText(title).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(string(R.string.ui_send)).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(
+            composeRule.activity.getString(R.string.ui_remove, title),
+        ).performTouchInput { click() }
+        assertEquals(CreateIntent.ReferenceRemoved, intents.last())
+        composeRule.onNodeWithText(title).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription(string(R.string.ui_send)).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription(string(R.string.create_composer_settings)).assertIsDisplayed()
+        composeRule.onNode(hasSetTextAction()).assertIsNotFocused()
     }
 
     @Test
@@ -164,9 +205,14 @@ class CreateScreenTest {
         composeRule.onNodeWithContentDescription(string(R.string.create_composer_lyrics)).assertExists()
     }
 
-    private fun show() {
+    private fun show(onIntent: (CreateIntent) -> Unit = {}) {
         composeRule.setContent {
-            StudioTheme(darkTheme = true) { CreateScreen(state = state, onIntent = { intents += it }) }
+            StudioTheme(darkTheme = true) {
+                CreateScreen(state = state, onIntent = {
+                    intents += it
+                    onIntent(it)
+                })
+            }
         }
     }
 
