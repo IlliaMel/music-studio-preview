@@ -182,6 +182,9 @@ class ProfileViewModelTest {
     fun `sign out IO failure resets busy state and offers retry`() = runTest(main.testDispatcher) {
         val failing = object : SessionRepository by sessions {
             override suspend fun signOut() = throw java.io.IOException("simulated store failure")
+            override suspend fun signOutIfCurrent(
+                expectedOwner: com.illiamelnyk.studio.core.domain.session.UserId?,
+            ): Boolean = throw java.io.IOException("simulated store failure")
         }
         val vm = viewModel(failing)
         runCurrent()

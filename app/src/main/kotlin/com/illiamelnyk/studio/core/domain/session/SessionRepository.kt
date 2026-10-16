@@ -19,4 +19,7 @@ interface SessionRepository {
 
     /** Signs out on this device; it always succeeds. */
     suspend fun signOut()
+
+    /** Atomically signs out only if the expected owner is still current. */
+    suspend fun signOutIfCurrent(expectedOwner: UserId?): Boolean
 }

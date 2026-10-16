@@ -15,12 +15,19 @@ class DeleteAccount(
     private val drafts: ComposerDraftStore? = null,
 ) {
     suspend operator fun invoke(): Outcome<Unit> = withContext(NonCancellable) {
+        val owner = sessions.session.first()?.user?.id
+        val draftOwner = drafts?.currentOwner
         val ids = tracks.observeMine().first().map { it.id }
         val result = sessions.deleteAccount()
-        if (result is Outcome.Success || sessions.session.first() == null) {
-            drafts?.clear()
-            playback.stop()
-            ids.forEach { tracks.delete(it) }
+        val currentOwner = sessions.session.first()?.user?.id
+        if ((result is Outcome.Success || currentOwner == null) && (currentOwner == null || currentOwner == owner)) {
+            drafts?.clearIfOwner(draftOwner)
+            playback.stopDurably()
+            for (id in ids) {
+                val active = sessions.session.first()?.user?.id
+                if (active != null && active != owner) break
+                tracks.delete(id)
+            }
         }
         result
     }

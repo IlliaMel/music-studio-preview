@@ -8,6 +8,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.presentation.ObserveEffects
@@ -47,6 +48,8 @@ fun WelcomeRoute(
                 } catch (cancelled: CancellationException) {
                     viewModel.onIntent(WelcomeIntent.GoogleCredentialCancelled(effect.requestId))
                     throw cancelled
+                } catch (_: NoCredentialException) {
+                    viewModel.onIntent(WelcomeIntent.GoogleCredentialFailed(effect.requestId, AppError.Unauthorized))
                 } catch (_: GetCredentialException) {
                     viewModel.onIntent(WelcomeIntent.GoogleCredentialFailed(effect.requestId, AppError.Unauthorized))
                 } catch (_: Exception) {

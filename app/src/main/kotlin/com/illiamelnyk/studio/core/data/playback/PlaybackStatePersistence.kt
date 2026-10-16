@@ -15,9 +15,19 @@ internal class PlaybackStatePersistence(
     private val writer: PlaybackPersistenceWriter = PlaybackPersistenceWriter.shared,
 ) {
     private val failure = AtomicReference<Throwable?>()
-    private val lease = Any()
+    private val identityLock = Any()
+    private val flushLock = Any()
 
-    fun claim(owner: String) = writer.claim(preferences, playbackPreferenceKey(owner), lease)
+    @Volatile private var lease = Any()
+    private class Removal(val owner: String, val generation: Long, val lease: Any)
+    private val removals = mutableMapOf<String, Removal>()
+
+    fun claim(owner: String) {
+        synchronized(identityLock) {
+            lease = Any()
+            writer.claim(preferences, playbackPreferenceKey(owner), lease)
+        }
+    }
 
     fun owns(owner: String): Boolean = writer.owns(preferences, playbackPreferenceKey(owner), lease)
 
@@ -30,14 +40,24 @@ internal class PlaybackStatePersistence(
     fun pending(key: String): Boolean = writer.pending(preferences, key)
 
     fun write(key: String, value: String, owner: String, generation: Long, current: () -> Boolean) {
+        val capturedLease = synchronized(identityLock) { lease }
         writer.enqueue(preferences, key, value, failure) {
-            current() && owns(owner) && ownerId() == owner && playbackStateGeneration(owner) == generation
+            current() && writer.owns(preferences, playbackPreferenceKey(owner), capturedLease) &&
+                ownerId() == owner && playbackStateGeneration(owner) == generation
         }
     }
 
     fun removeQueue(owner: String, generation: Long) {
-        writer.enqueue(preferences, playbackPreferenceKey(owner), null, failure) {
-            owns(owner) && playbackStateGeneration(owner) == generation
+        val removal = synchronized(identityLock) {
+            Removal(owner, generation, lease).also { removals[owner] = it }
+        }
+        enqueueRemoval(removal)
+    }
+
+    private fun enqueueRemoval(removal: Removal) {
+        writer.enqueue(preferences, playbackPreferenceKey(removal.owner), null, failure) {
+            writer.owns(preferences, playbackPreferenceKey(removal.owner), removal.lease) &&
+                playbackStateGeneration(removal.owner) == removal.generation
         }
     }
 
@@ -54,8 +74,15 @@ internal class PlaybackStatePersistence(
 
     /** Explicit durability boundary. Call only after releasing the playback lock. */
     fun flush() {
-        writer.flush()
-        failure.getAndSet(null)?.let { throw IOException("Cannot persist playback state", it) }
+        synchronized(flushLock) {
+            val pending = synchronized(identityLock) { removals.values.toList() }
+            pending.forEach(::enqueueRemoval)
+            writer.flush()
+            failure.getAndSet(null)?.let { throw IOException("Cannot persist playback state", it) }
+            synchronized(identityLock) {
+                pending.forEach { if (removals[it.owner] === it) removals.remove(it.owner) }
+            }
+        }
     }
 }
 

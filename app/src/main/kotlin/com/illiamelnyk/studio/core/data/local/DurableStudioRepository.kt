@@ -667,17 +667,24 @@ class DurableStudioRepository(
     }
 
     override suspend fun signOut() {
-        withContext(dispatcher) {
-            mutex.withLock {
-                val token = state.value?.token
-                store.change {
-                    it.remove("active")
-                }
-                state.value = null
-                api.clearClientSession(token)
-                reconcileGenerationWork()
-                recordNotifications()
+        signOutCurrent(null, checkOwner = false)
+    }
+
+    override suspend fun signOutIfCurrent(expectedOwner: UserId?): Boolean =
+        signOutCurrent(expectedOwner, checkOwner = true)
+
+    private suspend fun signOutCurrent(expectedOwner: UserId?, checkOwner: Boolean): Boolean = withContext(dispatcher) {
+        mutex.withLock {
+            if (checkOwner && state.value?.session?.user?.id != expectedOwner) return@withLock false
+            val token = state.value?.token
+            store.change {
+                it.remove("active")
             }
+            state.value = null
+            api.clearClientSession(token)
+            reconcileGenerationWork()
+            recordNotifications()
+            true
         }
     }
 

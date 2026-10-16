@@ -190,6 +190,20 @@ class PlaybackStatePersistenceTest {
         }
     }
 
+    @Test
+    fun explicitSameAdapterClaimInvalidatesPreviouslyQueuedWrite() {
+        withBlockedWriter { writer, release ->
+            val preferences = preferences("same-adapter-new-lease")
+            val persistence = PlaybackStatePersistence(preferences, { "owner" }, writer)
+            persistence.claim("owner")
+            persistence.write("queue", "old-claim", "owner", playbackStateGeneration("owner")) { true }
+            persistence.claim("owner")
+            release.countDown()
+            persistence.flush()
+            assertFalse(preferences.contains("queue"))
+        }
+    }
+
     private fun preferences(name: String): SharedPreferences =
         context.getSharedPreferences("playback-writer-$name", Context.MODE_PRIVATE).apply { edit().clear().commit() }
 

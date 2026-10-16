@@ -59,6 +59,9 @@ interface PlaybackController {
 
     /** Stops and clears the queue: nothing is loaded afterwards. */
     fun stop()
+
+    /** Stops native playback and awaits checked persistence without blocking the UI thread. */
+    suspend fun stopDurably() = stop()
 }
 
 data class PlaybackResumption(val mediaId: String, val state: PlaybackState)

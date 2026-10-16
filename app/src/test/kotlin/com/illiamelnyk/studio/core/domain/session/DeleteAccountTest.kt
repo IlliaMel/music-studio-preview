@@ -11,6 +11,7 @@ import com.illiamelnyk.studio.feature.player.fake.track
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
@@ -117,5 +118,76 @@ class DeleteAccountTest {
         assertTrue(tracks.observeMine().first().isEmpty())
         assertTrue(playback.state.value.queue.isEmpty())
         assertFalse(playback.state.value.isPlaying)
+    }
+
+    @Test
+    fun replacementAccountSurvivesCompletionOfAnOlderAccountDeletion() = runTest {
+        val sessions = FakeSessionRepository()
+        sessions.signIn("first", SignInMethod.Google, "First", useProviderProfile = true)
+        var draftOwner = sessions.session.first()!!.user.id.value
+        val deleted = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val deleting = object : SessionRepository by sessions {
+            override suspend fun deleteAccount(): Outcome<Unit> {
+                val result = sessions.deleteAccount()
+                deleted.complete(Unit)
+                release.await()
+                return result
+            }
+        }
+        val tracks = FakeTrackRepository(FakeCreditsRepository(), sessions, backgroundScope, Clock.System)
+        val playback = FakePlaybackController(backgroundScope)
+        val drafts = ComposerDraftStore { draftOwner }.apply { remix(track("deleted-owner-source", 20.seconds)) }
+        val result = async { DeleteAccount(deleting, playback, tracks, drafts)() }
+        deleted.await()
+        sessions.signIn("replacement", SignInMethod.Google, "Replacement", useProviderProfile = true)
+        val replacementOwner = sessions.session.first()!!.user.id
+        draftOwner = replacementOwner.value
+        val replacementSource = track("replacement-owner-source", 20.seconds)
+        drafts.remix(replacementSource)
+        val replacementTracks = tracks.observeMine().first()
+        playback.play(replacementTracks)
+        release.complete(Unit)
+        assertEquals(Outcome.Success(Unit), result.await())
+        assertEquals(replacementOwner, sessions.session.first()!!.user.id)
+        assertEquals(listOf(replacementSource), drafts.sources.value)
+        assertEquals(replacementTracks, tracks.observeMine().first())
+        assertEquals(replacementTracks, playback.state.value.queue)
+        assertTrue(playback.state.value.isPlaying)
+    }
+
+    @Test
+    fun replacementAccountTracksSurviveAnOlderDeletionDurabilityWait() = runTest {
+        val sessions = FakeSessionRepository()
+        sessions.signIn("first", SignInMethod.Google, "First", useProviderProfile = true)
+        var draftOwner = sessions.session.first()!!.user.id.value
+        val tracks = FakeTrackRepository(FakeCreditsRepository(), sessions, backgroundScope, Clock.System)
+        val native = FakePlaybackController(backgroundScope)
+        val stopped = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val playback = object : com.illiamelnyk.studio.core.domain.playback.PlaybackController by native {
+            override suspend fun stopDurably() {
+                native.stop()
+                stopped.complete(Unit)
+                release.await()
+            }
+        }
+        val drafts = ComposerDraftStore { draftOwner }.apply { remix(track("old-deleted-source", 20.seconds)) }
+        val result = async { DeleteAccount(sessions, playback, tracks, drafts)() }
+        stopped.await()
+        sessions.signIn("replacement", SignInMethod.Google, "Replacement", useProviderProfile = true)
+        val replacementOwner = sessions.session.first()!!.user.id
+        draftOwner = replacementOwner.value
+        val source = track("replacement-after-stop", 20.seconds)
+        drafts.remix(source)
+        val replacementTracks = tracks.observeMine().first()
+        native.play(replacementTracks)
+        release.complete(Unit)
+        assertEquals(Outcome.Success(Unit), result.await())
+        assertEquals(replacementOwner, sessions.session.first()!!.user.id)
+        assertEquals(listOf(source), drafts.sources.value)
+        assertEquals(replacementTracks, tracks.observeMine().first())
+        assertEquals(replacementTracks, native.state.value.queue)
+        assertTrue(native.state.value.isPlaying)
     }
 }

@@ -60,6 +60,19 @@ class DurableStudioRepositoryTest {
     }
 
     @Test
+    fun guardedSignOutRejectsAnotherOwnerAndPersistsMatchingLogout() = runTest {
+        val repository = DurableStudioRepository(context, StudioStore(context), StudioApi(context), backgroundScope)
+        repository.signInDemo()
+        val owner = repository.session.first()!!.user.id
+        assertFalse(repository.signOutIfCurrent(com.illiamelnyk.studio.core.domain.session.UserId("stale-owner")))
+        assertEquals(owner, repository.session.first()!!.user.id)
+        assertEquals(owner.value, StudioStore(context).read().getString("active"))
+        assertTrue(repository.signOutIfCurrent(owner))
+        assertNull(repository.session.first())
+        assertFalse(StudioStore(context).read().has("active"))
+    }
+
+    @Test
     fun signOutHidesPrivateStateAndSignInRestoresLikesAndPlaylists() = runTest {
         val repo = DurableStudioRepository(context, StudioStore(context), StudioApi(context), backgroundScope)
         repo.signInDemo()

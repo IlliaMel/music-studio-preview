@@ -85,6 +85,12 @@ class FakeSessionRepository : SessionRepository {
         return Outcome.Success(Unit)
     }
 
+    override suspend fun signOutIfCurrent(expectedOwner: UserId?): Boolean {
+        val snapshot = current.value
+        if (snapshot?.user?.id != expectedOwner) return false
+        return current.compareAndSet(snapshot, null)
+    }
+
     override suspend fun signOut() {
         current.value = null
     }

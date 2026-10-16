@@ -53,6 +53,13 @@ class ComposerDraftStore(private val ownerId: () -> String? = { null }) {
         reset()
     }
 
+    @Synchronized
+    fun clearIfOwner(expectedOwner: String?): Boolean {
+        if (checkOwner() != expectedOwner) return false
+        reset()
+        return true
+    }
+
     fun refreshOwner() {
         checkOwner()
     }

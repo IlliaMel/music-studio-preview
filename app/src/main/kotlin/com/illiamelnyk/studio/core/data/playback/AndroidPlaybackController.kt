@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class AndroidPlaybackController(
     private val context: android.content.Context,
@@ -480,6 +481,16 @@ class AndroidPlaybackController(
 
     override fun stop() {
         val nested = Thread.holdsLock(playbackLock)
+        stopInternal()
+        if (!nested) flushPersistence()
+    }
+
+    override suspend fun stopDurably() {
+        withContext(kotlinx.coroutines.Dispatchers.Main.immediate) { stopInternal() }
+        withContext(kotlinx.coroutines.Dispatchers.IO) { flushPersistence() }
+    }
+
+    private fun stopInternal() {
         synchronized(playbackLock) {
             persistenceEpoch.incrementAndGet()
             persistAutoplay()
@@ -501,7 +512,6 @@ class AndroidPlaybackController(
             playbackOwner?.let { persistence.removeQueue(it, playbackGeneration) }
             playbackOwner = null
         }
-        if (!nested) flushPersistence()
     }
 
     private fun flushPersistence() {
