@@ -1,5 +1,6 @@
 package com.illiamelnyk.studio.core.ui.components
 
+import androidx.activity.BackEventCompat
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,7 +27,9 @@ import androidx.compose.ui.unit.Density
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.create.presentation.common.OverlaySheet
+import kotlin.math.abs
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -222,6 +225,30 @@ class OverlaysTest {
 
         assertEquals(1, clicks)
         assertEquals(0, dismissals)
+    }
+
+    @Test
+    fun cancelledPredictiveBackRestoresSheetBoundsAndLeavesItUsable() {
+        showSheet()
+        val original = composeRule.onNodeWithText(SHEET_TEXT).fetchSemanticsNode().boundsInRoot
+        composeRule.mainClock.autoAdvance = false
+        composeRule.runOnUiThread {
+            val dispatcher = composeRule.activity.onBackPressedDispatcher
+            dispatcher.dispatchOnBackStarted(BackEventCompat(0f, 0f, 0f, BackEventCompat.EDGE_LEFT))
+            dispatcher.dispatchOnBackProgressed(BackEventCompat(0f, 0f, 0.9f, BackEventCompat.EDGE_LEFT))
+        }
+        composeRule.mainClock.advanceTimeBy(100)
+        val preview = composeRule.onNodeWithText(SHEET_TEXT).fetchSemanticsNode().boundsInRoot
+        assertTrue("Progress must visibly shrink the sheet", preview.width < original.width)
+        composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.dispatchOnBackCancelled() }
+        composeRule.mainClock.advanceTimeBy(1_000)
+        val restored = composeRule.onNodeWithText(SHEET_TEXT).fetchSemanticsNode().boundsInRoot
+        assertEquals(0, dismissals)
+        assertTrue("Cancelled preview restores the full width", abs(original.width - restored.width) < 1f)
+        composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.mainClock.advanceTimeBy(1_000)
+        assertEquals(1, dismissals)
+        composeRule.onNodeWithText(SHEET_TEXT).assertDoesNotExist()
     }
 
     private fun showSheet() {

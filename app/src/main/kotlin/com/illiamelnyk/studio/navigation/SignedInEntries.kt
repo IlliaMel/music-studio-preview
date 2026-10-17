@@ -2,6 +2,7 @@ package com.illiamelnyk.studio.navigation
 
 import androidx.compose.runtime.State
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
@@ -35,7 +36,10 @@ fun signedInEntries(
             onOpenTool = { tool -> navigator.navigate(Destination.Tool(tool.name)) },
             onOpenTools = { navigator.navigate(Destination.Tools) },
             onOpenPlayer = onOpenPlayer,
-            modifier = Modifier.destination(StudioTheme.colors.background, contentPadding),
+            modifier = Modifier.destination(StudioTheme.colors.background, contentPadding).drawWithContent {
+                drawContent()
+                if (navigator.current == Destination.Create) NavigationRenderProbe.firstDraw(TopLevelTab.Create)
+            },
             contentPadding = contentPadding,
         )
     }
@@ -44,7 +48,10 @@ fun signedInEntries(
         ListenRoute(
             onOpenCollection = { id -> navigator.navigate(Destination.Collection(id)) },
             onOpenPlayer = onOpenPlayer,
-            modifier = Modifier.destination(StudioTheme.colors.background, contentPadding),
+            modifier = Modifier.destination(StudioTheme.colors.background, contentPadding).drawWithContent {
+                drawContent()
+                if (navigator.current == Destination.Listen) NavigationRenderProbe.firstDraw(TopLevelTab.Listen)
+            },
             contentPadding = contentPadding,
         )
     }

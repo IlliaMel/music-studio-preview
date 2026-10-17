@@ -45,6 +45,7 @@ fun StudioChip(
     @DrawableRes leadingIcon: Int? = null,
     leadingAvatar: (@Composable () -> Unit)? = null,
     onRemove: (() -> Unit)? = null,
+    comingSoon: Boolean = false,
 ) {
     val colors = StudioTheme.colors
     val spacing = StudioTheme.dimens.spacing
@@ -75,6 +76,7 @@ fun StudioChip(
             maxLines = 1,
             modifier = if (onRemove != null) Modifier.weight(1f, fill = false) else Modifier,
         )
+        if (comingSoon) StudioSoonBadge()
         if (onRemove != null) {
             StudioIcon(
                 icon = StudioIcons.Close,

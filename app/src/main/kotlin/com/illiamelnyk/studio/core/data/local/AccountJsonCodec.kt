@@ -12,6 +12,27 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 internal object AccountJsonCodec {
+    fun decodeCached(ownerId: String, json: JSONObject?): AccountSnapshot? {
+        if (json == null) return null
+        return try {
+            json.requireObjectArray("tracks")
+            json.requireObjectArray("playlists").forEach { it.requireObjectArray("tracks") }
+            decode(json).also { require(it.session.user.id.value == ownerId) }
+        } catch (_: org.json.JSONException) {
+            android.util.Log.w("StudioData", "Ignoring invalid cached account")
+            null
+        } catch (_: IllegalArgumentException) {
+            android.util.Log.w("StudioData", "Ignoring invalid cached account")
+            null
+        }
+    }
+
+    private fun JSONObject.requireObjectArray(name: String): List<JSONObject> {
+        if (!has(name)) return emptyList()
+        val array = getJSONArray(name)
+        return List(array.length()) { array.getJSONObject(it) }
+    }
+
     fun decode(json: JSONObject): AccountSnapshot = AccountSnapshot(
         session = json.getJSONObject("profile").toSession(
             dataMode = when {

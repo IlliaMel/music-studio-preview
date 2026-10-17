@@ -2,6 +2,8 @@ package com.illiamelnyk.studio.navigation
 
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -23,9 +25,7 @@ import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 /**
  * How screens replace each other, from the motion tokens. A screen opened on top slides in from the
  * end and fades in over the screen below, which stays opaque and drifts back; going back reverses
- * it. Tabs sit side by side rather than on top of each other, so switching them fades through: the
- * old tab fades out before the new one fades in. Only one screen is ever translucent, so no frame
- * shows two screens washed out over each other.
+ * it. Tabs switch immediately so their content or loading skeleton is visible on the next frame.
  */
 @Stable
 class ShellTransitions(motion: StudioMotion, layoutDirection: LayoutDirection) {
@@ -49,12 +49,16 @@ class ShellTransitions(motion: StudioMotion, layoutDirection: LayoutDirection) {
             (slideOutHorizontally(slide) { fromEnd * it / ENTER_FRACTION } + fadeOut(fade))
     }
 
-    /** Switching between tabs, or between the flows of the app. */
+    val tabChange: AnimatedContentTransitionScope<*>.() -> ContentTransform = {
+        EnterTransition.None togetherWith ExitTransition.None
+    }
+
+    /** Switching between the flows of the app. */
     val fadeThrough: AnimatedContentTransitionScope<*>.() -> ContentTransform = {
         fadeIn(fadeInAfter) togetherWith fadeOut(fadeOutFirst)
     }
 
-    /** Metadata of a tab's first screen: arriving at it or leaving it fades through. */
+    /** Tab selection replaces its root without waiting for an exit animation. */
     val tabRoot: Map<String, Any> = tabRootWhile { true }
 
     /**
@@ -63,8 +67,8 @@ class ShellTransitions(motion: StudioMotion, layoutDirection: LayoutDirection) {
      * time the screen comes or goes, so it follows a change of variant.
      */
     fun tabRootWhile(isTabRoot: () -> Boolean): Map<String, Any> =
-        NavDisplay.transitionSpec { if (isTabRoot()) fadeThrough() else null } +
-            NavDisplay.popTransitionSpec { if (isTabRoot()) fadeThrough() else null }
+        NavDisplay.transitionSpec { if (isTabRoot()) tabChange() else null } +
+            NavDisplay.popTransitionSpec { if (isTabRoot()) tabChange() else null }
 
     private companion object {
         /** The new screen starts a third of the width away. */

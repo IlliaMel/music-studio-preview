@@ -22,11 +22,11 @@ import com.illiamelnyk.studio.core.ui.components.Carousel
 import com.illiamelnyk.studio.core.ui.components.SectionHeader
 import com.illiamelnyk.studio.core.ui.components.StudioBadge
 import com.illiamelnyk.studio.core.ui.components.StudioButton
-import com.illiamelnyk.studio.core.ui.components.StudioLinearProgress
 import com.illiamelnyk.studio.core.ui.components.TrackCard
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.listen.presentation.collection.components.CollectionActions
 import com.illiamelnyk.studio.feature.listen.presentation.collection.components.CollectionHeader
+import com.illiamelnyk.studio.feature.listen.presentation.collection.components.CollectionSkeleton
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -40,7 +40,7 @@ fun CollectionScreen(
     Column(modifier.fillMaxSize().padding(top = contentPadding.calculateTopPadding())) {
         BackTopBar(onBack = { onIntent(CollectionIntent.BackClicked) })
         LazyColumn(contentPadding = contentPadding.withoutTop()) {
-            if (state.isLoading) item(key = "loading") { StudioLinearProgress() }
+            if (state.isLoading && state.collection == null) item(key = "loading") { CollectionSkeleton() }
             if (state.failed) {
                 item(key = "error") {
                     StudioButton(stringResource(R.string.listen_retry), onClick = { onIntent(CollectionIntent.Retry) })

@@ -2,6 +2,7 @@ package com.illiamelnyk.studio.feature.listen.presentation.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -29,7 +30,11 @@ fun CatalogSectionRow(
     Column(modifier, verticalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.s)) {
         SectionHeader(
             stringResource(section.kind.titleResource()),
-            modifier = padding,
+            modifier = if (section.kind == CatalogSectionKind.Stations) {
+                padding
+            } else {
+                padding.heightIn(min = StudioTheme.dimens.size.touchTarget)
+            },
             onTitleClick = if (!section.isLoading &&
                 !section.failed &&
                 section.kind != CatalogSectionKind.Stations &&
@@ -41,7 +46,7 @@ fun CatalogSectionRow(
             },
         )
         when {
-            section.isLoading -> CatalogSkeletonRow()
+            section.isLoading -> CatalogSkeletonRow(section.kind)
 
             section.failed -> Column(padding) {
                 StudioText(stringResource(R.string.listen_section_error), StudioTheme.typography.bodyMedium)

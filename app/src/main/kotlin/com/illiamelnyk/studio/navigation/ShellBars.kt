@@ -67,7 +67,12 @@ fun ShellTopBar(
                 TopLevelTab.Create -> CreditsCounter(left = creditsLeft)
 
                 TopLevelTab.Listen -> {
-                    StudioIconButton(StudioIcons.Search, stringResource(R.string.listen_search), onSearchClick)
+                    StudioIconButton(
+                        StudioIcons.Search,
+                        stringResource(R.string.listen_search),
+                        onSearchClick,
+                        comingSoon = true,
+                    )
                     if (TopLevelTab.Library !in variant.tabs) {
                         StudioIconButton(StudioIcons.Bookmark, stringResource(R.string.nav_library), onLibraryClick)
                     }

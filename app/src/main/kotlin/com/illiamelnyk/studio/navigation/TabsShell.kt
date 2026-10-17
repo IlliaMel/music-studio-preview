@@ -127,6 +127,7 @@ fun TabsShell(
                             .glassBackdrop(backdrop),
                         transitionSpec = transitions.push,
                         popTransitionSpec = transitions.pop,
+                        predictivePopTransitionSpec = { _ -> transitions.pop(this) },
                         onBack = { navigator.goBack() },
                     )
                 },

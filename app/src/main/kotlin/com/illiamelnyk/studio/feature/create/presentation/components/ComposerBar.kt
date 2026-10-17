@@ -138,6 +138,7 @@ fun ComposerBar(
                         options = listOf(R.string.create_mode_create, R.string.create_soon_muse),
                         selected = R.string.create_mode_create,
                         onSelect = { if (it == R.string.create_soon_muse) onMuseClick() },
+                        isComingSoon = { it == R.string.create_soon_muse },
                         compact = true,
                     ) { stringResource(it) }
                 }
@@ -149,7 +150,12 @@ fun ComposerBar(
                     exit = fadeOut(tween(StudioTheme.motion.duration.short)) + shrinkHorizontally(),
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs)) {
-                        ComposerAction(StudioIcons.AutoAwesome, R.string.create_composer_enhance, onEnhanceClick)
+                        ComposerAction(
+                            StudioIcons.AutoAwesome,
+                            R.string.create_composer_enhance,
+                            onEnhanceClick,
+                            comingSoon = true,
+                        )
                         ComposerAction(StudioIcons.Notes, R.string.create_composer_lyrics, onLyricsClick)
                     }
                 }
@@ -172,12 +178,14 @@ private fun ComposerAction(
     @StringRes description: Int,
     onClick: () -> Unit,
     style: StudioIconButtonStyle = StudioIconButtonStyle.Muted,
+    comingSoon: Boolean = false,
 ) {
     StudioIconButton(
         icon = icon,
         contentDescription = stringResource(description),
         onClick = onClick,
         style = style,
+        comingSoon = comingSoon,
         size = if (style == StudioIconButtonStyle.Surface) StudioIconButtonSize.Medium else StudioIconButtonSize.Small,
     )
 }

@@ -9,6 +9,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.platform.LocalDensity
 import com.illiamelnyk.studio.core.ui.foundation.LocalStudioContentColor
 import com.illiamelnyk.studio.core.ui.foundation.PressScaleIndication
 
@@ -22,6 +23,20 @@ import com.illiamelnyk.studio.core.ui.foundation.PressScaleIndication
 @Composable
 fun StudioTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     val colors = remember(darkTheme) { if (darkTheme) darkStudioColors() else lightStudioColors() }
+    val density = LocalDensity.current
+    val dimens = remember(density) {
+        val textHeight = with(density) {
+            Typography.titleSmall.lineHeight.toDp() +
+                Typography.bodySmall.lineHeight.toDp()
+        }
+        Dimens.copy(
+            size = Dimens.size.copy(
+                component = Dimens.size.component.copy(
+                    miniPlayer = maxOf(Dimens.size.component.miniPlayer, textHeight + Dimens.spacing.m),
+                ),
+            ),
+        )
+    }
     val selectionColors = remember(colors) {
         TextSelectionColors(handleColor = colors.content.primary, backgroundColor = colors.outline.strong)
     }
@@ -31,7 +46,7 @@ fun StudioTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable
     CompositionLocalProvider(
         LocalStudioColors provides colors,
         LocalStudioTypography provides Typography,
-        LocalStudioDimens provides Dimens,
+        LocalStudioDimens provides dimens,
         LocalStudioShapes provides Shapes,
         LocalStudioMotion provides Motion,
         LocalStudioEffects provides Effects,
@@ -84,7 +99,7 @@ internal val LocalStudioEffects = staticCompositionLocalOf<StudioEffects> { miss
 
 internal fun missingTheme(): Nothing = error("StudioTheme is missing: wrap the content in StudioTheme { }")
 
-// Only the colors depend on the scheme; the rest is created once.
+// Base tokens; the provided mini-player height also follows the system text scale.
 private val Typography = StudioTypography()
 private val Dimens = StudioDimens()
 private val Shapes = StudioShapes()

@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -40,10 +41,11 @@ class CachedCatalogRepository(
 ) : CatalogRepository {
     private val cache = CatalogPublicCache(context, api.baseUrl)
     private val mutex = Mutex()
-    private val updates = MutableStateFlow<CatalogSnapshot?>(null)
+    private val updates = MutableStateFlow<Pair<String, CatalogSnapshot>?>(null)
     private var last: CatalogSnapshot? = null
     private var lastOwner: String? = null
-    private var validUntil = 0L
+
+    @Volatile private var validUntil = 0L
 
     override suspend fun refresh() {
         mutex.withLock { validUntil = 0L }
@@ -83,8 +85,11 @@ class CachedCatalogRepository(
                 emit(null)
                 return@flow
             }
+            val owner = session.user.id.value
+            val previous = updates.value?.takeIf { it.first == owner && validUntil != 0L }?.second
+            if (previous != null) emit(previous)
             emit(load(session))
-            emitAll(updates.filterNotNull())
+            emitAll(updates.filterNotNull().filter { it.first == owner }.map { it.second })
         }.distinctUntilChanged()
     }
 
@@ -129,8 +134,8 @@ class CachedCatalogRepository(
         data.registerCatalogTracks(snapshot.collections.flatMap { it.tracks }.distinctBy { it.id })
         lastOwner = owner
         last = snapshot
-        updates.value = snapshot
         validUntil = nowMillis() + ttl
+        updates.value = owner to snapshot
         return snapshot
     }
 }

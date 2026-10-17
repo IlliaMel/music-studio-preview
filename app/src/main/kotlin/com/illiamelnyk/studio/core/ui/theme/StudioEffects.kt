@@ -19,6 +19,7 @@ data class StudioEffects(val elevation: Elevation = Elevation(), val glow: Glow 
         val floating: DropShadow = DropShadow(offsetY = 12.dp, blur = 32.dp, color = rgba(0, 0, 0, 0.4f)),
         /** Menus and popovers. */
         val menu: DropShadow = DropShadow(offsetY = 16.dp, blur = 40.dp, color = rgba(0, 0, 0, 0.5f)),
+        val popover: DropShadow = DropShadow(offsetY = 4.dp, blur = 12.dp, color = rgba(0, 0, 0, 0.16f)),
         /** The cover in a collection header and in the player. */
         val artwork: DropShadow = DropShadow(offsetY = 12.dp, blur = 24.dp, color = rgba(0, 0, 0, 0.45f)),
     )

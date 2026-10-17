@@ -9,17 +9,19 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.runtime.Composable
@@ -144,33 +146,44 @@ fun Composer(
                 )
                 if (expanded) additionalEditor?.invoke()
                 if (expanded || showSend) {
-                    Row(
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
-                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = if (expanded) Arrangement.SpaceBetween else Arrangement.End,
+                        verticalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
+                        itemVerticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (expanded) leading()
-                        Spacer(Modifier.weight(1f))
-                        if (characterLimit != null) {
-                            StudioText(
-                                text = stringResource(R.string.ui_character_count, value.length, characterLimit),
-                                style = StudioTheme.typography.bodySmall,
-                                color = if (overLimit) colors.error.content else colors.content.tertiary,
-                            )
+                        if (expanded) {
+                            Row(
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) { leading() }
                         }
-                        if (expanded) trailing()
-                        if (showSend) {
-                            StudioIconButton(
-                                icon = StudioIcons.ArrowUpward,
-                                contentDescription = stringResource(R.string.ui_send),
-                                onClick = {
-                                    onValueChange(editor.text.toString())
-                                    onSend()
-                                },
-                                style = StudioIconButtonStyle.Primary,
-                                size = StudioIconButtonSize.Small,
-                                enabled = sendEnabled && !overLimit,
-                            )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (characterLimit != null) {
+                                StudioText(
+                                    text = stringResource(R.string.ui_character_count, value.length, characterLimit),
+                                    style = StudioTheme.typography.bodySmall,
+                                    color = if (overLimit) colors.error.content else colors.content.tertiary,
+                                )
+                            }
+                            if (expanded) trailing()
+                            if (showSend) {
+                                StudioIconButton(
+                                    icon = StudioIcons.ArrowUpward,
+                                    contentDescription = stringResource(R.string.ui_send),
+                                    onClick = {
+                                        onValueChange(editor.text.toString())
+                                        onSend()
+                                    },
+                                    style = StudioIconButtonStyle.Primary,
+                                    size = StudioIconButtonSize.Small,
+                                    enabled = sendEnabled && !overLimit,
+                                )
+                            }
                         }
                     }
                 }

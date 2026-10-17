@@ -79,6 +79,7 @@ fun StudioButton(
     @DrawableRes icon: Int? = null,
     enabled: Boolean = true,
     loading: Boolean = false,
+    comingSoon: Boolean = false,
 ) {
     val colors = StudioTheme.colors
     val shape = StudioTheme.shapes.full
@@ -113,6 +114,7 @@ fun StudioButton(
                 icon != null -> StudioIcon(icon, contentDescription = null, size = metrics.iconSize)
             }
             StudioText(text, metrics.textStyle, maxLines = 1)
+            if (comingSoon) StudioSoonBadge()
         }
     }
 }

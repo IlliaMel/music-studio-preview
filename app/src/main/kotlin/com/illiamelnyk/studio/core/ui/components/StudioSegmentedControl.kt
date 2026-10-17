@@ -4,7 +4,10 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
@@ -21,6 +24,7 @@ import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.dp
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.foundation.minimumTouchTarget
 import com.illiamelnyk.studio.core.ui.theme.PreviewSurface
@@ -45,6 +49,7 @@ fun <T> StudioSegmentedControl(
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
+    isComingSoon: (T) -> Boolean = { false },
     label: @Composable (T) -> String,
 ) {
     require(options.isNotEmpty()) { "A segmented control needs at least one option" }
@@ -67,6 +72,7 @@ fun <T> StudioSegmentedControl(
                     text = label(option),
                     selected = option == selected,
                     compact = compact,
+                    comingSoon = isComingSoon(option),
                     onClick = { onSelect(option) },
                 )
             }
@@ -99,7 +105,7 @@ fun <T> StudioSegmentedControl(
 }
 
 @Composable
-private fun Segment(text: String, selected: Boolean, compact: Boolean, onClick: () -> Unit) {
+private fun Segment(text: String, selected: Boolean, compact: Boolean, comingSoon: Boolean, onClick: () -> Unit) {
     val colors = StudioTheme.colors
     val dimens = StudioTheme.dimens
     val motion = StudioTheme.motion
@@ -108,20 +114,29 @@ private fun Segment(text: String, selected: Boolean, compact: Boolean, onClick: 
         animationSpec = tween(motion.duration.medium, easing = motion.easing.standard),
         label = "segmentText",
     )
-    Box(
+    Row(
         modifier = Modifier
             .selectable(selected = selected, role = Role.Tab, onClick = onClick)
             // tokens.json has no size for a compact segment; the kit uses the 24 dp avatar.xs.
             .heightIn(min = if (compact) dimens.size.avatar.xs else dimens.size.component.segment)
             .padding(horizontal = if (compact) dimens.spacing.xs else dimens.spacing.m),
-        contentAlignment = Alignment.Center,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        StudioText(
-            text = text,
-            style = if (compact) StudioTheme.typography.labelMedium else StudioTheme.typography.labelLarge,
-            color = textColor,
-            maxLines = 1,
-        )
+        if (compact && comingSoon) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                StudioText(text, StudioTheme.typography.labelMedium, color = textColor, maxLines = 1)
+                StudioSoonBadge()
+            }
+        } else {
+            StudioText(
+                text = text,
+                style = if (compact) StudioTheme.typography.labelMedium else StudioTheme.typography.labelLarge,
+                color = textColor,
+                maxLines = 1,
+            )
+            if (comingSoon) StudioSoonBadge()
+        }
     }
 }
 

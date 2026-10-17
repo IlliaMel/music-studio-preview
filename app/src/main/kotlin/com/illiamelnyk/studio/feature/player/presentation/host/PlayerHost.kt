@@ -82,7 +82,7 @@ fun PlayerHost(modifier: Modifier = Modifier, content: @Composable (PlayerHostSc
     }
     PlayerExpansionRequests(host)
     PlayerSystemBars(onMedia = { sheet.expandedFraction > STATUS_BAR_COVERED })
-    PredictiveBackHandler(enabled = sheet.isExpanded) { progress -> sheet.collapseWithBack(progress) }
+    PredictiveBackHandler(enabled = sheet.handlesBack) { progress -> sheet.collapseWithBack(progress) }
 }
 
 @Composable

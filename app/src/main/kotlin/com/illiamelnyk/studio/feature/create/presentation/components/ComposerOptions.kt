@@ -66,6 +66,7 @@ fun ComposerOptions(
             stringResource(R.string.create_chip_styles),
             onStylesClick,
             leadingIcon = StudioIcons.AutoAwesome,
+            comingSoon = true,
         )
         if (lyricsMode == LyricsMode.Instrumental) {
             StudioChip(

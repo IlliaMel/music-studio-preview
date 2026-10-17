@@ -23,6 +23,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.toUpperCase
 import androidx.compose.ui.tooling.preview.PreviewLightDark
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.icons.StudioIcon
@@ -126,5 +128,21 @@ private fun StudioBadgePreview() {
             StudioBadge("Demo", style = StudioBadgeStyle.Demo)
             CreditsCounter(left = 25)
         }
+    }
+}
+
+@Composable
+fun StudioSoonBadge(modifier: Modifier = Modifier) {
+    Box(
+        modifier.background(StudioTheme.colors.surface.level4, StudioTheme.shapes.full)
+            .padding(horizontal = 4.dp, vertical = 1.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        StudioText(
+            stringResource(R.string.ui_soon),
+            StudioTheme.typography.labelSmall.copy(fontSize = 9.sp, lineHeight = 12.sp),
+            color = StudioTheme.colors.content.secondary,
+            maxLines = 1,
+        )
     }
 }

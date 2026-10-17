@@ -10,6 +10,7 @@ import com.illiamelnyk.studio.feature.listen.domain.CatalogSection
 import com.illiamelnyk.studio.feature.listen.domain.CatalogSectionKind
 import com.illiamelnyk.studio.testing.MainDispatcherRule
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -47,6 +48,21 @@ class ListenViewModelTest {
         assertEquals("new", vm.state.value.sections[1].collections.single().id)
     }
 
+    @Test fun slowCatalogKeepsEverySectionLoadingWithoutBlockingLocalActions() = runTest(main.testDispatcher) {
+        val catalog = SectionCatalog().apply { delayMillis = 5_000 }
+        val vm = ListenViewModel(catalog, FakePlaybackController(backgroundScope))
+        assertTrue(vm.state.value.sections.all { it.isLoading && !it.failed && it.collections.isEmpty() })
+        runCurrent()
+        vm.onIntent(ListenIntent.SearchClicked)
+        assertTrue(vm.state.value.searchVisible)
+        advanceTimeBy(4_999)
+        runCurrent()
+        assertTrue(vm.state.value.sections.all { it.isLoading && !it.failed })
+        advanceTimeBy(1)
+        runCurrent()
+        assertTrue(vm.state.value.sections.all { !it.isLoading && !it.failed && it.collections.size == 1 })
+    }
+
     @Test fun failedSectionRetryClearsOnlyItsError() = runTest(main.testDispatcher) {
         val catalog = SectionCatalog()
         catalog.failed = true
@@ -79,9 +95,11 @@ class ListenViewModelTest {
 private class SectionCatalog : CatalogRepository {
     var stalled: CatalogSectionKind? = null
     var failed = false
+    var delayMillis = 0L
     override fun observeCollections(): Flow<List<CatalogCollection>> = flowOf(emptyList())
     override fun observeCollection(id: String): Flow<CatalogCollection?> = flowOf(null)
     override fun observeSection(kind: CatalogSectionKind): Flow<CatalogSection> = flow {
+        delay(delayMillis)
         if (failed) error("Demo error")
         if (kind == stalled) awaitCancellation()
         emit(

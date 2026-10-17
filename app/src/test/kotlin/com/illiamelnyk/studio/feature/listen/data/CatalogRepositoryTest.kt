@@ -12,6 +12,7 @@ import com.illiamelnyk.studio.core.data.local.StudioStore
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.feature.listen.domain.CatalogSectionKind
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
@@ -146,6 +147,28 @@ class CatalogRepositoryTest {
     }
 
     @Test
+    fun expiredInMemoryCatalogIsVisibleWhileItsRefreshIsStillWaitingForTheNetwork() = runTest {
+        val api = MemoryCatalogApi(context)
+        val data = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
+        data.signInServer()
+        var now = 0L
+        val catalog = CachedCatalogRepository(data, api, context, nowMillis = { now })
+        val initial = catalog.observeCollection("top-0").first()!!
+        now = 60_001L
+        val gate = CompletableDeferred<Unit>()
+        api.catalogGate = gate
+        val changed = api.document.getJSONArray("collections").objects().first { it.getString("id") == "top-0" }
+        changed.put("title", "Refreshed collection")
+        catalog.observeCollection("top-0").test {
+            assertEquals(initial.title, awaitItem()!!.title)
+            assertFalse(gate.isCompleted)
+            gate.complete(Unit)
+            assertEquals("Refreshed collection", awaitItem()!!.title)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun cacheIsScopedToApiOriginAndMalformedRefreshCannotReplaceGoodMetadata() {
         val cache = CatalogPublicCache(context, ORIGIN)
         cache.write(serverDocument())
@@ -236,6 +259,7 @@ class CatalogRepositoryTest {
         var document = serverDocument()
         var failure: AppError? = null
         var catalogReads = 0
+        var catalogGate: CompletableDeferred<Unit>? = null
         private val likes = mutableSetOf<String>()
         override suspend fun request(
             method: String,
@@ -246,6 +270,7 @@ class CatalogRepositoryTest {
         ): JSONObject {
             if (path == "/v1/catalog") {
                 catalogReads++
+                catalogGate?.await()
                 failure?.let { throw ApiFailure(it) }
                 return JSONObject(document.toString())
             }

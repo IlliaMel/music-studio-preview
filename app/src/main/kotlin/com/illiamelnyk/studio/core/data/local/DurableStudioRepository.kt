@@ -988,7 +988,8 @@ class DurableStudioRepository(
     private fun loadActive(): AccountSnapshot? {
         val snapshot = store.read()
         val id = snapshot.stringOrNull("active") ?: return null
-        val account = snapshot.optJSONObject("account-" + id)?.let(AccountJsonCodec::decode) ?: return null
+        if (snapshot.has("deletion-" + id)) return null
+        val account = AccountJsonCodec.decodeCached(id, snapshot.optJSONObject("account-" + id)) ?: return null
         if ((!api.isAvailable && account.token != null) ||
             snapshot.has("deletion-" + account.session.user.id.value)
         ) {
@@ -997,7 +998,7 @@ class DurableStudioRepository(
         return account.copy(tracks = account.tracks.map { it.copy(audioHeaders = authHeaders(account)) })
     }
     private fun loadAccount(id: String): AccountSnapshot? =
-        store.read().optJSONObject("account-" + id)?.let(AccountJsonCodec::decode)
+        AccountJsonCodec.decodeCached(id, store.read().optJSONObject("account-" + id))
 
     private suspend fun <T> operation(action: suspend () -> T): Outcome<T> = withContext(dispatcher) {
         mutex.withLock {

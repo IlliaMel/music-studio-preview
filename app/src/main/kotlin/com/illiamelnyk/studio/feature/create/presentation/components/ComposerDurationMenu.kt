@@ -27,7 +27,7 @@ fun ComposerDurationMenu(selected: DurationOptionUi?, onSelect: (Duration?) -> U
             onClick = { expanded = true },
             leadingIcon = StudioIcons.Schedule,
         )
-        StudioContextMenu(expanded, { expanded = false }) {
+        StudioContextMenu(expanded, { expanded = false }, compactShadow = true) {
             (listOf(null) + trackLengthOptions).forEach { option ->
                 ContextMenuItem(
                     label = option?.label ?: stringResource(R.string.create_quality_auto),

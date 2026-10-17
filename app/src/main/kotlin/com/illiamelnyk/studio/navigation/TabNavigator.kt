@@ -83,6 +83,11 @@ class TabNavigator(
         if (tab == selectedTab) {
             backStacks.getValue(tab).popToRoot()
         } else {
+            if (backStacks.getValue(tab).size == 1) {
+                NavigationRenderProbe.request(tab)
+            } else {
+                NavigationRenderProbe.cancel()
+            }
             selectedTab = tab
         }
     }

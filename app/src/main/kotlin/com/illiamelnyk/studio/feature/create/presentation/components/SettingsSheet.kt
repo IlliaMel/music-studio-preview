@@ -27,6 +27,7 @@ import com.illiamelnyk.studio.core.ui.components.StudioButton
 import com.illiamelnyk.studio.core.ui.components.StudioButtonStyle
 import com.illiamelnyk.studio.core.ui.components.StudioIconButton
 import com.illiamelnyk.studio.core.ui.components.StudioSegmentedControl
+import com.illiamelnyk.studio.core.ui.components.StudioSoonBadge
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
@@ -129,7 +130,7 @@ private fun SettingsContent(
             R.string.create_chip_styles,
             Modifier.clickable { callbacks.onComingSoon(ComingSoonFeature.Styles) },
         ) {
-            StudioText(stringResource(R.string.ui_soon), StudioTheme.typography.bodySmall)
+            StudioSoonBadge()
             StudioIconButton(
                 StudioIcons.ChevronRight,
                 stringResource(R.string.create_chip_styles),

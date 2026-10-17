@@ -74,6 +74,7 @@ fun StudioContextMenu(
     expanded: Boolean,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    compactShadow: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val visibility = remember { MutableTransitionState(false) }
@@ -82,7 +83,7 @@ fun StudioContextMenu(
 
     val dimens = StudioTheme.dimens
     val motion = StudioTheme.motion
-    val shadow = StudioTheme.effects.elevation.menu
+    val shadow = if (compactShadow) StudioTheme.effects.elevation.popover else StudioTheme.effects.elevation.menu
     val shape = StudioTheme.shapes.l
     val density = LocalDensity.current
     val window = LocalWindowInfo.current.containerSize

@@ -31,6 +31,7 @@ fun PublishedSoon(onHowClick: () -> Unit, modifier: Modifier = Modifier) {
             onClick = onHowClick,
             style = StudioButtonStyle.Secondary,
             size = StudioButtonSize.Small,
+            comingSoon = true,
         )
     }
 }

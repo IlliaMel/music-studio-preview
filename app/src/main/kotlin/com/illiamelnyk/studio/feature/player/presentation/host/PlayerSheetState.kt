@@ -20,6 +20,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -43,6 +44,8 @@ internal class PlayerSheetState(
 
     /** Open or opening. */
     val isExpanded: Boolean get() = transitionState.targetState
+
+    val handlesBack: Boolean get() = transitionState.currentState || transitionState.targetState
 
     /** How open the full player is, from 0 (the mini player) to 1 (fully open), as it moves. */
     val expandedFraction: Float
@@ -104,7 +107,7 @@ internal class PlayerSheetState(
      */
     suspend fun collapseWithBack(progress: Flow<BackEventCompat>) {
         try {
-            progress.collect { event ->
+            progress.conflate().collect { event ->
                 transitionState.seekTo(event.progress * BACK_PREVIEW_REACH, targetState = false)
             }
             animateTo(false)

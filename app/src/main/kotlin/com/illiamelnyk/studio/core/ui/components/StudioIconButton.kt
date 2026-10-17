@@ -4,8 +4,10 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +62,7 @@ fun StudioIconButton(
     style: StudioIconButtonStyle = StudioIconButtonStyle.Plain,
     size: StudioIconButtonSize = StudioIconButtonSize.Medium,
     enabled: Boolean = true,
+    comingSoon: Boolean = false,
 ) {
     val colors = StudioTheme.colors
     val dimens = StudioTheme.dimens
@@ -76,12 +79,18 @@ fun StudioIconButton(
             .background(style.containerColor(colors, enabled), StudioTheme.shapes.full),
         contentAlignment = Alignment.Center,
     ) {
-        StudioIcon(
-            icon = icon,
-            contentDescription = contentDescription,
-            tint = if (enabled) style.contentColor(colors) else colors.content.disabled,
-            size = iconSize,
-        )
+        Column(
+            modifier = Modifier.wrapContentSize(unbounded = true),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            StudioIcon(
+                icon = icon,
+                contentDescription = contentDescription,
+                tint = if (enabled) style.contentColor(colors) else colors.content.disabled,
+                size = iconSize,
+            )
+            if (comingSoon) StudioSoonBadge()
+        }
     }
 }
 

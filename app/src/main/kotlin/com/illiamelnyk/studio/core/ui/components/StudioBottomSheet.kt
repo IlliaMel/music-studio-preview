@@ -53,8 +53,10 @@ import com.illiamelnyk.studio.core.ui.theme.PreviewSurface
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 
 /**
  * A modal sheet that rises from the bottom over a scrim, without Material: drag it down, tap the
@@ -112,7 +114,9 @@ fun StudioBottomSheet(
             progress.collect { event -> backProgress.snapTo(event.progress) }
             currentOnDismissRequest()
         } catch (cancelled: CancellationException) {
-            backProgress.animateTo(0f, tween(motion.duration.short, easing = motion.easing.standard))
+            withContext(NonCancellable) {
+                backProgress.animateTo(0f, tween(motion.duration.short, easing = motion.easing.standard))
+            }
             throw cancelled
         }
     }
