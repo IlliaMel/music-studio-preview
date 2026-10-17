@@ -3,6 +3,8 @@ package com.illiamelnyk.studio
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.os.SystemClock
+import android.view.ViewTreeObserver
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.ReportDrawnWhen
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,11 +47,28 @@ class MainActivity : ComponentActivity() {
 
     private val appViewModel: AppViewModel by viewModel()
     private val notificationTargets: GenerationNotificationTargets by inject()
+    private var firstContentReady = false
+    private var startupPreDraw: ViewTreeObserver.OnPreDrawListener? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         acceptGenerationIntent(intent)
         enableEdgeToEdge()
+        val decor = window.decorView
+        val listener = object : ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                if (!firstContentReady) return false
+                decor.viewTreeObserver.takeIf { it.isAlive }?.removeOnPreDrawListener(this)
+                startupPreDraw = null
+                if (BuildConfig.DEBUG) {
+                    val elapsed = SystemClock.elapsedRealtime() - (application as StudioApp).startupStartedAt
+                    android.util.Log.d("StudioStartup", "firstContentPreDrawMs=$elapsed")
+                }
+                return true
+            }
+        }
+        startupPreDraw = listener
+        decor.viewTreeObserver.addOnPreDrawListener(listener)
         setContent {
             val startup = (application as StudioApp).startup
             val startupState by startup.state.collectAsStateWithLifecycle()
@@ -56,6 +76,9 @@ class MainActivity : ComponentActivity() {
                 appViewModel.state.collectAsStateWithLifecycle().value
             } else {
                 AppState()
+            }
+            SideEffect {
+                if (startupState == StartupState.Failed || state.gate != SessionGate.Loading) firstContentReady = true
             }
             ReportDrawnWhen { state.gate != SessionGate.Loading }
             val darkTheme = when (state.theme) {
@@ -100,6 +123,14 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    override fun onDestroy() {
+        startupPreDraw?.let { listener ->
+            window.decorView.viewTreeObserver.takeIf { it.isAlive }?.removeOnPreDrawListener(listener)
+        }
+        startupPreDraw = null
+        super.onDestroy()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
