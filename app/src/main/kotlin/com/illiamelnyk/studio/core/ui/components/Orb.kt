@@ -18,7 +18,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -35,6 +37,8 @@ import kotlin.math.PI
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.sin
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.collectLatest
 
 /**
  * The 64 dp blue sphere that means "the AI is working". While [active], the color inside flows: two
@@ -107,21 +111,29 @@ internal class OrbClock {
 @Composable
 internal fun rememberOrbClock(active: Boolean, level: (() -> Float)?): OrbClock {
     val clock = remember { OrbClock() }
-    val animationsEnabled = remember { ValueAnimator.areAnimatorsEnabled() }
     val currentLevel by rememberUpdatedState(level)
-    LaunchedEffect(active, animationsEnabled) {
-        clock.running = active && animationsEnabled
-        if (!clock.running) return@LaunchedEffect
-        var last = withInfiniteAnimationFrameNanos { it }
-        while (true) {
-            withInfiniteAnimationFrameNanos { now ->
-                val seconds = (now - last) / NANOS_PER_SECOND
-                last = now
-                val boost = currentLevel?.invoke()?.coerceIn(0f, 1f) ?: 0f
-                clock.elapsed += seconds
-                clock.flow += seconds * (1f + boost * LEVEL_SPEEDUP)
-            }
+    LaunchedEffect(active) {
+        clock.running = false
+        if (!active) return@LaunchedEffect
+        val durationScale = currentCoroutineContext()[MotionDurationScale]
+        snapshotFlow {
+            val scale = durationScale?.scaleFactor ?: 1f
+            if (ValueAnimator.areAnimatorsEnabled()) scale else 0f
         }
+            .collectLatest { scale ->
+                clock.running = scale > 0f
+                if (!clock.running) return@collectLatest
+                var last = withInfiniteAnimationFrameNanos { it }
+                while (true) {
+                    withInfiniteAnimationFrameNanos { now ->
+                        val seconds = (now - last) / NANOS_PER_SECOND / scale
+                        last = now
+                        val boost = currentLevel?.invoke()?.coerceIn(0f, 1f) ?: 0f
+                        clock.elapsed += seconds
+                        clock.flow += seconds * (1f + boost * LEVEL_SPEEDUP)
+                    }
+                }
+            }
     }
     return clock
 }

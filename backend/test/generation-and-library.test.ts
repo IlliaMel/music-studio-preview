@@ -1,5 +1,9 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { eq } from 'drizzle-orm'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DatabaseHandle } from '../src/core/db/database.js'
+import { LibraryRepository } from '../src/features/library/library.repository.js'
+import { LibraryService } from '../src/features/library/library.service.js'
+import { playlists, playlistTracks } from '../src/features/library/library.table.js'
 import { TERMS_VERSION } from '../src/features/users/users.service.js'
 import { createTestApp, signedInAs } from './support/app.js'
 import { createTestDatabase, truncateAll } from './support/database.js'
@@ -158,6 +162,57 @@ describe('remix and lifecycle', () => {
 })
 
 describe('library', () => {
+  it('lists ordered and empty playlists in one query without exposing another owner', async () => {
+    const make = async (owner: string, name: string) =>
+      (
+        await (
+          await request('/playlists', signedInAs(owner, { method: 'POST', body: { name } }))
+        ).json()
+      ).id
+    const first = await make('alice', 'First')
+    const empty = await make('alice', 'Empty')
+    const privateId = await make('bob', 'Private')
+    await database.db
+      .update(playlists)
+      .set({ createdAt: new Date(1000) })
+      .where(eq(playlists.id, first))
+    await database.db
+      .update(playlists)
+      .set({ createdAt: new Date(2000) })
+      .where(eq(playlists.id, empty))
+    for (const id of ['paper-moons', 'glass-harbor']) {
+      expect(
+        (await request(`/playlists/${first}/tracks/${id}`, signedInAs('alice', { method: 'PUT' })))
+          .status,
+      ).toBe(204)
+    }
+    await database.db
+      .update(playlistTracks)
+      .set({ addedAt: new Date(1000) })
+      .where(eq(playlistTracks.trackId, 'paper-moons'))
+    await database.db
+      .update(playlistTracks)
+      .set({ addedAt: new Date(2000) })
+      .where(eq(playlistTracks.trackId, 'glass-harbor'))
+    const owner = (await database.db.select().from(playlists).where(eq(playlists.id, first)))[0]
+      ?.userId
+    if (!owner) throw new Error('Fixture owner missing')
+    const service = new LibraryService(new LibraryRepository(database.db))
+    const query = vi.spyOn(database.db, 'select')
+    try {
+      expect(await service.listPlaylists(owner)).toMatchObject([
+        { id: first, name: 'First', trackIds: ['paper-moons', 'glass-harbor'] },
+        { id: empty, name: 'Empty', trackIds: [] },
+      ])
+      expect(query).toHaveBeenCalledTimes(1)
+    } finally {
+      query.mockRestore()
+    }
+    expect((await (await request('/playlists', signedInAs('bob'))).json()).playlists).toMatchObject(
+      [{ id: privateId, name: 'Private', trackIds: [] }],
+    )
+  })
+
   it('lists the mock catalog with collection and station membership', async () => {
     const catalog = await (await request('/catalog')).json()
     expect(catalog.tracks).toHaveLength(24)

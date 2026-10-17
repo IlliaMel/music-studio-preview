@@ -1,6 +1,9 @@
 package com.illiamelnyk.studio.navigation
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,7 +29,13 @@ fun AppRoot(state: AppState, modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxSize()
             .background(StudioTheme.colors.background),
-        transitionSpec = transitions.fadeThrough,
+        transitionSpec = {
+            if (initialState == RootContent.Loading) {
+                EnterTransition.None togetherWith ExitTransition.None
+            } else {
+                transitions.fadeThrough(this)
+            }
+        },
         label = "appRoot",
     ) { target ->
         when (target) {

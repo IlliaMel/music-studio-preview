@@ -36,12 +36,28 @@ export class LibraryRepository {
       return true
     })
   }
-  listPlaylists(userId: string) {
-    return this.db
-      .select()
+  async listPlaylists(userId: string) {
+    const rows = await this.db
+      .select({ playlist: playlists, trackId: playlistTracks.trackId })
       .from(playlists)
+      .leftJoin(playlistTracks, eq(playlistTracks.playlistId, playlists.id))
       .where(eq(playlists.userId, userId))
-      .orderBy(asc(playlists.createdAt))
+      .orderBy(
+        asc(playlists.createdAt),
+        asc(playlists.id),
+        asc(playlistTracks.addedAt),
+        asc(playlistTracks.trackId),
+      )
+    const result = new Map<string, typeof playlists.$inferSelect & { trackIds: string[] }>()
+    for (const row of rows) {
+      let playlist = result.get(row.playlist.id)
+      if (!playlist) {
+        playlist = { ...row.playlist, trackIds: [] }
+        result.set(playlist.id, playlist)
+      }
+      if (row.trackId !== null) playlist.trackIds.push(row.trackId)
+    }
+    return [...result.values()]
   }
   async findPlaylist(userId: string, id: string) {
     const [playlist] = await this.db

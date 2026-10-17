@@ -49,6 +49,8 @@ fun PlayerActions(
         if (liked) {
             likeScale.animateTo(LIKE_POP_SCALE, tween(motion.duration.short, easing = motion.easing.standard))
             likeScale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+        } else {
+            likeScale.animateTo(1f, tween(motion.duration.short, easing = motion.easing.standard))
         }
     }
     FlowRow(

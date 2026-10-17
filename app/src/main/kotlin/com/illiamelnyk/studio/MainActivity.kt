@@ -5,13 +5,21 @@ import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.ReportDrawnWhen
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.illiamelnyk.studio.core.domain.notification.GenerationNotificationTarget
 import com.illiamelnyk.studio.core.domain.notification.GenerationNotificationTargets
@@ -19,11 +27,15 @@ import com.illiamelnyk.studio.core.domain.settings.ThemePreference
 import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.core.presentation.AppFeedbackHost
 import com.illiamelnyk.studio.core.presentation.ToastHost
+import com.illiamelnyk.studio.core.ui.components.StudioButton
 import com.illiamelnyk.studio.core.ui.foundation.LocalWindowFeedback
+import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.foundation.WindowFeedbackRenderer
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.navigation.AppRoot
+import com.illiamelnyk.studio.navigation.AppState
 import com.illiamelnyk.studio.navigation.AppViewModel
+import com.illiamelnyk.studio.navigation.SessionGate
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
@@ -38,7 +50,14 @@ class MainActivity : ComponentActivity() {
         acceptGenerationIntent(intent)
         enableEdgeToEdge()
         setContent {
-            val state by appViewModel.state.collectAsStateWithLifecycle()
+            val startup = (application as StudioApp).startup
+            val startupState by startup.state.collectAsStateWithLifecycle()
+            val state = if (startupState == StartupState.Ready) {
+                appViewModel.state.collectAsStateWithLifecycle().value
+            } else {
+                AppState()
+            }
+            ReportDrawnWhen { state.gate != SessionGate.Loading }
             val darkTheme = when (state.theme) {
                 ThemePreference.Light -> false
 
@@ -60,7 +79,23 @@ class MainActivity : ComponentActivity() {
             }
             StudioTheme(darkTheme) {
                 CompositionLocalProvider(LocalWindowFeedback provides AppWindowFeedback) {
-                    AppFeedbackHost { AppRoot(state) }
+                    AppFeedbackHost {
+                        if (startupState == StartupState.Failed) {
+                            Column(
+                                Modifier.fillMaxSize().background(StudioTheme.colors.background),
+                                verticalArrangement = Arrangement.spacedBy(
+                                    StudioTheme.dimens.spacing.m,
+                                    Alignment.CenterVertically,
+                                ),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                StudioText(stringResource(R.string.error_unknown), StudioTheme.typography.bodyMedium)
+                                StudioButton(stringResource(R.string.ui_retry), startup::retry)
+                            }
+                        } else {
+                            AppRoot(state)
+                        }
+                    }
                 }
             }
         }

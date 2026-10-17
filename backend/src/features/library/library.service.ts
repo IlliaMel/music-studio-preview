@@ -30,9 +30,12 @@ export class LibraryService {
     if (!(await this.repository.setLiked(userId, id, liked, generated))) throw trackNotFound()
   }
   async listPlaylists(userId: string) {
-    return Promise.all(
-      (await this.repository.listPlaylists(userId)).map((playlist) => this.toPlaylist(playlist)),
-    )
+    return (await this.repository.listPlaylists(userId)).map((playlist) => ({
+      id: playlist.id,
+      name: playlist.name,
+      createdAt: playlist.createdAt.toISOString(),
+      trackIds: playlist.trackIds,
+    }))
   }
   async playlist(userId: string, id: string) {
     return this.toPlaylist(await this.requirePlaylist(userId, id))

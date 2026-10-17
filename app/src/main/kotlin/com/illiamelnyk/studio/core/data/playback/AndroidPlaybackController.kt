@@ -176,11 +176,38 @@ class AndroidPlaybackController(
         }
     }
 
+    private data class SnapshotInput(
+        val owner: String,
+        val generation: Long,
+        val original: List<Track>,
+        val order: List<Int>,
+        val index: Int,
+        val position: Long,
+        val shuffle: Boolean,
+        val repeat: RepeatMode,
+        val station: String?,
+        val autoplay: Boolean,
+        val history: List<TrackId>,
+    )
+
+    private var lastSnapshotInput: SnapshotInput? = null
+    private var lastSnapshot: Pair<String, String>? = null
+
     private fun snapshot(state: PlaybackState): Pair<String, String>? {
-        val owner = playbackOwner ?: return null
-        if (owner != ownerId() || playbackGeneration != playbackStateGeneration(owner) || state.current == null) {
+        val owner = playbackOwner
+        if (owner == null || owner != ownerId() || playbackGeneration != playbackStateGeneration(owner) ||
+            state.current == null
+        ) {
+            lastSnapshotInput = null
+            lastSnapshot = null
             return null
         }
+        val input = SnapshotInput(
+            owner, playbackGeneration, originalQueue, playOrder, state.currentIndex,
+            state.positionMs / 1000 * 1000, state.shuffle, state.repeat, state.stationName,
+            state.autoplay, state.autoplayHistory.toList(),
+        )
+        if (input == lastSnapshotInput) return lastSnapshot
         val saved = org.json.JSONObject().apply {
             put("version", 2)
             put("owner", owner)
@@ -194,7 +221,10 @@ class AndroidPlaybackController(
             put("autoplay", state.autoplay)
             put("autoplayHistory", org.json.JSONArray(state.autoplayHistory.map { it.value }))
         }
-        return playbackPreferenceKey(owner) to saved.toString()
+        return (playbackPreferenceKey(owner) to saved.toString()).also {
+            lastSnapshotInput = input
+            lastSnapshot = it
+        }
     }
 
     private fun persistQueue(saved: Pair<String, String>? = snapshot(mutableState.value)) {
@@ -557,6 +587,8 @@ class AndroidPlaybackController(
             }
             originalQueue = emptyList()
             playOrder = emptyList()
+            lastSnapshotInput = null
+            lastSnapshot = null
             mutableState.update { PlaybackState(shuffle = it.shuffle, repeat = it.repeat) }
             playbackOwner?.let { persistence.removeQueue(it, playbackGeneration) }
             playbackOwner = null

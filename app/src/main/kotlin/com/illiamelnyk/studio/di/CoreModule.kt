@@ -107,7 +107,7 @@ val coreModule = module {
             catalog.observeCollections().first().flatMap { it.tracks }.distinctBy { it.id }
         }
     }
-    single(createdAtStart = true) {
+    single {
         val repository: DurableStudioRepository = get()
         PlaybackAutoplayCoordinator(get(), get(), get(named(APP_SCOPE))) { repository.activeAccountId }
     }

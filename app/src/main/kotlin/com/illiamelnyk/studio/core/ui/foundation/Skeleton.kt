@@ -4,7 +4,9 @@ import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -20,6 +22,8 @@ import androidx.compose.ui.platform.InspectorInfo
 import com.illiamelnyk.studio.core.ui.theme.LocalStudioColors
 import com.illiamelnyk.studio.core.ui.theme.LocalStudioMotion
 import com.illiamelnyk.studio.core.ui.theme.LocalStudioShapes
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -57,8 +61,12 @@ private class SkeletonNode(var shape: Shape?) :
 
     override fun onAttach() {
         coroutineScope.launch {
-            while (isActive) {
-                withInfiniteAnimationFrameMillis { frameTimeMillis = it }
+            val durationScale = currentCoroutineContext()[MotionDurationScale]
+            snapshotFlow { durationScale?.scaleFactor ?: 1f }.collectLatest { scale ->
+                if (scale <= 0f) return@collectLatest
+                while (isActive) {
+                    withInfiniteAnimationFrameMillis { frameTimeMillis = (it.toDouble() / scale.toDouble()).toLong() }
+                }
             }
         }
     }
