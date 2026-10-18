@@ -38,6 +38,82 @@ class AudioPlaybackTest {
         context.getSharedPreferences("playback", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
+    @Test fun repeatAllRestartsQueueAfterNativeLastTrackCompletion() = verifyNativeRepeat(true)
+
+    @Test fun repeatOffStopsAfterNativeLastTrackCompletion() = verifyNativeRepeat(false)
+
+    private fun verifyNativeRepeat(repeatAll: Boolean) = runTest {
+        val created = mutableListOf<org.robolectric.shadows.ShadowMediaPlayer>()
+        org.robolectric.shadows.ShadowMediaPlayer.setMediaInfoProvider {
+            org.robolectric.shadows.ShadowMediaPlayer.MediaInfo(20_000, 10_000)
+        }
+        org.robolectric.shadows.ShadowMediaPlayer.setCreateListener { _, shadow -> created += shadow }
+        val songs = listOf("repeat-a", "repeat-b", "repeat-c").map {
+            track(it, 20.seconds).copy(audioUri = "https://audio.fixture/$it.wav")
+        }
+        val playback =
+            AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { "repeat-owner" })
+        try {
+            playback.play(songs, startIndex = 2)
+            runCurrent()
+            val native = created.single()
+            native.invokePreparedListener()
+            playback.setRepeat(
+                if (repeatAll) {
+                    com.illiamelnyk.studio.core.domain.playback.RepeatMode.All
+                } else {
+                    com.illiamelnyk.studio.core.domain.playback.RepeatMode.Off
+                },
+            )
+            native.invokeCompletionListener()
+            runCurrent()
+            assertEquals(if (repeatAll) songs.first().id else songs.last().id, playback.state.value.current?.id)
+            assertEquals(repeatAll, playback.state.value.isPlaying)
+            if (repeatAll) assertEquals(0L, playback.state.value.positionMs)
+        } finally {
+            playback.stop()
+            org.robolectric.shadows.ShadowMediaPlayer.resetStaticState()
+        }
+    }
+
+    @Test fun nativeShufflePreservesCurrentAudioAndPositionAndRestoresOriginalOrder() = runTest {
+        val created = mutableListOf<org.robolectric.shadows.ShadowMediaPlayer>()
+        org.robolectric.shadows.ShadowMediaPlayer.setMediaInfoProvider {
+            org.robolectric.shadows.ShadowMediaPlayer.MediaInfo(20_000, 10_000)
+        }
+        org.robolectric.shadows.ShadowMediaPlayer.setCreateListener { _, shadow -> created += shadow }
+        val songs = listOf("shuffle-a", "shuffle-b", "shuffle-c", "shuffle-d").map {
+            track(it, 20.seconds).copy(audioUri = "https://audio.fixture/$it.wav")
+        }
+        val playback =
+            AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { "shuffle-owner" })
+        try {
+            playback.play(songs, startIndex = 1)
+            runCurrent()
+            created.single().invokePreparedListener()
+            playback.seekTo(4250)
+            playback.setShuffle(true)
+            assertEquals(songs[1].id, playback.state.value.queue.first().id)
+            assertEquals(songs.map { it.id }.toSet(), playback.state.value.queue.map { it.id }.toSet())
+            assertEquals(4250L, playback.state.value.positionMs)
+            assertEquals(1, created.size)
+            playback.setShuffle(false)
+            assertEquals(songs.map { it.id }, playback.state.value.queue.map { it.id })
+            assertEquals(songs[1].id, playback.state.value.current?.id)
+            assertEquals(4250L, playback.state.value.positionMs)
+            playback.setShuffle(true)
+            val expected = playback.state.value.queue[1].id
+            playback.next()
+            assertEquals(expected, playback.state.value.current?.id)
+            playback.setShuffle(false)
+            assertEquals(songs.map { it.id }, playback.state.value.queue.map { it.id })
+            assertEquals(expected, playback.state.value.current?.id)
+        } finally {
+            playback.stop()
+            org.robolectric.shadows.ShadowMediaPlayer.resetStaticState()
+        }
+    }
+
     @Test
     fun autoplayPreferenceAndHistoryRestorePausedAndArePurgedWithOwner() = runTest {
         val song = track("autoplay-native", 20.seconds)

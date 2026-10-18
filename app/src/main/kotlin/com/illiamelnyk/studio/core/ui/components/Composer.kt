@@ -81,27 +81,20 @@ fun Composer(
     val focused by source.collectIsFocusedAsState()
     val overLimit = characterLimit != null && value.length > characterLimit
     val shape = if (expanded) StudioTheme.shapes.xl else StudioTheme.shapes.full
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(dimens.spacing.xs)) {
-        if (options != null) {
-            AnimatedVisibility(
-                visible = expanded,
-                enter = expandVertically(tween(motion.duration.medium, easing = motion.easing.emphasized)) +
-                    fadeIn(tween(motion.duration.medium, easing = motion.easing.standard)),
-                exit = shrinkVertically(tween(motion.duration.medium, easing = motion.easing.emphasized)) +
-                    fadeOut(tween(motion.duration.short, easing = motion.easing.standard)),
-            ) { options() }
-        }
+    Column(
+        modifier.fillMaxWidth().animateContentSize(
+            animationSpec = tween(motion.duration.medium, easing = motion.easing.standard),
+            alignment = Alignment.BottomStart,
+        ),
+        verticalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
+    ) {
+        if (expanded) options?.invoke()
         Row(
             horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(
                 modifier = Modifier.weight(1f)
-                    // The box grows line by line as the text wraps.
-                    .animateContentSize(
-                        animationSpec = tween(motion.duration.medium, easing = motion.easing.standard),
-                        alignment = Alignment.BottomStart,
-                    )
                     .fillMaxWidth()
                     .heightIn(min = if (expanded) dimens.size.component.composerMin else dimens.size.touchTarget)
                     .background(colors.surface.level2, shape)

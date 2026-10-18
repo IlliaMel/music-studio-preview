@@ -106,13 +106,23 @@ internal class PlayerSheetState(
      * when it is cancelled.
      */
     suspend fun collapseWithBack(progress: Flow<BackEventCompat>) {
+        val restoreExpanded = transitionState.targetState
+        val startExpanded = expandedFraction
+        val previewTarget = if (transitionState.currentState == transitionState.targetState) {
+            false
+        } else {
+            transitionState.targetState
+        }
+        fun fractionFor(expanded: Float) = if (previewTarget) expanded else 1f - expanded
         try {
+            transitionState.seekTo(fractionFor(startExpanded), targetState = previewTarget)
             progress.conflate().collect { event ->
-                transitionState.seekTo(event.progress * BACK_PREVIEW_REACH, targetState = false)
+                val expanded = startExpanded * (1f - event.progress.coerceIn(0f, 1f) * BACK_PREVIEW_REACH)
+                transitionState.seekTo(fractionFor(expanded), targetState = previewTarget)
             }
             animateTo(false)
         } catch (cancelled: CancellationException) {
-            withContext(NonCancellable) { animateTo(true) }
+            withContext(NonCancellable) { animateTo(restoreExpanded) }
             throw cancelled
         }
     }

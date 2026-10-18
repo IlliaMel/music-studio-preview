@@ -123,19 +123,13 @@ private fun Segment(text: String, selected: Boolean, compact: Boolean, comingSoo
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        if (compact && comingSoon) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                StudioText(text, StudioTheme.typography.labelMedium, color = textColor, maxLines = 1)
-                StudioSoonBadge()
-            }
-        } else {
+        StudioSoonAnchor(comingSoon) {
             StudioText(
                 text = text,
                 style = if (compact) StudioTheme.typography.labelMedium else StudioTheme.typography.labelLarge,
                 color = textColor,
                 maxLines = 1,
             )
-            if (comingSoon) StudioSoonBadge()
         }
     }
 }

@@ -119,7 +119,10 @@
     <string name="player_autoplay">Autoplay</string>
     <string name="player_clear">Clear</string>
     <string name="player_playing_next">Playing next</string>
-    <string name="player_queue_empty">Nothing queued next</string>
+    <string name="player_queue_empty">No upcoming tracks</string>
+    <string name="player_queue_empty_hint">Add tracks to keep listening after this one.</string>
+    <string name="player_queue_empty_repeat">Repeat is on. Playback will return to the start of the queue.</string>
+    <string name="player_queue_empty_autoplay">Autoplay is on. More music will be added when available.</string>
     <string name="listen_section_error">Could not load this section.</string>
     <string name="listen_retry">Retry</string>
     <string name="listen_section_empty">More music is on its way.</string>

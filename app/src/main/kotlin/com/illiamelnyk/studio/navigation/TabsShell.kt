@@ -6,6 +6,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -201,7 +202,7 @@ private fun ShellBottomChrome(
     val dimens = StudioTheme.dimens
     val expand = expandVertically(tween(motion.duration.medium, easing = motion.easing.standard))
     val shrink = shrinkVertically(tween(motion.duration.medium, easing = motion.easing.standard))
-    Column(modifier.fillMaxWidth()) {
+    Column(modifier.fillMaxWidth().background(StudioTheme.colors.background)) {
         MiniPlayerHost(
             host = player,
             visible = showsMiniPlayer,
@@ -215,7 +216,10 @@ private fun ShellBottomChrome(
             )
         }
         AnimatedVisibility(visible = !showsBottomBar, enter = expand, exit = shrink) {
-            Spacer(Modifier.fillMaxWidth().windowInsetsBottomHeight(WindowInsets.navigationBars))
+            Spacer(
+                Modifier.fillMaxWidth().background(StudioTheme.colors.background)
+                    .windowInsetsBottomHeight(WindowInsets.navigationBars),
+            )
         }
     }
 }

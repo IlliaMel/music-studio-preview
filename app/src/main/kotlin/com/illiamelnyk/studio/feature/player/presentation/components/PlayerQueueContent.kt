@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -20,6 +21,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.presentation.track.TrackUi
@@ -62,16 +64,16 @@ fun PlayerQueueContent(
             ) {
                 item("nowPlaying") { QueueNowPlaying(track, onClose, onLyrics) }
                 item("modes") { QueueModes(shuffle, repeat, autoplay, onShuffle, onRepeat, onAutoplay) }
-                item("heading") { QueueHeading(upNext.isNotEmpty(), onClear) }
-                queueTracks(upNext, onTrackClick, onMove)
+                if (upNext.isNotEmpty()) item("heading") { QueueHeading(true, onClear) }
+                queueTracks(upNext, onTrackClick, onMove, repeat, autoplay)
             }
         } else {
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(spacing)) {
                 QueueNowPlaying(track, onClose, onLyrics)
                 QueueModes(shuffle, repeat, autoplay, onShuffle, onRepeat, onAutoplay)
-                QueueHeading(upNext.isNotEmpty(), onClear)
+                if (upNext.isNotEmpty()) QueueHeading(true, onClear)
                 LazyColumn(Modifier.fillMaxWidth().weight(1f).testTag("playerQueue")) {
-                    queueTracks(upNext, onTrackClick, onMove)
+                    queueTracks(upNext, onTrackClick, onMove, repeat, autoplay)
                 }
             }
         }
@@ -137,10 +139,34 @@ private fun LazyListScope.queueTracks(
     tracks: ImmutableList<TrackUi>,
     onTrackClick: (Int) -> Unit,
     onMove: (Int, Int) -> Unit,
+    repeat: Boolean,
+    autoplay: Boolean,
 ) {
     if (tracks.isEmpty()) {
         item("empty") {
-            StudioText(stringResource(R.string.player_queue_empty), StudioTheme.typography.bodyMedium)
+            Column(
+                Modifier.fillMaxWidth().padding(vertical = StudioTheme.dimens.spacing.l),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.xs),
+            ) {
+                StudioText(
+                    stringResource(R.string.player_queue_empty),
+                    StudioTheme.typography.labelLarge,
+                    textAlign = TextAlign.Center,
+                )
+                StudioText(
+                    stringResource(
+                        when {
+                            repeat -> R.string.player_queue_empty_repeat
+                            autoplay -> R.string.player_queue_empty_autoplay
+                            else -> R.string.player_queue_empty_hint
+                        },
+                    ),
+                    StudioTheme.typography.bodyMedium,
+                    color = StudioTheme.colors.content.secondary,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
     }
     itemsIndexed(

@@ -1,7 +1,7 @@
 package com.illiamelnyk.studio.feature.listen.presentation.collection
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.unit.dp
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.presentation.BackTopBar
 import com.illiamelnyk.studio.core.presentation.asString
@@ -37,9 +38,13 @@ fun CollectionScreen(
     contentPadding: PaddingValues = PaddingValues(),
 ) {
     val padding = Modifier.padding(horizontal = StudioTheme.dimens.layout.screenPadding)
-    Column(modifier.fillMaxSize().padding(top = contentPadding.calculateTopPadding())) {
-        BackTopBar(onBack = { onIntent(CollectionIntent.BackClicked) })
-        LazyColumn(contentPadding = contentPadding.withoutTop()) {
+    Box(modifier.fillMaxSize().padding(top = contentPadding.calculateTopPadding())) {
+        LazyColumn(
+            modifier = Modifier.padding(
+                top = if (state.collection == null || state.failed) StudioTheme.dimens.size.component.topBar else 0.dp,
+            ),
+            contentPadding = contentPadding.withoutTop(),
+        ) {
             if (state.isLoading && state.collection == null) item(key = "loading") { CollectionSkeleton() }
             if (state.failed) {
                 item(key = "error") {
@@ -85,6 +90,7 @@ fun CollectionScreen(
                 }
             }
         }
+        BackTopBar(onBack = { onIntent(CollectionIntent.BackClicked) })
     }
 }
 

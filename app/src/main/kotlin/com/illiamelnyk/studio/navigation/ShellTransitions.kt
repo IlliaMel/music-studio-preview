@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -32,6 +33,8 @@ class ShellTransitions(motion: StudioMotion, layoutDirection: LayoutDirection) {
     // Positive offsets come from the right; in right-to-left layouts screens come from the left.
     private val fromEnd = if (layoutDirection == LayoutDirection.Ltr) 1 else -1
     private val slide = tween<IntOffset>(motion.duration.long, easing = motion.easing.emphasized)
+    private val backSlide = tween<IntOffset>(motion.duration.long, easing = LinearEasing)
+    private val backFade = tween<Float>(motion.duration.long, easing = LinearEasing)
     private val fade = tween<Float>(motion.duration.medium, easing = motion.easing.standard)
     private val fadeOutFirst = tween<Float>(motion.duration.short, easing = motion.easing.standard)
     private val fadeInAfter =
@@ -45,8 +48,8 @@ class ShellTransitions(motion: StudioMotion, layoutDirection: LayoutDirection) {
 
     /** Going back from a screen on top. */
     val pop: AnimatedContentTransitionScope<Scene<NavKey>>.() -> ContentTransform = {
-        slideInHorizontally(slide) { -fromEnd * it / BEHIND_FRACTION } togetherWith
-            (slideOutHorizontally(slide) { fromEnd * it / ENTER_FRACTION } + fadeOut(fade))
+        slideInHorizontally(backSlide) { -fromEnd * it / BEHIND_FRACTION } togetherWith
+            (slideOutHorizontally(backSlide) { fromEnd * it / ENTER_FRACTION } + fadeOut(backFade))
     }
 
     val tabChange: AnimatedContentTransitionScope<*>.() -> ContentTransform = {

@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -23,6 +24,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.toUpperCase
 import androidx.compose.ui.tooling.preview.PreviewLightDark
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.illiamelnyk.studio.R
@@ -135,14 +137,32 @@ private fun StudioBadgePreview() {
 fun StudioSoonBadge(modifier: Modifier = Modifier) {
     Box(
         modifier.background(StudioTheme.colors.surface.level4, StudioTheme.shapes.full)
-            .padding(horizontal = 4.dp, vertical = 1.dp),
+            .padding(horizontal = 2.dp, vertical = 0.dp),
         contentAlignment = Alignment.Center,
     ) {
         StudioText(
             stringResource(R.string.ui_soon),
-            StudioTheme.typography.labelSmall.copy(fontSize = 9.sp, lineHeight = 12.sp),
+            StudioTheme.typography.labelSmall.copy(fontSize = 8.sp, lineHeight = 10.sp),
             color = StudioTheme.colors.content.secondary,
             maxLines = 1,
         )
+    }
+}
+
+@Composable
+fun StudioSoonAnchor(comingSoon: Boolean, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Layout(
+        modifier = modifier,
+        content = {
+            Box(contentAlignment = Alignment.Center) { content() }
+            if (comingSoon) StudioSoonBadge()
+        },
+    ) { measurables, constraints ->
+        val body = measurables.first().measure(constraints)
+        val badge = measurables.getOrNull(1)?.measure(Constraints())
+        layout(body.width, body.height) {
+            body.placeRelative(0, 0)
+            badge?.placeRelative(body.width - 2.dp.roundToPx(), -badge.height - 2.dp.roundToPx())
+        }
     }
 }

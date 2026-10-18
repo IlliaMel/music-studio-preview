@@ -39,7 +39,8 @@ fun CollectionHeader(
     coverSeed: String,
     modifier: Modifier = Modifier,
     artworkSize: Dp = StudioTheme.dimens.size.cover.l,
-    actions: @Composable RowScope.() -> Unit = {},
+    fadeColor: Color = StudioTheme.colors.surface.level1,
+    actions: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val colors = StudioTheme.colors
     val dimens = StudioTheme.dimens
@@ -60,7 +61,7 @@ fun CollectionHeader(
                     Brush.verticalGradient(
                         0f to Color.Transparent,
                         0.55f to Color.Transparent,
-                        1f to colors.surface.level1,
+                        1f to fadeColor,
                         endY = fadeEnd,
                     ),
                 )
@@ -98,12 +99,14 @@ fun CollectionHeader(
                 StudioTheme.typography.bodySmall,
                 color = if (lightSurface) colors.content.secondary else colors.overlay.onMediaSecondary,
             )
-            ProvideGlassBackdrop(backdrop) {
-                Row(
-                    modifier = Modifier.padding(top = dimens.spacing.xs),
-                    horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
-                    content = actions,
-                )
+            if (actions != null) {
+                ProvideGlassBackdrop(backdrop) {
+                    Row(
+                        modifier = Modifier.padding(top = dimens.spacing.xs),
+                        horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
+                        content = actions,
+                    )
+                }
             }
         }
     }

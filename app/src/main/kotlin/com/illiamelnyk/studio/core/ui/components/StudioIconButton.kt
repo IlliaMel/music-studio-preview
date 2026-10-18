@@ -79,17 +79,13 @@ fun StudioIconButton(
             .background(style.containerColor(colors, enabled), StudioTheme.shapes.full),
         contentAlignment = Alignment.Center,
     ) {
-        Column(
-            modifier = Modifier.wrapContentSize(unbounded = true),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+        StudioSoonAnchor(comingSoon) {
             StudioIcon(
                 icon = icon,
                 contentDescription = contentDescription,
                 tint = if (enabled) style.contentColor(colors) else colors.content.disabled,
                 size = iconSize,
             )
-            if (comingSoon) StudioSoonBadge()
         }
     }
 }

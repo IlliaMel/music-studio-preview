@@ -17,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.PreviewLightDark
@@ -62,21 +63,33 @@ fun StudioChip(
     ) {
         leadingAvatar?.invoke()
         if (leadingIcon != null) {
-            StudioIcon(
-                leadingIcon,
-                contentDescription = null,
-                tint = colors.content.secondary,
-                size = StudioTheme.dimens.size.icon.s,
+            StudioSoonAnchor(
+                comingSoon,
+                Modifier.heightIn(
+                    min = with(LocalDensity.current) {
+                        StudioTheme.typography.bodyMedium.lineHeight.toDp()
+                    },
+                ),
+            ) {
+                StudioIcon(
+                    leadingIcon,
+                    contentDescription = null,
+                    tint = colors.content.secondary,
+                    size = StudioTheme.dimens.size.icon.s,
+                )
+            }
+        }
+        StudioSoonAnchor(
+            comingSoon && leadingIcon == null,
+            modifier = if (onRemove != null) Modifier.weight(1f, fill = false) else Modifier,
+        ) {
+            StudioText(
+                text = text,
+                style = StudioTheme.typography.bodyMedium,
+                color = if (isInput) colors.content.secondary else colors.content.primary,
+                maxLines = 1,
             )
         }
-        StudioText(
-            text = text,
-            style = StudioTheme.typography.bodyMedium,
-            color = if (isInput) colors.content.secondary else colors.content.primary,
-            maxLines = 1,
-            modifier = if (onRemove != null) Modifier.weight(1f, fill = false) else Modifier,
-        )
-        if (comingSoon) StudioSoonBadge()
         if (onRemove != null) {
             StudioIcon(
                 icon = StudioIcons.Close,

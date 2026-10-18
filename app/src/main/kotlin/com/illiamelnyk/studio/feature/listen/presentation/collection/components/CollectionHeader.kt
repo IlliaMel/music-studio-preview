@@ -16,5 +16,6 @@ fun CollectionHeader(collection: CollectionUi, modifier: Modifier = Modifier) {
         modifier,
         artworkSize =
             StudioTheme.dimens.size.cover.l + StudioTheme.dimens.spacing.giant,
+        fadeColor = StudioTheme.colors.background,
     )
 }

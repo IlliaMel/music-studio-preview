@@ -60,6 +60,31 @@ class NavPredictiveBackTest {
         assertEquals("Settling must not pop twice", 1, backs)
     }
 
+    @Test fun backPreviewTracksProgressWithoutAcceleratingOrJumpingAtCommit() {
+        showCollection()
+        val original = bounds()
+        val dispatcher = composeRule.activity.onBackPressedDispatcher
+        composeRule.runOnUiThread {
+            dispatcher.dispatchOnBackStarted(BackEventCompat(0f, 0f, 0f, BackEventCompat.EDGE_LEFT))
+        }
+        var previous = original.left
+        for (progress in listOf(0.2f, 0.4f, 0.6f)) {
+            composeRule.runOnUiThread {
+                dispatcher.dispatchOnBackProgressed(BackEventCompat(0f, 0f, progress, BackEventCompat.EDGE_LEFT))
+            }
+            pumpFrames(6)
+            val left = bounds().left
+            assertEquals(original.width * progress / 3f, left - original.left, 3f)
+            assertTrue(left >= previous)
+            previous = left
+        }
+        composeRule.runOnUiThread { dispatcher.onBackPressed() }
+        pumpFrames(1)
+        assertTrue("Commit must not jump backwards", bounds().left >= previous - 3f)
+        settle()
+        assertEquals(1, backs)
+    }
+
     private fun showCollection() {
         val transitions = ShellTransitions(StudioMotion(), LayoutDirection.Ltr)
         composeRule.setContent {

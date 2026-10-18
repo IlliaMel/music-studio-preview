@@ -130,11 +130,11 @@ private fun SettingsContent(
             R.string.create_chip_styles,
             Modifier.clickable { callbacks.onComingSoon(ComingSoonFeature.Styles) },
         ) {
-            StudioSoonBadge()
             StudioIconButton(
                 StudioIcons.ChevronRight,
                 stringResource(R.string.create_chip_styles),
                 { callbacks.onComingSoon(ComingSoonFeature.Styles) },
+                comingSoon = true,
             )
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs)) {

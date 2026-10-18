@@ -113,8 +113,7 @@ fun StudioContextMenu(
             // A tap in the shadow's room is a tap outside the menu.
             Box(
                 Modifier
-                    .pointerInput(Unit) { detectTapGestures { onDismissRequest() } }
-                    .padding(shadowRoom),
+                    .pointerInput(Unit) { detectTapGestures { onDismissRequest() } },
             ) {
                 val origin = TransformOrigin(1f, if (opensUpwards) 1f else 0f)
                 AnimatedVisibility(
@@ -132,21 +131,23 @@ fun StudioContextMenu(
                             origin,
                         ),
                 ) {
-                    Column(
-                        modifier = modifier
-                            .widthIn(max = maxWidth.coerceAtLeast(dimens.size.touchTarget))
-                            .heightIn(max = maxHeight.coerceAtLeast(dimens.size.touchTarget))
-                            .dropShadow(shape, shadow.toShadow())
-                            .width(IntrinsicSize.Max)
-                            .clip(shape)
-                            .background(StudioTheme.colors.surface.level1)
-                            .border(dimens.stroke.hairline, StudioTheme.colors.outline.subtle, shape)
-                            // Taps between the items stay in the menu.
-                            .pointerInput(Unit) { detectTapGestures { } }
-                            .verticalScroll(rememberScrollState())
-                            .padding(dimens.spacing.xs),
-                        content = content,
-                    )
+                    Box(Modifier.padding(shadowRoom)) {
+                        Column(
+                            modifier = modifier
+                                .widthIn(max = maxWidth.coerceAtLeast(dimens.size.touchTarget))
+                                .heightIn(max = maxHeight.coerceAtLeast(dimens.size.touchTarget))
+                                .dropShadow(shape, shadow.toShadow())
+                                .width(IntrinsicSize.Max)
+                                .clip(shape)
+                                .background(StudioTheme.colors.surface.level1)
+                                .border(dimens.stroke.hairline, StudioTheme.colors.outline.subtle, shape)
+                                // Taps between the items stay in the menu.
+                                .pointerInput(Unit) { detectTapGestures { } }
+                                .verticalScroll(rememberScrollState())
+                                .padding(dimens.spacing.xs),
+                            content = content,
+                        )
+                    }
                 }
             }
         }

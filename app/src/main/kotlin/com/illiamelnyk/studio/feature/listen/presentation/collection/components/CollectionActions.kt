@@ -23,7 +23,7 @@ fun CollectionActions(
     enabled: Boolean = true,
 ) {
     Row(
-        modifier.fillMaxWidth().background(StudioTheme.colors.surface.level1).padding(StudioTheme.dimens.spacing.s),
+        modifier.fillMaxWidth().background(StudioTheme.colors.background).padding(StudioTheme.dimens.spacing.s),
         horizontalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.xs, Alignment.CenterHorizontally),
     ) {
         StudioButton(

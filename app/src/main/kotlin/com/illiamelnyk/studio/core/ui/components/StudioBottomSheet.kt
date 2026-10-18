@@ -19,12 +19,14 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -36,10 +38,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.dismiss
@@ -47,6 +52,7 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.core.ui.theme.PreviewSurface
@@ -173,13 +179,15 @@ private fun BoxScope.SheetSurface(
     val colors = StudioTheme.colors
     val dimens = StudioTheme.dimens
     val motion = StudioTheme.motion
-    val shape = StudioTheme.shapes.xxl
+    val shape = StudioTheme.shapes.xxl.copy(bottomStart = CornerSize(0.dp), bottomEnd = CornerSize(0.dp))
+    val navigationBars = WindowInsets.navigationBars
+    val density = LocalDensity.current
     Box(
         modifier = Modifier
             .align(Alignment.BottomCenter)
             // Never under the status bar, however tall the content is.
             .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(horizontal = dimens.spacing.xs, vertical = dimens.spacing.xxs)
+            .padding(top = dimens.spacing.xxs)
             .fillMaxWidth()
             .onSizeChanged { size ->
                 state.updateAnchors(
@@ -213,6 +221,17 @@ private fun BoxScope.SheetSurface(
                     true
                 }
             }
+            .drawBehind {
+                val height = navigationBars.getBottom(density).toFloat().coerceAtMost(size.height)
+                if (height > 0f) {
+                    drawRect(
+                        colors.surface.level1,
+                        topLeft = Offset(0f, size.height - height),
+                        size = Size(size.width, height),
+                    )
+                }
+            }
+            .padding(horizontal = dimens.spacing.xs)
             .clip(shape)
             .background(colors.surface.level1)
             .navigationBarsPadding()

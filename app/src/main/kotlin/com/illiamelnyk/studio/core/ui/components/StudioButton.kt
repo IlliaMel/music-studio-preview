@@ -12,6 +12,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -111,10 +112,16 @@ fun StudioButton(
                     trackColor = style.spinnerTrackColor(colors),
                 )
 
-                icon != null -> StudioIcon(icon, contentDescription = null, size = metrics.iconSize)
+                icon != null -> StudioSoonAnchor(
+                    comingSoon,
+                    Modifier.heightIn(min = with(LocalDensity.current) { metrics.textStyle.lineHeight.toDp() }),
+                ) {
+                    StudioIcon(icon, contentDescription = null, size = metrics.iconSize)
+                }
             }
-            StudioText(text, metrics.textStyle, maxLines = 1)
-            if (comingSoon) StudioSoonBadge()
+            StudioSoonAnchor(comingSoon && icon == null) {
+                StudioText(text, metrics.textStyle, maxLines = 1)
+            }
         }
     }
 }
