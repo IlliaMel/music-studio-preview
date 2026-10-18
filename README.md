@@ -5,11 +5,11 @@ describe a song, let it generate in the background, then listen with synced lyri
 
 > **Unofficial prototype.** Not affiliated with, endorsed by, or connected to ElevenLabs.
 
-The local build includes durable user data, grouped generation, reference recording/import, native background audio, lyrics, queues, likes, playlists and file export. Firebase sign-in and ElevenLabs generation remain mocked; this is not a production release.
+The local build includes durable user data, grouped generation, reference recording/import, native background audio, lyrics, queues, likes, playlists and file export. Local testing uses development sign-in and a mock music provider. Firebase/Google sign-in and the ElevenLabs provider are implemented, but configured live integration and production acceptance remain unverified.
 
 ## Run locally
 
-Android requires JDK 17 or newer and the configured Android SDK. Build with ./gradlew assembleDebug. The debug Welcome screen offers **Continue with local server**, using http://10.0.2.2:8787 on the emulator. The ordinary demo path works without a server; release builds keep the demo until production authentication is configured.
+Android requires JDK 17 or newer and the configured Android SDK. Build with ./gradlew assembleDebug. The debug Welcome screen offers **Continue with local server**, using http://10.0.2.2:8787 on the emulator. The app requires its backend. Release builds fail closed when production authentication is not configured; development authentication and the mock music provider are intended for local testing.
 
 In backend/, use Node.js 24+, npm ci, npm run check, npm run build and npm start. Defaults bind to loopback, use durable PGlite files and mock generation. See [backend setup and contracts](backend/README.md).
 
