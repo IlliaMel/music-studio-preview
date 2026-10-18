@@ -1,12 +1,15 @@
 package com.illiamelnyk.studio.core.ui.components
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.filterToOne
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
@@ -21,6 +24,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
+import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -45,7 +49,7 @@ class SoonBadgeGeometryTest {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, scale)) {
                 StudioTheme {
-                    Column(Modifier.padding(24.dp)) {
+                    Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                         StudioIconButton(
                             StudioIcons.AutoAwesome,
                             "Enhance",
@@ -69,6 +73,7 @@ class SoonBadgeGeometryTest {
                             compact = true,
                             isComingSoon = { it == "Muse" && soon.value },
                         ) { it }
+                        StudioSoonBadge(Modifier.testTag("referenceBadge"))
                     }
                 }
             }
@@ -109,6 +114,34 @@ class SoonBadgeGeometryTest {
             "Badge must stay above the adjacent label: badge=$chipBadge label=$chipLabel overlap=$cornerOverlap",
             chipBadge.bottom <= chipLabel.top + 1f,
         )
+        val renderedBadge = rule.onNode(
+            hasText("Soon") and hasAnyAncestor(hasTestTag("chip")),
+            useUnmergedTree = true,
+        ).captureToImage().toPixelMap()
+        val referenceBadge = rule.onNode(
+            hasText("Soon") and hasAnyAncestor(hasTestTag("referenceBadge")),
+            useUnmergedTree = true,
+        ).captureToImage().toPixelMap()
+        assertEquals(referenceBadge.width, renderedBadge.width)
+        assertEquals(referenceBadge.height, renderedBadge.height)
+        var differentPixels = 0
+        var maxDelta = 0f
+        for (y in 0 until renderedBadge.height) {
+            for (x in 0 until renderedBadge.width) {
+                val actual = renderedBadge[x, y]
+                val expected = referenceBadge[x, y]
+                val delta =
+                    maxOf(
+                        abs(actual.red - expected.red),
+                        abs(actual.green - expected.green),
+                        abs(actual.blue - expected.blue),
+                        abs(actual.alpha - expected.alpha),
+                    )
+                maxDelta = maxOf(maxDelta, delta)
+                if (actual != expected) differentPixels++
+            }
+        }
+        assertEquals("Parent drawing must not cut through badge text (maxDelta=$maxDelta)", 0, differentPixels)
         rule.onNodeWithTag("icon").performClick()
         assertEquals(1, clicks)
     }

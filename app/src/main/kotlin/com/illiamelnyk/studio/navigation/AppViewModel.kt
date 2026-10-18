@@ -55,7 +55,10 @@ data class AppState(
     val creditsLeft: Int = 0,
     val hasPlayback: Boolean = false,
     val ownerId: String? = null,
-)
+) {
+    val readyForFirstFrame: Boolean
+        get() = gate != SessionGate.Loading && theme != null
+}
 
 /**
  * The state of the app around the screens. The user does nothing here directly, so unlike screen

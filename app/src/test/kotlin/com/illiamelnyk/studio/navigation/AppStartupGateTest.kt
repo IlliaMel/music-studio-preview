@@ -18,7 +18,9 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -43,11 +45,13 @@ class AppStartupGateTest {
             assertEquals("dev-startup", ready.ownerId)
             assertEquals(8, ready.creditsLeft)
             assertNull(ready.theme)
+            assertFalse(ready.readyForFirstFrame)
             assertEquals(ShellVariant.Default, ready.shellVariant)
             runCurrent()
 
             themes.emit(ThemePreference.Light)
             val themed = awaitItem()
+            assertTrue(themed.readyForFirstFrame)
             assertEquals(ready.copy(theme = ThemePreference.Light), themed)
             variants.emit(ShellVariant.BottomBar)
             settled = awaitItem()
@@ -82,6 +86,7 @@ class AppStartupGateTest {
             val signedOut = awaitItem()
             assertEquals(SessionGate.SignedOut, signedOut.gate)
             assertNull(signedOut.ownerId)
+            assertTrue(signedOut.readyForFirstFrame)
         }
     }
 

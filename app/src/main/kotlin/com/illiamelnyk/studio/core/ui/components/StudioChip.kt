@@ -66,9 +66,10 @@ fun StudioChip(
             StudioSoonAnchor(
                 comingSoon,
                 Modifier.heightIn(
-                    min = with(LocalDensity.current) {
-                        StudioTheme.typography.bodyMedium.lineHeight.toDp()
-                    },
+                    min = maxOf(
+                        StudioTheme.dimens.size.component.chip,
+                        with(LocalDensity.current) { StudioTheme.typography.bodyMedium.lineHeight.toDp() },
+                    ),
                 ),
             ) {
                 StudioIcon(

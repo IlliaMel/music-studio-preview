@@ -38,7 +38,6 @@ import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.navigation.AppRoot
 import com.illiamelnyk.studio.navigation.AppState
 import com.illiamelnyk.studio.navigation.AppViewModel
-import com.illiamelnyk.studio.navigation.SessionGate
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
@@ -78,9 +77,9 @@ class MainActivity : ComponentActivity() {
                 AppState()
             }
             SideEffect {
-                if (startupState == StartupState.Failed || state.gate != SessionGate.Loading) firstContentReady = true
+                if (startupState == StartupState.Failed || state.readyForFirstFrame) firstContentReady = true
             }
-            ReportDrawnWhen { state.gate != SessionGate.Loading }
+            ReportDrawnWhen { state.readyForFirstFrame }
             val darkTheme = when (state.theme) {
                 ThemePreference.Light -> false
 
