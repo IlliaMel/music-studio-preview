@@ -80,7 +80,8 @@ fun TabsShell(
     }
     val atTabRoot = navigator.isAtTabRoot
     val bottomChrome = remember { BottomChrome() }
-    val padding = rememberShellPadding(bottomChrome)
+    val topChrome = remember { TopChrome() }
+    val padding = rememberShellPadding(bottomChrome, topChrome)
     val paddingState = rememberUpdatedState(padding)
     val transitions = rememberShellTransitions()
     val motion = StudioTheme.motion
@@ -172,6 +173,7 @@ fun TabsShell(
             val bottomHeight = bottom.maxOfOrNull { it.height } ?: 0
             bottomChrome.height = bottomHeight.toDp()
             val top = topBar.map { it.measure(loose) }
+            if (atTabRoot) topChrome.height = top.maxOfOrNull { it.height }?.toDp()
             val content = screens.map { it.measure(constraints) }
             layout(constraints.maxWidth, constraints.maxHeight) {
                 content.forEach { it.place(0, 0) }

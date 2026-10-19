@@ -2,11 +2,13 @@ package com.illiamelnyk.studio.core.ui.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -57,6 +59,36 @@ fun TopBar(
         content()
         Spacer(Modifier.weight(1f))
         actions()
+    }
+}
+
+@Composable
+fun AdaptiveTopBar(
+    modifier: Modifier = Modifier,
+    navigation: @Composable () -> Unit = {},
+    actions: @Composable RowScope.() -> Unit = {},
+    content: @Composable () -> Unit,
+) {
+    val dimens = StudioTheme.dimens
+    FlowRow(
+        modifier = modifier.fillMaxWidth().heightIn(min = dimens.size.component.topBar)
+            .padding(horizontal = dimens.layout.screenPadding),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalArrangement = Arrangement.spacedBy(dimens.spacing.xxs, Alignment.CenterVertically),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            navigation()
+            content()
+        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+            content = actions,
+        )
     }
 }
 

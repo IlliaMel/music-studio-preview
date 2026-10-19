@@ -25,7 +25,10 @@ import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.toUpperCase
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.constrainHeight
+import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.offset
 import androidx.compose.ui.unit.sp
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
@@ -137,12 +140,12 @@ private fun StudioBadgePreview() {
 fun StudioSoonBadge(modifier: Modifier = Modifier) {
     Box(
         modifier.background(StudioTheme.colors.surface.level4, StudioTheme.shapes.full)
-            .padding(horizontal = 2.dp, vertical = 0.dp),
+            .padding(horizontal = 2.dp, vertical = 1.dp),
         contentAlignment = Alignment.Center,
     ) {
         StudioText(
             stringResource(R.string.ui_soon),
-            StudioTheme.typography.labelSmall.copy(fontSize = 8.sp, lineHeight = 10.sp),
+            StudioTheme.typography.labelSmall.copy(fontSize = 9.sp, lineHeight = 11.sp),
             color = StudioTheme.colors.content.secondary,
             maxLines = 1,
         )
@@ -150,7 +153,12 @@ fun StudioSoonBadge(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun StudioSoonAnchor(comingSoon: Boolean, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+fun StudioSoonAnchor(
+    comingSoon: Boolean,
+    modifier: Modifier = Modifier,
+    badgeAlignment: Alignment.Vertical = Alignment.CenterVertically,
+    content: @Composable () -> Unit,
+) {
     Layout(
         modifier = modifier,
         content = {
@@ -158,11 +166,16 @@ fun StudioSoonAnchor(comingSoon: Boolean, modifier: Modifier = Modifier, content
             if (comingSoon) StudioSoonBadge()
         },
     ) { measurables, constraints ->
-        val body = measurables.first().measure(constraints)
         val badge = measurables.getOrNull(1)?.measure(Constraints())
-        layout(body.width, body.height) {
-            body.placeRelative(0, 0)
-            badge?.placeRelative(body.width - 2.dp.roundToPx(), -badge.height - 2.dp.roundToPx())
+        val reservedWidth = badge?.let { it.width + 2.dp.roundToPx() } ?: 0
+        val body = measurables.first().measure(
+            constraints.copy(minWidth = 0, minHeight = 0).offset(horizontal = -reservedWidth),
+        )
+        val width = constraints.constrainWidth(body.width + reservedWidth)
+        val height = constraints.constrainHeight(maxOf(body.height, badge?.height ?: 0))
+        layout(width, height) {
+            body.placeRelative(0, (height - body.height) / 2)
+            badge?.placeRelative(body.width + 2.dp.roundToPx(), badgeAlignment.align(badge.height, height))
         }
     }
 }

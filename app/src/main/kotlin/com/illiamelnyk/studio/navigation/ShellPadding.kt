@@ -46,14 +46,19 @@ class BottomChrome {
     var height: Dp by mutableStateOf(0.dp)
 }
 
+@Stable
+class TopChrome {
+    var height: Dp? by mutableStateOf(null)
+}
+
 @Composable
-fun rememberShellPadding(bottomChrome: BottomChrome): ShellPadding {
+fun rememberShellPadding(bottomChrome: BottomChrome, topChrome: TopChrome): ShellPadding {
     val systemBars = WindowInsets.systemBars.union(WindowInsets.displayCutout).asPaddingValues()
     val topBar = StudioTheme.dimens.size.component.topBar
     val none = StudioTheme.dimens.spacing.none
-    return remember(systemBars, topBar, bottomChrome) {
+    return remember(systemBars, topBar, bottomChrome, topChrome) {
         ShellPadding(
-            tabRoot = ChromePadding(systemBars, top = topBar, bottomChrome = bottomChrome),
+            tabRoot = ChromePadding(systemBars, top = topBar, bottomChrome = bottomChrome, topChrome = topChrome),
             screen = ChromePadding(systemBars, top = none, bottomChrome = bottomChrome),
         )
     }
@@ -65,11 +70,13 @@ private class ChromePadding(
     private val systemBars: PaddingValues,
     private val top: Dp,
     private val bottomChrome: BottomChrome,
+    private val topChrome: TopChrome? = null,
 ) : PaddingValues {
     override fun calculateLeftPadding(layoutDirection: LayoutDirection): Dp =
         systemBars.calculateLeftPadding(layoutDirection)
 
-    override fun calculateTopPadding(): Dp = systemBars.calculateTopPadding() + top
+    override fun calculateTopPadding(): Dp =
+        topChrome?.height?.let { max(it, systemBars.calculateTopPadding()) } ?: (systemBars.calculateTopPadding() + top)
 
     override fun calculateRightPadding(layoutDirection: LayoutDirection): Dp =
         systemBars.calculateRightPadding(layoutDirection)

@@ -149,7 +149,7 @@ fun ComposerBar(
                     enter = fadeIn(tween(StudioTheme.motion.duration.medium)) + expandHorizontally(),
                     exit = fadeOut(tween(StudioTheme.motion.duration.short)) + shrinkHorizontally(),
                 ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs)) {
+                    Row(horizontalArrangement = Arrangement.Start) {
                         ComposerAction(
                             StudioIcons.AutoAwesome,
                             R.string.create_composer_enhance,

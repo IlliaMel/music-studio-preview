@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.Composable
@@ -70,16 +71,20 @@ fun StudioIconButton(
         StudioIconButtonSize.Medium -> dimens.size.component.iconButton to dimens.size.icon.l
         StudioIconButtonSize.Small -> dimens.size.component.iconButtonSmall to dimens.size.icon.m
     }
-    Box(
-        // clickable comes before the container so that the press scale shrinks the whole circle.
+    val container = style.containerColor(colors, enabled)
+    val anchorWidth = if (comingSoon && container == Color.Transparent) iconSize else buttonSize
+    StudioSoonAnchor(
+        comingSoon = comingSoon,
         modifier = modifier
             .minimumTouchTarget()
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-            .size(buttonSize)
-            .background(style.containerColor(colors, enabled), StudioTheme.shapes.full),
-        contentAlignment = Alignment.Center,
+            .heightIn(min = buttonSize),
+        badgeAlignment = Alignment.Top,
     ) {
-        StudioSoonAnchor(comingSoon) {
+        Box(
+            Modifier.size(width = anchorWidth, height = buttonSize).background(container, StudioTheme.shapes.full),
+            contentAlignment = Alignment.Center,
+        ) {
             StudioIcon(
                 icon = icon,
                 contentDescription = contentDescription,

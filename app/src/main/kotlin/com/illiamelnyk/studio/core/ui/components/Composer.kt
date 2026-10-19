@@ -148,12 +148,12 @@ fun Composer(
                         if (expanded) {
                             Row(
                                 modifier = Modifier.horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
+                                horizontalArrangement = Arrangement.Start,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) { leading() }
                         }
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
+                            horizontalArrangement = Arrangement.Start,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             if (characterLimit != null) {

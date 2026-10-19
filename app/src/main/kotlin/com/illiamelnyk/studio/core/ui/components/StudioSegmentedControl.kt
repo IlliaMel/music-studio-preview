@@ -119,7 +119,13 @@ private fun Segment(text: String, selected: Boolean, compact: Boolean, comingSoo
             .selectable(selected = selected, role = Role.Tab, onClick = onClick)
             // tokens.json has no size for a compact segment; the kit uses the 24 dp avatar.xs.
             .heightIn(min = if (compact) dimens.size.avatar.xs else dimens.size.component.segment)
-            .padding(horizontal = if (compact) dimens.spacing.xs else dimens.spacing.m),
+            .padding(
+                horizontal = when {
+                    !compact -> dimens.spacing.m
+                    comingSoon -> dimens.spacing.xxs
+                    else -> dimens.spacing.xs
+                },
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {

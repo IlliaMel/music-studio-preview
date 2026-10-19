@@ -17,7 +17,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.PreviewLightDark
@@ -63,25 +62,15 @@ fun StudioChip(
     ) {
         leadingAvatar?.invoke()
         if (leadingIcon != null) {
-            StudioSoonAnchor(
-                comingSoon,
-                Modifier.heightIn(
-                    min = maxOf(
-                        StudioTheme.dimens.size.component.chip,
-                        with(LocalDensity.current) { StudioTheme.typography.bodyMedium.lineHeight.toDp() },
-                    ),
-                ),
-            ) {
-                StudioIcon(
-                    leadingIcon,
-                    contentDescription = null,
-                    tint = colors.content.secondary,
-                    size = StudioTheme.dimens.size.icon.s,
-                )
-            }
+            StudioIcon(
+                leadingIcon,
+                contentDescription = null,
+                tint = colors.content.secondary,
+                size = StudioTheme.dimens.size.icon.s,
+            )
         }
         StudioSoonAnchor(
-            comingSoon && leadingIcon == null,
+            comingSoon,
             modifier = if (onRemove != null) Modifier.weight(1f, fill = false) else Modifier,
         ) {
             StudioText(

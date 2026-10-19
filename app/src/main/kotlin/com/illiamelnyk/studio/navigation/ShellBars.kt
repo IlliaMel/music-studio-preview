@@ -18,6 +18,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
+import com.illiamelnyk.studio.core.ui.components.AdaptiveTopBar
 import com.illiamelnyk.studio.core.ui.components.ComingSoonSheetContent
 import com.illiamelnyk.studio.core.ui.components.CreditsCounter
 import com.illiamelnyk.studio.core.ui.components.StudioBottomSheet
@@ -25,7 +26,6 @@ import com.illiamelnyk.studio.core.ui.components.StudioIconButton
 import com.illiamelnyk.studio.core.ui.components.StudioNavigationBar
 import com.illiamelnyk.studio.core.ui.components.StudioNavigationItem
 import com.illiamelnyk.studio.core.ui.components.StudioSegmentedControl
-import com.illiamelnyk.studio.core.ui.components.TopBar
 import com.illiamelnyk.studio.core.ui.components.TopBarAvatar
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
@@ -51,7 +51,7 @@ fun ShellTopBar(
     onSearchClick: () -> Unit = {},
 ) {
     val insets = WindowInsets.systemBars.union(WindowInsets.displayCutout)
-    TopBar(
+    AdaptiveTopBar(
         modifier = modifier
             .background(StudioTheme.colors.background)
             .windowInsetsPadding(insets.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
