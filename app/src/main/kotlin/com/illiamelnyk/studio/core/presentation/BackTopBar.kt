@@ -24,18 +24,21 @@ fun BackTopBar(
     title: String? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
+    val dimens = StudioTheme.dimens
+    val touchMargin = (dimens.size.touchTarget - dimens.size.component.iconButton) / 2
+    val edgePadding = dimens.layout.screenPadding - touchMargin
     val navigation = @Composable {
         StudioIconButton(
             icon = StudioIcons.ChevronLeft,
             contentDescription = stringResource(R.string.nav_back),
             onClick = onBack,
-            style = StudioIconButtonStyle.Surface,
+            style = StudioIconButtonStyle.Navigation,
         )
     }
     if (title == null) {
-        TopBar(modifier = modifier, navigation = navigation, actions = actions) {}
+        TopBar(modifier = modifier, navigation = navigation, actions = actions, horizontalPadding = edgePadding) {}
     } else {
-        TopBar(title = title, modifier = modifier, navigation = navigation, actions = {
+        TopBar(title = title, modifier = modifier, navigation = navigation, horizontalPadding = edgePadding, actions = {
             Row(Modifier.widthIn(min = StudioTheme.dimens.size.touchTarget), content = actions)
         })
     }

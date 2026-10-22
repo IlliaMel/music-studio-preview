@@ -1,5 +1,6 @@
 package com.illiamelnyk.studio
 
+import com.illiamelnyk.studio.core.data.local.LegacyStudioStateCorruptedException
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -9,10 +10,72 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class StudioStartupTest {
+    @Test fun malformedLegacyRecoveryRequiresExplicitChoiceAndPreservesBeforeLoading() = runTest {
+        val events = mutableListOf<String>()
+        var preserved = false
+        val startup = StudioStartup(backgroundScope, StandardTestDispatcher(testScheduler), {
+            events += "load"
+            if (!preserved) {
+                throw IllegalStateException(
+                    "wrapped dependency failure",
+                    LegacyStudioStateCorruptedException(IOException("private fixture")),
+                )
+            }
+        }, { events += "playback" }, preserveCorruptLocalData = {
+            events += "preserve"
+            preserved = true
+        })
+        runCurrent()
+        assertEquals(StartupState.Failed, startup.state.value)
+        assertTrue(startup.localRecoveryAvailable.value)
+        assertEquals(listOf("load"), events)
+        startup.retry()
+        runCurrent()
+        assertEquals(listOf("load", "load"), events)
+        assertTrue(startup.localRecoveryAvailable.value)
+        startup.recoverLocalData()
+        startup.recoverLocalData()
+        runCurrent()
+        assertEquals(listOf("load", "load", "preserve", "load", "playback"), events)
+        assertEquals(StartupState.Ready, startup.state.value)
+        assertFalse(startup.localRecoveryAvailable.value)
+    }
+
+    @Test fun arbitraryStartupErrorsNeverOfferOrExecuteLocalReset() = runTest {
+        var recoveries = 0
+        val startup = StudioStartup(backgroundScope, StandardTestDispatcher(testScheduler), {
+            throw IOException("Network or unrelated storage failure")
+        }, {}, preserveCorruptLocalData = { recoveries++ })
+        runCurrent()
+        assertFalse(startup.localRecoveryAvailable.value)
+        startup.recoverLocalData()
+        runCurrent()
+        assertEquals(0, recoveries)
+        assertEquals(StartupState.Failed, startup.state.value)
+    }
+
+    @Test fun failedPreservationDoesNotReloadOrStartPlaybackAndRemainsRetryable() = runTest {
+        var loads = 0
+        var playbackStarts = 0
+        val startup = StudioStartup(backgroundScope, StandardTestDispatcher(testScheduler), {
+            loads++
+            throw LegacyStudioStateCorruptedException(IOException("fixture"))
+        }, { playbackStarts++ }, preserveCorruptLocalData = { throw IOException("Cannot preserve") })
+        runCurrent()
+        startup.recoverLocalData()
+        runCurrent()
+        assertEquals(1, loads)
+        assertEquals(0, playbackStarts)
+        assertEquals(StartupState.Failed, startup.state.value)
+        assertTrue(startup.localRecoveryAvailable.value)
+    }
+
     @Test fun playbackAndReadyWaitForRestoredAccountAndConcurrentRetryIsIgnored() = runTest {
         val events = mutableListOf<String>()
         val release = CompletableDeferred<Unit>()

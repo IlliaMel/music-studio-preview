@@ -1,9 +1,10 @@
 package com.illiamelnyk.studio.core.data.playback
 
+import android.content.ComponentName
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.Intent
 import android.content.SharedPreferences
-import android.media.MediaMetadata
-import android.media.MediaPlayer
 import androidx.test.core.app.ApplicationProvider
 import com.illiamelnyk.studio.core.data.local.toJson
 import com.illiamelnyk.studio.core.domain.CoverSeed
@@ -13,6 +14,7 @@ import com.illiamelnyk.studio.feature.player.fake.track
 import com.illiamelnyk.studio.testing.MainDispatcherRule
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.json.JSONArray
@@ -20,7 +22,10 @@ import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -32,7 +37,7 @@ class PlaybackMetadataRefreshTest {
     @get:Rule val main = MainDispatcherRule()
     private val playbackScopes = PlaybackTestScopes(main.testDispatcher.scheduler)
     private val context: Context = ApplicationProvider.getApplicationContext()
-    private val players = mutableListOf<MediaPlayer>()
+    private val players = mutableListOf<FakeAudioEngine>()
 
     @After
     fun closePlaybackScopes() {
@@ -41,11 +46,105 @@ class PlaybackMetadataRefreshTest {
     }
 
     @Test
-    fun pausedMetadataRefreshPreservesAudioClockModesAndUpdatesMediaSessionAndDisk() = runTest {
+    fun ownerPublishedAfterControllerCreationRestoresPausedQueueWithoutDecoderOrService() = runPlaybackTest {
+        val account = "metadata-async-owner"
+        savedQueue(account)
+        var owner: String? = null
+        var starts = 0
+        val serviceContext = object : ContextWrapper(context) {
+            override fun startService(service: Intent): ComponentName? {
+                starts++
+                return super.startService(service)
+            }
+            override fun startForegroundService(service: Intent): ComponentName? {
+                starts++
+                return super.startForegroundService(service)
+            }
+        }
+        val latest = MutableStateFlow<PlaybackMetadataSnapshot?>(null)
+        val controller = testPlaybackController(
+            serviceContext,
+            playbackScopes.wrap(backgroundScope),
+            { owner },
+            metadata = latest,
+            isMetadataCurrent = { it == latest.value },
+            engineFactory = { FakeAudioEngine().also { players += it } },
+        )
+        runCurrent()
+        assertTrue(controller.state.value.queue.isEmpty())
+        assertNull(controller.systemSnapshot())
+        owner = account
+        latest.value = PlaybackMetadataSnapshot(account, emptyList())
+        runCurrent()
+        assertEquals("metadata-one", controller.state.value.current?.id?.value)
+        assertEquals(4000L, controller.state.value.positionMs)
+        assertFalse(controller.state.value.isPlaying)
+        assertNotNull(controller.systemSnapshot())
+        assertTrue(players.isEmpty())
+        assertEquals(0, starts)
+        controller.seekTo(8000)
+        latest.value = PlaybackMetadataSnapshot(
+            account,
+            listOf(
+                PlaybackTrackMetadata(
+                    requireNotNull(controller.state.value.current).id,
+                    "Canonical after startup",
+                    "Artist",
+                    CoverSeed("cover"),
+                ),
+            ),
+        )
+        runCurrent()
+        assertEquals(8000L, controller.state.value.positionMs)
+        assertEquals("Canonical after startup", controller.state.value.current?.title)
+        controller.stop()
+    }
+
+    @Test
+    fun deferredInitialRestoreCannotOverwriteExplicitPlayBeforeMetadataArrives() = runPlaybackTest {
+        val account = "metadata-async-explicit-play"
+        savedQueue(account)
+        var owner: String? = null
+        val latest = MutableStateFlow<PlaybackMetadataSnapshot?>(null)
+        val controller =
+            testPlaybackController(context, playbackScopes.wrap(backgroundScope), { owner }, metadata = latest)
+        try {
+            runCurrent()
+            owner = account
+            val song = track("explicit-before-metadata", 20.seconds)
+            controller.play(listOf(song))
+            latest.value = PlaybackMetadataSnapshot(account, emptyList())
+            runCurrent()
+            assertEquals(song.id, controller.state.value.current?.id)
+            assertTrue(controller.state.value.isPlaying)
+        } finally {
+            controller.stop()
+        }
+    }
+
+    @Test
+    fun explicitStopBeforeOwnerLoadsPreventsDeferredQueueResurrection() = runPlaybackTest {
+        val account = "metadata-async-explicit-stop"
+        savedQueue(account)
+        var owner: String? = null
+        val latest = MutableStateFlow<PlaybackMetadataSnapshot?>(null)
+        val controller =
+            testPlaybackController(context, playbackScopes.wrap(backgroundScope), { owner }, metadata = latest)
+        runCurrent()
+        controller.stop()
+        owner = account
+        latest.value = PlaybackMetadataSnapshot(account, emptyList())
+        runCurrent()
+        assertTrue(controller.state.value.queue.isEmpty())
+        assertNull(controller.systemSnapshot())
+    }
+
+    @Test
+    fun pausedMetadataRefreshPreservesAudioClockModesAndUpdatesMediaSessionAndDisk() = runPlaybackTest {
         val owner = "metadata-paused"
         val preferences = savedQueue(owner)
         val latest = MutableStateFlow<PlaybackMetadataSnapshot?>(null)
-        val controller = AndroidPlaybackController(
+        val controller = testPlaybackController(
             context,
             playbackScopes.wrap(backgroundScope),
             { owner },
@@ -53,7 +152,7 @@ class PlaybackMetadataRefreshTest {
             isMetadataCurrent = { it == latest.value },
         )
         val before = controller.state.value
-        val player = MediaPlayer().also { players += it }
+        val player = FakeAudioEngine().also { players += it }
         ReflectionHelpers.setField(controller, "player", player)
         ReflectionHelpers.setField(controller, "loadedId", before.current?.id?.value)
         val original = requireNotNull(before.current)
@@ -82,24 +181,24 @@ class PlaybackMetadataRefreshTest {
         assertFalse(after.isPlaying)
         assertSame(player, ReflectionHelpers.getField<Any?>(controller, "player"))
         assertEquals(original.id.value, ReflectionHelpers.getField<String>(controller, "loadedId"))
-        assertEquals("Renamed", mediaMetadata(after, null).getString(MediaMetadata.METADATA_KEY_TITLE))
+        assertEquals("Renamed", mediaMetadata(after, null).title.toString())
         PlaybackPersistenceWriter.shared.flush()
         assertEquals(
             4000L,
             JSONObject(requireNotNull(preferences.getString(playbackPreferenceKey(owner), null)))
                 .getLong("position"),
         )
-        val restored = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), { owner })
+        val restored = testPlaybackController(context, playbackScopes.wrap(backgroundScope), { owner })
         assertEquals("Renamed", restored.state.value.current?.title)
         assertEquals(4000L, restored.state.value.positionMs)
         assertEquals(original.audioUri, restored.state.value.current?.audioUri)
     }
 
     @Test
-    fun metadataRefreshUpdatesBothShuffledQueueAndOriginalOrderWithoutChangingIndex() = runTest {
+    fun metadataRefreshUpdatesBothShuffledQueueAndOriginalOrderWithoutChangingIndex() = runPlaybackTest {
         val owner = "metadata-shuffled"
         savedQueue(owner)
-        val controller = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), { owner })
+        val controller = testPlaybackController(context, playbackScopes.wrap(backgroundScope), { owner })
         controller.setShuffle(true)
         val before = controller.state.value
         val renamed = before.queue.map { PlaybackTrackMetadata(it.id, "New " + it.title, it.artist, it.coverSeed) }
@@ -116,7 +215,7 @@ class PlaybackMetadataRefreshTest {
     }
 
     @Test
-    fun foreignOwnerAndStaleSameUuidMetadataCannotOverwriteCurrentQueue() = runTest {
+    fun foreignOwnerAndStaleSameUuidMetadataCannotOverwriteCurrentQueue() = runPlaybackTest {
         var owner = "metadata-owner-b"
         savedQueue(owner)
         val beforeTrack = track("metadata-one", 23.seconds)
@@ -124,7 +223,7 @@ class PlaybackMetadataRefreshTest {
             owner,
             listOf(PlaybackTrackMetadata(beforeTrack.id, "B current", beforeTrack.artist, beforeTrack.coverSeed)),
         )
-        val controller = AndroidPlaybackController(
+        val controller = testPlaybackController(
             context,
             playbackScopes.wrap(backgroundScope),
             { owner },
@@ -141,10 +240,10 @@ class PlaybackMetadataRefreshTest {
     }
 
     @Test
-    fun metadataAlreadyObservedBeforeAQueueLoadStillCanonicalizesTheNewQueue() = runTest {
+    fun metadataAlreadyObservedBeforeAQueueLoadStillCanonicalizesTheNewQueue() = runPlaybackTest {
         val owner = "metadata-later-load"
         savedQueue(owner)
-        val controller = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), { owner })
+        val controller = testPlaybackController(context, playbackScopes.wrap(backgroundScope), { owner })
         val original = requireNotNull(controller.state.value.current)
         controller.refreshMetadata(
             PlaybackMetadataSnapshot(
@@ -158,10 +257,10 @@ class PlaybackMetadataRefreshTest {
     }
 
     @Test
-    fun purgedGenerationRejectsMetadataBeforeAsynchronousStopRuns() = runTest {
+    fun purgedGenerationRejectsMetadataBeforeAsynchronousStopRuns() = runPlaybackTest {
         val owner = "metadata-purged"
         savedQueue(owner)
-        val controller = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), { owner })
+        val controller = testPlaybackController(context, playbackScopes.wrap(backgroundScope), { owner })
         val before = controller.state.value
         val original = requireNotNull(before.current)
         clearPlaybackState(context, owner)
@@ -174,12 +273,20 @@ class PlaybackMetadataRefreshTest {
         assertEquals(before, controller.state.value)
     }
 
+    private fun runPlaybackTest(test: suspend TestScope.() -> Unit) = runTest {
+        try {
+            test()
+        } finally {
+            // Main cancellation and IO completion must finish while runTest still drives them.
+            playbackScopes.closeSuspending()
+        }
+    }
+
     private fun savedQueue(owner: String): SharedPreferences {
         PlaybackPersistenceWriter.shared.flush()
         val preferences = context.getSharedPreferences("playback", Context.MODE_PRIVATE)
         val first = track("metadata-one", 23.seconds).copy(
             audioUri = "https://example.test/private/audio",
-            audioHeaders = mapOf("X-Fixture" to "keep"),
             customLyrics = "Keep words",
             prompt = "Keep source prompt",
             remixTrackIds = listOf("source-id"),

@@ -15,6 +15,7 @@ internal data class AccountSnapshot(
     val playlists: List<Playlist> = emptyList(),
     val credits: Credits = Credits(25, 25),
     val creditDay: String = utcDay(),
+    val requiresAuthentication: Boolean = false,
 )
 
 internal fun utcDay(): String = LocalDate.now(ZoneOffset.UTC).toString()

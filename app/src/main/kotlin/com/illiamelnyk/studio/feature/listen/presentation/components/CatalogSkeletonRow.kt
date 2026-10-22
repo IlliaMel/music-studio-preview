@@ -26,7 +26,7 @@ fun CatalogSkeletonRow(kind: CatalogSectionKind, modifier: Modifier = Modifier) 
         } else {
             Column(Modifier.width(dimens.size.cover.l), verticalArrangement = Arrangement.spacedBy(dimens.spacing.xs)) {
                 Box(Modifier.size(dimens.size.cover.l).skeleton(true, StudioTheme.shapes.m))
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(dimens.spacing.xxs)) {
                     SkeletonTextLine(StudioTheme.typography.titleSmall, Modifier.fillMaxWidth())
                     if (kind != CatalogSectionKind.Genres) {
                         SkeletonTextLine(StudioTheme.typography.bodySmall, Modifier.fillMaxWidth(0.65f))

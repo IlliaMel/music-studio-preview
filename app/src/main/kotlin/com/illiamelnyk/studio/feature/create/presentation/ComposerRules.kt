@@ -10,7 +10,7 @@ import com.illiamelnyk.studio.feature.create.presentation.common.toOptionUi
 fun ComposerUi.withSettings(settings: GenerationSettings): ComposerUi = copy(
     quality = settings.quality,
     lyricsMode = settings.lyricsMode,
-    duration = settings.duration?.toOptionUi(),
+    duration = settings.effectiveDuration?.toOptionUi(),
     variants = settings.variants,
     customLyrics = settings.customLyrics,
 )
@@ -24,13 +24,15 @@ fun ComposerUi.withSettings(settings: GenerationSettings): ComposerUi = copy(
  */
 fun ComposerUi.checked(creditsLeft: Int?): ComposerUi {
     val notice = when {
+        !canGenerate -> UiText.Resource(R.string.error_generation_not_allowed)
         creditsLeft == null -> null
         creditsLeft == 0 -> UiText.Resource(R.string.error_quota_exceeded)
-        else -> null
+        else -> optionsNotice
     }
     val enoughCredits = creditsLeft != null && creditsLeft > 0
     return copy(
-        canSend = Prompt.isValid(prompt) && enoughCredits && !isSending &&
+        canSend = canGenerate && optionsReady && optionsNotice == null && Prompt.isValid(prompt) &&
+            enoughCredits && !isSending &&
             (lyricsMode != com.illiamelnyk.studio.feature.create.domain.LyricsMode.Custom || customLyrics.isNotBlank()),
         notice = notice,
     )

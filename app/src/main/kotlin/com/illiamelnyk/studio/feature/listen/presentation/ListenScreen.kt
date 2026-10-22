@@ -18,9 +18,9 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
 import com.illiamelnyk.studio.core.ui.components.ComingSoonSheetContent
+import com.illiamelnyk.studio.core.ui.components.OverlaySheet
 import com.illiamelnyk.studio.core.ui.components.StudioBadge
 import com.illiamelnyk.studio.core.ui.components.StudioBadgeStyle
-import com.illiamelnyk.studio.core.ui.components.StudioBottomSheet
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.listen.presentation.components.CatalogSectionRow
 
@@ -49,7 +49,7 @@ fun ListenScreen(
                 }, modifier = Modifier.padding(vertical = dimens.spacing.s))
             }
         }
-        StudioBottomSheet(state.searchVisible, onDismissRequest = { onIntent(ListenIntent.DismissSearch) }) {
+        OverlaySheet(state.searchVisible, onDismissRequest = { onIntent(ListenIntent.DismissSearch) }) {
             ComingSoonSheetContent(
                 stringResource(
                     R.string.listen_search,

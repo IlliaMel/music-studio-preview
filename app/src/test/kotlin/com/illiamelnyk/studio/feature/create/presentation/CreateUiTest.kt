@@ -1,11 +1,14 @@
 package com.illiamelnyk.studio.feature.create.presentation
 
+import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.CoverSeed
 import com.illiamelnyk.studio.core.domain.track.MusicModel
 import com.illiamelnyk.studio.core.domain.track.Track
 import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.core.domain.track.TrackStatus
+import com.illiamelnyk.studio.core.presentation.UiText
+import com.illiamelnyk.studio.core.presentation.toUiText
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 import org.junit.Assert.assertEquals
@@ -15,8 +18,23 @@ import org.junit.Test
 class CreateUiTest {
 
     @Test
-    fun `a composing track carries its progress, a queued one none yet`() {
-        assertEquals(0.375f, track(TrackStatus.Generating(0.375f)).toCreateUi().progress)
+    fun `invitation and service budget errors have specific explanations without immediate retry`() {
+        listOf(
+            AppError.GenerationNotAllowed to R.string.error_generation_not_allowed,
+            AppError.ServiceDailyLimit to R.string.error_service_daily_limit,
+        ).forEach { (error, text) ->
+            assertEquals(UiText.Resource(text), error.toUiText())
+            assertEquals(false, track(TrackStatus.Failed(error)).toCreateUi().canRetry)
+        }
+    }
+
+    @Test
+    fun `live generation has an indeterminate indicator without invented stages`() {
+        assertNull(track(TrackStatus.Generating(0.375f)).toCreateUi().progress)
+        assertEquals(
+            UiText.Resource(R.string.track_composing_status),
+            track(TrackStatus.Generating(0.5f)).toCreateUi().row.subtitle,
+        )
         assertNull(track(TrackStatus.Queued).toCreateUi().progress)
         assertNull(track(TrackStatus.Ready).toCreateUi().progress)
     }

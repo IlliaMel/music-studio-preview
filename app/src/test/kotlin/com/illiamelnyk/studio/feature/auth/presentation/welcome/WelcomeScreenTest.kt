@@ -1,8 +1,11 @@
 package com.illiamelnyk.studio.feature.auth.presentation.welcome
 
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import com.illiamelnyk.studio.R
+import com.illiamelnyk.studio.core.presentation.UiText
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -22,5 +25,20 @@ class WelcomeScreenTest {
         assertEquals(WelcomeIntent.ContinueWithGoogleClicked, intent)
         compose.onNodeWithText("Try the demo").assertDoesNotExist()
         compose.onNodeWithText("18+").assertDoesNotExist()
+    }
+
+    @Test
+    fun `Google sign in failures display actionable recovery instructions`() {
+        compose.setContent {
+            StudioTheme {
+                WelcomeScreen(
+                    WelcomeState(notice = UiText.Resource(R.string.auth_google_no_account)),
+                    onIntent = {},
+                )
+            }
+        }
+        compose.onNodeWithText(
+            "No Google account is available. Add an account in your device settings and try again.",
+        ).assertIsDisplayed()
     }
 }

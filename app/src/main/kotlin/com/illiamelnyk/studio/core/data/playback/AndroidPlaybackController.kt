@@ -33,9 +33,10 @@ class AndroidPlaybackController(
     private val scope: CoroutineScope,
     private val ownerId: () -> String?,
     private val random: Random = Random.Default,
-    private val audioHeaders: suspend (Track) -> Map<String, String> = { it.audioHeaders },
+    private val audioHeaders: suspend (Track) -> Map<String, String> = { emptyMap() },
     metadata: Flow<PlaybackMetadataSnapshot?> = emptyFlow(),
     private val isMetadataCurrent: (PlaybackMetadataSnapshot) -> Boolean = { true },
+    private val engineFactory: () -> AudioEngine = { Media3AudioEngine(context) },
 ) : PlaybackController {
     private val playbackLock = Any()
     private val mutableState = MutableStateFlow(PlaybackState())
@@ -46,30 +47,11 @@ class AndroidPlaybackController(
     private var playbackGeneration = 0L
     private var originalQueue: List<Track> = emptyList()
     private var latestMetadata: PlaybackMetadataSnapshot? = null
+    private var initialRestorePending = true
 
     private var playOrder: List<Int> = emptyList()
     private var clock: Job? = null
     private var pendingSeek: Long? = null
-    private val audioManager = context.getSystemService(android.media.AudioManager::class.java)
-    private var hasFocus = false
-    private val focusRequest = android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN)
-        .setAudioAttributes(
-            android.media.AudioAttributes.Builder()
-                .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
-                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build(),
-        )
-        .setOnAudioFocusChangeListener { change ->
-            when (change) {
-                android.media.AudioManager.AUDIOFOCUS_LOSS, android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                    hasFocus = false
-                    mutableState.update { it.copy(isPlaying = false, autoplayWaiting = false) }
-                }
-
-                android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> player?.setVolume(0.2f, 0.2f)
-
-                android.media.AudioManager.AUDIOFOCUS_GAIN -> player?.setVolume(1f, 1f)
-            }
-        }.build()
     private val preferences = context.getSharedPreferences("playback", android.content.Context.MODE_PRIVATE)
 
     private val persistence = PlaybackStatePersistence(preferences, ownerId)
@@ -120,6 +102,7 @@ class AndroidPlaybackController(
 
     private fun restoreQueue() {
         val owner = ownerId() ?: return
+        initialRestorePending = false
         val key = playbackPreferenceKey(owner)
         val generation = playbackRestoreGeneration(owner) ?: return
         var observed: Any? = null
@@ -473,10 +456,6 @@ class AndroidPlaybackController(
                 loadedId = null
                 prepared = false
                 pendingSeek = 0
-                if (!state.isPlaying) {
-                    audioManager.abandonAudioFocusRequest(focusRequest)
-                    hasFocus = false
-                }
             }
             originalQueue = retained.map(originalQueue::get)
             playOrder = order
@@ -494,6 +473,9 @@ class AndroidPlaybackController(
         synchronized(playbackLock) {
             if (snapshot.ownerId != ownerId() || !isMetadataCurrent(snapshot)) return
             latestMetadata = snapshot
+            // A cold-start service can create this controller before asynchronous Room startup
+            // publishes the owner. Restore only that deferred initial queue, always paused.
+            if (initialRestorePending) restoreQueue()
             val owner = playbackOwner ?: return
             if (snapshot.ownerId != owner || owner != ownerId() ||
                 playbackGeneration != playbackStateGeneration(owner) || !persistence.owns(owner) ||
@@ -526,6 +508,8 @@ class AndroidPlaybackController(
     }
 
     override fun systemSnapshot(): PlaybackResumption? = synchronized(playbackLock) {
+        // Readiness can complete before the metadata collector gets its turn on Main.
+        if (initialRestorePending && ownerId() != null) restoreQueue()
         val owner = playbackOwner ?: return@synchronized null
         val state = mutableState.value
         val track = state.current ?: return@synchronized null
@@ -548,8 +532,6 @@ class AndroidPlaybackController(
             loadedId = null
             pendingSeek = null
             stopClock()
-            audioManager.abandonAudioFocusRequest(focusRequest)
-            hasFocus = false
             mutableState.update {
                 it.copy(isPlaying = false, positionMs = position ?: it.positionMs, autoplayWaiting = false)
             }
@@ -571,11 +553,10 @@ class AndroidPlaybackController(
 
     private fun stopInternal() {
         synchronized(playbackLock) {
+            initialRestorePending = false
             persistenceEpoch.incrementAndGet()
             persistAutoplay()
             preparing?.cancel()
-            audioManager.abandonAudioFocusRequest(focusRequest)
-            hasFocus = false
             player?.release()
             player = null
             loadedId = null
@@ -628,9 +609,12 @@ class AndroidPlaybackController(
         }
         synchronized(playbackRestoreLock) {
             if (ownerId() != owner || playbackRestoreGeneration(owner) != generation) return
+            initialRestorePending = false
             playbackOwner = owner
             playbackGeneration = generation
             persistence.claim(owner)
+            // A track that failed to open keeps its id; starting it again must open a fresh source.
+            if (!prepared) loadedId = null
             pendingSeek = 0
             originalQueue = queue
             playOrder = order
@@ -655,8 +639,15 @@ class AndroidPlaybackController(
     }
 
     private fun startClock() {
+        // Direct UI commands bootstrap the service normally; its registered Media3 session owns
+        // foreground promotion. An auth failure or quick pause before service creation must not
+        // leave a startForegroundService deadline that paused playback cannot satisfy.
+        if (mutableState.value.isPlaying && systemSnapshot() != null) {
+            checkNotNull(context.startService(android.content.Intent(context, PlaybackService::class.java))) {
+                "Playback service could not be started"
+            }
+        }
         if (clock?.isActive == true) return
-        context.startForegroundService(android.content.Intent(context, PlaybackService::class.java))
         clock = scope.launch(kotlinx.coroutines.Dispatchers.Main.immediate) {
             while (isActive) {
                 syncAudio()
@@ -671,10 +662,11 @@ class AndroidPlaybackController(
         }
     }
 
-    private var player: android.media.MediaPlayer? = null
+    private var player: AudioEngine? = null
     private var prepared = false
     private var loadedId: String? = null
     private var preparing: Job? = null
+    private var sourceGeneration = 0L
 
     private fun syncAudio() {
         val owner = playbackOwner
@@ -695,8 +687,8 @@ class AndroidPlaybackController(
         }
         if (loadedId != track.id.value) {
             preparing?.cancel()
-            player?.release()
-            player = null
+            val source = ++sourceGeneration
+            player?.clearSource()
             loadedId = track.id.value
             prepared = false
             val identity = systemSnapshot()?.mediaId
@@ -704,77 +696,74 @@ class AndroidPlaybackController(
                 try {
                     val headers = audioHeaders(track)
                     val uri = AudioFiles(context).playableUri(track)
-                    if (identity == null || systemSnapshot()?.mediaId != identity || loadedId != track.id.value) {
+                    if (sourceGeneration != source || identity == null || systemSnapshot()?.mediaId != identity ||
+                        loadedId != track.id.value
+                    ) {
                         return@launch
                     }
-                    val next = android.media.MediaPlayer()
+                    val next = player ?: engineFactory()
                     player = next
-                    next.setWakeMode(context, android.os.PowerManager.PARTIAL_WAKE_LOCK)
-                    next.setAudioAttributes(
-                        android.media.AudioAttributes.Builder()
-                            .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
-                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build(),
-                    )
-                    next.setDataSource(context, uri, headers)
-                    next.setOnPreparedListener {
-                        if (!ownsCurrentPlayer(next, track)) {
-                            return@setOnPreparedListener
-                        }
-                        prepared = true
-                        val actualDuration = next.duration.toLong().milliseconds
-                        originalQueue = originalQueue.map {
-                            if (it.id == track.id) it.copy(duration = actualDuration) else it
-                        }
-                        mutableState.update { current ->
-                            current.copy(
-                                queue = current.queue.map {
+                    next.prepare(
+                        uri,
+                        headers,
+                        object : AudioEngine.Listener {
+                            override fun onReady() {
+                                if (!ownsCurrentPlayer(next, track, source) || prepared) return
+                                prepared = true
+                                val actualDuration = next.duration.takeIf { it > 0 }?.milliseconds ?: track.duration
+                                originalQueue = originalQueue.map {
                                     if (it.id == track.id) it.copy(duration = actualDuration) else it
-                                },
-                            )
-                        }
-                        next.seekTo(mutableState.value.positionMs.toInt())
-                        pendingSeek = null
-                        if (mutableState.value.isPlaying && requestFocus()) next.start()
-                    }
-                    next.setOnCompletionListener {
-                        if (!ownsCurrentPlayer(next, track)) {
-                            return@setOnCompletionListener
-                        }
-                        val before = mutableState.value
-                        val after = before.copy(positionMs = before.durationMs).advancedBy(1)
-                        mutableState.value = after
-                        if (after.current?.id == before.current?.id && after.isPlaying) {
-                            next.seekTo(0)
-                            next.start()
-                        }
-                    }
-                    next.setOnErrorListener { _, what, extra ->
-                        if (ownsCurrentPlayer(next, track)) {
-                            android.util.Log.e("StudioPlayback", "Audio error: $what/$extra")
-                            next.release()
-                            player = null
-                            prepared = false
-                            val failure = when {
-                                extra == android.media.MediaPlayer.MEDIA_ERROR_TIMED_OUT -> AppError.Timeout
-
-                                extra == android.media.MediaPlayer.MEDIA_ERROR_IO && track.isRemoteAudio() -> {
-                                    AppError.Network
                                 }
-
-                                else -> AppError.Unknown
+                                mutableState.update { current ->
+                                    current.copy(
+                                        queue = current.queue.map {
+                                            if (it.id == track.id) it.copy(duration = actualDuration) else it
+                                        },
+                                    )
+                                }
+                                next.seekTo(mutableState.value.positionMs)
+                                pendingSeek = null
+                                if (mutableState.value.isPlaying) next.start()
                             }
-                            reportFailure(track, failure)
-                        }
-                        true
-                    }
-                    next.prepareAsync()
+
+                            override fun onEnded() {
+                                if (!ownsCurrentPlayer(next, track, source)) return
+                                val before = mutableState.value
+                                val after = before.copy(positionMs = before.durationMs).advancedBy(1)
+                                mutableState.value = after
+                                if (after.current?.id == before.current?.id && after.isPlaying) {
+                                    next.seekTo(0)
+                                    next.start()
+                                } else if (after.isPlaying) {
+                                    // Handoff immediately; do not add the UI position-tick delay
+                                    // before resolving and replacing the next authorized source.
+                                    syncAudio()
+                                }
+                            }
+
+                            override fun onError(error: AppError) {
+                                if (!ownsCurrentPlayer(next, track, source)) return
+                                next.release()
+                                player = null
+                                prepared = false
+                                reportFailure(track, error)
+                            }
+
+                            override fun onInterrupted() {
+                                if (!ownsCurrentPlayer(next, track, source)) return
+                                next.pause()
+                                mutableState.update { it.copy(isPlaying = false, autoplayWaiting = false) }
+                            }
+                        },
+                    )
                 } catch (error: Exception) {
                     if (error is kotlinx.coroutines.CancellationException) throw error
-                    if (loadedId == track.id.value && mutableState.value.current?.id == track.id &&
+                    if (sourceGeneration == source && loadedId == track.id.value &&
+                        mutableState.value.current?.id == track.id &&
                         playbackOwner == ownerId() &&
                         playbackOwner?.let { playbackGeneration == playbackStateGeneration(it) } == true
                     ) {
-                        android.util.Log.e("StudioPlayback", "Cannot open audio", error)
+                        android.util.Log.e("StudioPlayback", "Cannot open audio: " + error.javaClass.simpleName)
                         player?.release()
                         player = null
                         prepared = false
@@ -792,15 +781,15 @@ class AndroidPlaybackController(
         }
         val active = player ?: return
         if (!prepared) return
-        if (state.isPlaying && !active.isPlaying && requestFocus()) active.start()
-        if (!state.isPlaying && active.isPlaying) {
+        // Compare intent, not sound: while a short focus loss holds playback back, start() would
+        // request focus again, lose it to the call and turn the wait into a pause.
+        if (state.isPlaying && !active.playWhenReady) active.start()
+        if (!state.isPlaying && active.playWhenReady) {
             active.pause()
-            audioManager.abandonAudioFocusRequest(focusRequest)
-            hasFocus = false
         }
         val seek = pendingSeek
         if (seek != null || kotlin.math.abs(active.currentPosition.toLong() - state.positionMs) > 600) {
-            active.seekTo((seek ?: state.positionMs).toInt())
+            active.seekTo(seek ?: state.positionMs)
             pendingSeek = null
         }
     }
@@ -823,16 +812,10 @@ class AndroidPlaybackController(
         }
     }
 
-    private fun ownsCurrentPlayer(candidate: android.media.MediaPlayer, track: Track): Boolean =
-        player === candidate && mutableState.value.current?.id == track.id && playbackOwner == ownerId() &&
+    private fun ownsCurrentPlayer(candidate: AudioEngine, track: Track, source: Long): Boolean =
+        sourceGeneration == source && player === candidate && mutableState.value.current?.id == track.id &&
+            playbackOwner == ownerId() &&
             playbackOwner?.let { playbackGeneration == playbackStateGeneration(it) && persistence.owns(it) } == true
-
-    private fun requestFocus(): Boolean {
-        if (hasFocus) return true
-        hasFocus = audioManager.requestAudioFocus(focusRequest) == android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-        if (!hasFocus) mutableState.update { it.copy(isPlaying = false, autoplayWaiting = false) }
-        return hasFocus
-    }
 
     private fun stopClock() {
         clock?.cancel()

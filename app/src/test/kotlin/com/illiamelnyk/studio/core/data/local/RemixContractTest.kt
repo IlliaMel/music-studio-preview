@@ -1,6 +1,6 @@
 package com.illiamelnyk.studio.core.data.local
 
-import com.illiamelnyk.studio.core.data.fake.FakeCatalog
+import com.illiamelnyk.studio.core.data.demo.DemoCatalog
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.track.GenerationRequest
 import org.json.JSONArray
@@ -18,15 +18,15 @@ class RemixContractTest {
 
     @Test
     fun requestAndTrackRoundTripsKeepEverySourceInOrderAndNetworkUsesOnlyTheArray() {
-        val request = GenerationRequest("Blend two original ideas", remixTrackId = ids.first(), remixTrackIds = ids)
+        val request = GenerationRequest("Blend two original ideas", remixTrackIds = ids)
         val json = request.toJson()
         assertFalse(json.has("remixTrackId"))
         assertEquals(ids, json.getJSONArray("remixTrackIds").strings())
-        assertEquals(ids, JSONObject(json.toString()).toRequest().remixSourceIds)
-        val source = FakeCatalog.glassHarbor.copy(remixTrackIds = ids)
+        assertEquals(ids, JSONObject(json.toString()).toRequest().remixTrackIds)
+        val source = DemoCatalog.glassHarbor.copy(remixTrackIds = ids)
         val restored = JSONObject(source.toJson().toString()).toTrack()
         assertEquals(ids, restored.remixTrackIds)
-        assertEquals(ids.first(), restored.remixTrackId)
+        assertFalse(restored.toJson().has("remixTrackId"))
         assertTrue(restored.isRemix)
     }
 
@@ -34,9 +34,33 @@ class RemixContractTest {
     fun legacySingleSourceCacheMigratesToTheCanonicalArrayWithoutLosingItsIdentity() {
         val legacy = JSONObject().put("prompt", "Original mellow arrangement").put("remixTrackId", ids.first())
         val request = legacy.toRequest()
-        assertEquals(listOf(ids.first()), request.remixSourceIds)
+        assertEquals(listOf(ids.first()), request.remixTrackIds)
         assertEquals(listOf(ids.first()), request.toJson().getJSONArray("remixTrackIds").strings())
         assertFalse(request.toJson().has("remixTrackId"))
+    }
+
+    @Test
+    fun legacyTrackCacheReadsTheSingleSourceButRewritesOnlyTheCanonicalList() {
+        val legacy = DemoCatalog.glassHarbor.toJson().apply {
+            remove("remixTrackIds")
+            put("remixTrackId", ids.first())
+        }
+        val migrated = legacy.toTrack()
+        assertEquals(listOf(ids.first()), migrated.remixTrackIds)
+        assertTrue(migrated.isRemix)
+        assertFalse(migrated.toJson().has("remixTrackId"))
+        assertEquals(listOf(ids.first()), migrated.toJson().getJSONArray("remixTrackIds").strings())
+    }
+
+    @Test
+    fun explicitCanonicalEmptyListWinsOverAStaleLegacySingleSource() {
+        val mixed = DemoCatalog.glassHarbor.toJson().apply {
+            put("remixTrackIds", JSONArray())
+            put("remixTrackId", ids.first())
+        }
+        assertTrue(mixed.toTrack().remixTrackIds.isEmpty())
+        assertFalse(mixed.toTrack().isRemix)
+        assertTrue(mixed.toRequest().remixTrackIds.isEmpty())
     }
 
     @Test
@@ -61,13 +85,13 @@ class RemixContractTest {
 
     @Test
     fun canonicalArrayOnlyResponseStillMarksTrackAsARemix() {
-        val json = FakeCatalog.glassHarbor.toJson().apply {
+        val json = DemoCatalog.glassHarbor.toJson().apply {
             remove("remixTrackId")
             put("remixTrackIds", JSONArray(ids))
         }
         val parsed = json.toTrack()
-        assertEquals(ids.first(), parsed.remixTrackId)
-        assertEquals(ids, parsed.remixSourceIds)
+        assertEquals(ids.first(), parsed.remixTrackIds.firstOrNull())
+        assertEquals(ids, parsed.remixTrackIds)
         assertTrue(parsed.isRemix)
     }
 

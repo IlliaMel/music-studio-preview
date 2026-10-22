@@ -12,6 +12,7 @@ import {
   ProviderError,
 } from '../src/features/tracks/generation/music-provider.js'
 import { silentMp3 } from '../src/features/tracks/generation/silent-mp3.js'
+import { paidGenerationDailyUsage } from '../src/features/tracks/paid-usage.table.js'
 import { TracksRepository } from '../src/features/tracks/tracks.repository.js'
 import type { Track } from '../src/features/tracks/tracks.table.js'
 import { UsersRepository } from '../src/features/users/users.repository.js'
@@ -100,6 +101,100 @@ async function workerWith(provider: MusicProvider, timeoutMs = 2_000, repository
 const reload = async (track: Track) => tracks.findForUser(userId, track.id)
 
 describe('GenerationWorker', () => {
+  it('does not refund a previously unpaid row when the same named adapter becomes paid', async () => {
+    const now = new Date()
+    const input = {
+      userId,
+      prompt: 'A calm piano piece',
+      lengthMs: 30000,
+      instrumental: true,
+      modelId: 'music_v2_5',
+      providerName: 'elevenlabs',
+    }
+    const oldUnpaid = await tracks.create(
+      { ...input, idempotencyKey: 'unpaid-before-switch' },
+      { since: new Date(0), max: 100 },
+      new Date(now.getTime() - 1),
+    )
+    const newPaid = await tracks.create(
+      { ...input, idempotencyKey: 'paid-after-switch' },
+      { since: new Date(0), max: 100 },
+      now,
+      { max: 1 },
+    )
+    if (oldUnpaid.kind !== 'created' || newPaid.kind !== 'created')
+      throw new Error('Expected fixtures')
+    expect(oldUnpaid.track.paidReservationDay).toBeNull()
+    expect(newPaid.track.paidReservationDay).toBe(now.toISOString().slice(0, 10))
+    const { worker } = await workerWith({
+      name: 'elevenlabs',
+      paid: true,
+      compose: async () => {
+        throw new ProviderError('PROVIDER_AUTH', 'Rejected', false)
+      },
+    })
+    expect(await worker.runOnce()).toBe(true)
+    expect(await reload(oldUnpaid.track)).toMatchObject({
+      status: 'failed',
+      errorCode: 'PROVIDER_AUTH',
+    })
+    expect(await database.db.select().from(paidGenerationDailyUsage)).toEqual([
+      { day: now.toISOString().slice(0, 10), reservedVariants: 1 },
+    ])
+    expect(await worker.runOnce()).toBe(true)
+    expect(await database.db.select().from(paidGenerationDailyUsage)).toEqual([
+      { day: now.toISOString().slice(0, 10), reservedVariants: 0 },
+    ])
+  })
+
+  it.each([
+    ['QUOTA_EXCEEDED', false],
+    ['PROVIDER_AUTH', false],
+    ['QUOTA_EXCEEDED', true],
+  ] as const)(
+    'refunds a paid %s refusal through the real worker, even if its deadline elapsed: %s',
+    async (code, afterDeadline) => {
+      const now = new Date()
+      const result = await tracks.create(
+        {
+          userId,
+          idempotencyKey: 'paid-rejection',
+          prompt: 'A calm piano piece',
+          lengthMs: 30000,
+          instrumental: true,
+          modelId: 'music_v2_5',
+          providerName: 'elevenlabs',
+        },
+        { since: new Date(0), max: 1 },
+        now,
+        { max: 1 },
+      )
+      if (result.kind !== 'created') throw new Error('Expected reservation')
+      let calls = 0
+      const provider: MusicProvider = {
+        name: 'elevenlabs',
+        paid: true,
+        compose: async (_request, signal) => {
+          calls++
+          if (afterDeadline)
+            await new Promise((resolve) =>
+              signal.addEventListener('abort', resolve, { once: true }),
+            )
+          throw new ProviderError(code, 'Confirmed refusal', false)
+        },
+      }
+      const { worker } = await workerWith(provider, afterDeadline ? 10 : 2000)
+      expect(await worker.runOnce()).toBe(true)
+      expect(await worker.runOnce()).toBe(false)
+      expect(calls).toBe(1)
+      expect(await reload(result.track)).toMatchObject({ status: 'failed', errorCode: code })
+      expect(await tracks.countTowardLimit(userId, new Date(0))).toBe(0)
+      expect(await database.db.select().from(paidGenerationDailyUsage)).toEqual([
+        { day: now.toISOString().slice(0, 10), reservedVariants: 0 },
+      ])
+    },
+  )
+
   it('says so when there is nothing to do', async () => {
     const { worker } = await workerWith(new ScriptedProvider([]))
 

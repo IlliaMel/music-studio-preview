@@ -6,8 +6,10 @@ import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.Outcome
 import java.io.File
 import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.test.runTest
 import org.json.JSONArray
 import org.json.JSONObject
@@ -22,6 +24,12 @@ import org.robolectric.RuntimeEnvironment
 
 @RunWith(RobolectricTestRunner::class)
 class RecordingDraftsTest {
+    private suspend fun CoroutineScope.stopAndJoinChildren() {
+        val jobs = coroutineContext[Job]?.children?.toList().orEmpty()
+        jobs.forEach { it.cancel() }
+        jobs.joinAll()
+    }
+
     private lateinit var context: Context
     private lateinit var source: File
 
@@ -30,6 +38,7 @@ class RecordingDraftsTest {
         context = RuntimeEnvironment.getApplication()
         RecordingFiles(context).deleteRecordingStaging("owner")
         RecordingFiles(context).deleteRecordingStaging("second-owner")
+        com.illiamelnyk.studio.core.data.local.StudioStore.clearForTests(context)
         context.filesDir.listFiles()?.filter {
             it.name.startsWith("studio-state-v1.json") ||
                 it.name.startsWith("recording-")
@@ -59,14 +68,14 @@ class RecordingDraftsTest {
         assertEquals(0, api.generationPosts)
         assertEquals(Outcome.Success(Unit), repository.rename(track.id, "Renamed idea"))
         repository.signOut()
-        backgroundScope.coroutineContext.cancelChildren()
-        context.filesDir.listFiles()?.filter { it.name.startsWith("studio-state-v1.json") }?.forEach { it.delete() }
+        backgroundScope.stopAndJoinChildren()
+        com.illiamelnyk.studio.core.data.local.StudioStore.clearForTests(context)
         val second = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
         second.signInServer()
         val restored = second.observeMine().first().single()
         assertEquals(track.id, restored.id)
         assertEquals("Renamed idea", restored.title)
-        assertEquals(mapOf("Authorization" to "Bearer dev:illia"), second.playbackHeaders(restored))
+        assertEquals(mapOf("Authorization" to "Bearer dev:local-developer"), second.playbackHeaders(restored))
         assertEquals(Outcome.Success(Unit), second.delete(restored.id))
         assertTrue(second.observeMine().first().isEmpty())
         assertTrue(api.rows.isEmpty())
@@ -87,7 +96,7 @@ class RecordingDraftsTest {
         assertTrue(context.filesDir.walkTopDown().any { it.isFile && it.name.startsWith("recording-" + originalId) })
         assertTrue(repository.observeMine().first().isEmpty())
         repository.signOut()
-        backgroundScope.coroutineContext.cancelChildren()
+        backgroundScope.stopAndJoinChildren()
         val restarted = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
         restarted.signInServer()
         assertEquals(listOf(originalId, originalId), api.putIds)
@@ -163,13 +172,14 @@ class RecordingDraftsTest {
         val saved = drafts.save(account, source.toUri().toString(), "Crash safe", 12.seconds)
         val pending = store.read().getJSONObject(saved.key)
         val privateFile = File(java.net.URI(pending.getString("uri")))
-        File(context.filesDir, "studio-state-v1.json.new").mkdir()
+        store.failOperationWrites()
         try {
             drafts.acknowledge(listOf(saved))
             org.junit.Assert.fail("Journal write must fail")
-        } catch (_: java.io.IOException) {
+        } catch (_: android.database.sqlite.SQLiteException) {
             Unit
         }
+        store.restoreOperationWrites()
         assertTrue(privateFile.exists())
         assertFalse(store.read().getJSONObject(saved.key).optBoolean("confirmed"))
         assertEquals(saved.track.id, drafts.recover(account).single().track.id)
@@ -347,7 +357,7 @@ class RecordingDraftsTest {
         val repository = DurableStudioRepository(context, store, api, backgroundScope)
         repository.signInServer()
         repository.saveRecording(source.toUri().toString(), "Pending survives", 12.seconds)
-        backgroundScope.coroutineContext.cancelChildren()
+        backgroundScope.stopAndJoinChildren()
         val pendingKey = store.read().keys().asSequence().single { it.startsWith("recording-pending-") }
         val pendingAudio = File(java.net.URI(store.read().getJSONObject(pendingKey).getString("uri")))
         val files = RecordingFiles(context)
@@ -432,6 +442,24 @@ class RecordingDraftsTest {
     }
 
     @Test
+    fun savedDraftReferenceRejectsShortAudioBeforeAnyGeneration() = runTest {
+        val api = MemoryRecordings(context)
+        val repository = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
+        repository.signInServer()
+        val track = (
+            repository.saveRecording(
+                source.toUri().toString(),
+                "Short idea",
+                12.seconds,
+            ) as Outcome.Success
+            ).value
+        api.rows.values.single().put("durationMs", 2_999)
+        assertEquals(Outcome.Failure(AppError.InvalidReference), repository.prepareRecordingReference(track.id))
+        assertEquals(0, api.generationPosts)
+        assertEquals(25, repository.credits.first().remaining)
+    }
+
+    @Test
     fun savedDraftReferenceRejectsNoncanonicalServerAudioBeforeAnyGeneration() = runTest {
         val api = MemoryRecordings(context)
         val repository = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
@@ -450,7 +478,7 @@ class RecordingDraftsTest {
         assertEquals(25, repository.credits.first().remaining)
     }
 
-    private class MemoryRecordings(context: Context) : StudioApi(context) {
+    private class MemoryRecordings(context: Context) : JsonFixtureStudioApi(context) {
         var owner = "owner"
         var failPut = false
         var loseFirstResponse = false
@@ -461,7 +489,7 @@ class RecordingDraftsTest {
         val putIds = mutableListOf<String>()
         val rows = mutableMapOf<String, JSONObject>()
         private val owners = mutableMapOf<String, String>()
-        override suspend fun putRecording(
+        override suspend fun putRecordingFixture(
             id: String,
             uri: String,
             title: String,
@@ -487,7 +515,7 @@ class RecordingDraftsTest {
             }
             return JSONObject(row.toString())
         }
-        override suspend fun request(
+        override suspend fun requestFixture(
             method: String,
             path: String,
             token: String,

@@ -20,6 +20,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -31,6 +34,7 @@ import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.core.presentation.AppFeedbackHost
 import com.illiamelnyk.studio.core.presentation.ToastHost
 import com.illiamelnyk.studio.core.ui.components.StudioButton
+import com.illiamelnyk.studio.core.ui.components.StudioConfirmDialog
 import com.illiamelnyk.studio.core.ui.foundation.LocalWindowFeedback
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.foundation.WindowFeedbackRenderer
@@ -71,6 +75,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             val startup = (application as StudioApp).startup
             val startupState by startup.state.collectAsStateWithLifecycle()
+            val localRecoveryAvailable by startup.localRecoveryAvailable.collectAsStateWithLifecycle()
+            var confirmLocalRecovery by remember(startupState) { mutableStateOf(false) }
             val state = if (startupState == StartupState.Ready) {
                 appViewModel.state.collectAsStateWithLifecycle().value
             } else {
@@ -79,7 +85,7 @@ class MainActivity : ComponentActivity() {
             SideEffect {
                 if (startupState == StartupState.Failed || state.readyForFirstFrame) firstContentReady = true
             }
-            ReportDrawnWhen { state.readyForFirstFrame }
+            ReportDrawnWhen { state.readyForFirstFrame || startupState == StartupState.Failed }
             val darkTheme = when (state.theme) {
                 ThemePreference.Light -> false
 
@@ -111,8 +117,36 @@ class MainActivity : ComponentActivity() {
                                 ),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
-                                StudioText(stringResource(R.string.error_unknown), StudioTheme.typography.bodyMedium)
+                                StudioText(
+                                    stringResource(
+                                        if (localRecoveryAvailable) {
+                                            R.string.startup_local_state_unreadable
+                                        } else {
+                                            R.string.error_unknown
+                                        },
+                                    ),
+                                    StudioTheme.typography.bodyMedium,
+                                )
                                 StudioButton(stringResource(R.string.ui_retry), startup::retry)
+                                if (localRecoveryAvailable) {
+                                    StudioButton(stringResource(R.string.startup_local_recovery_action), {
+                                        confirmLocalRecovery =
+                                            true
+                                    })
+                                }
+                            }
+                            if (confirmLocalRecovery && localRecoveryAvailable) {
+                                StudioConfirmDialog(
+                                    title = stringResource(R.string.startup_local_recovery_title),
+                                    message = stringResource(R.string.startup_local_recovery_message),
+                                    confirmLabel = stringResource(R.string.startup_local_recovery_confirm),
+                                    dismissLabel = stringResource(R.string.profile_cancel),
+                                    onConfirm = {
+                                        confirmLocalRecovery = false
+                                        startup.recoverLocalData()
+                                    },
+                                    onDismissRequest = { confirmLocalRecovery = false },
+                                )
                             }
                         } else {
                             AppRoot(state)
@@ -122,6 +156,16 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    override fun onStart() {
+        super.onStart()
+        (application as StudioApp).recordForeground(true)
+    }
+
+    override fun onStop() {
+        (application as StudioApp).recordForeground(false)
+        super.onStop()
+    }
+
     override fun onDestroy() {
         startupPreDraw?.let { listener ->
             window.decorView.viewTreeObserver.takeIf { it.isAlive }?.removeOnPreDrawListener(listener)

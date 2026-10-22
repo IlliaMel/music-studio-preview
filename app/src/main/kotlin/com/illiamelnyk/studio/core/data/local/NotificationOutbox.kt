@@ -1,31 +1,19 @@
 package com.illiamelnyk.studio.core.data.local
 
-import com.illiamelnyk.studio.core.domain.track.TrackStatus
-import org.json.JSONArray
-import org.json.JSONObject
+import com.illiamelnyk.studio.core.data.local.database.NotificationOutboxEntity
+import java.util.concurrent.atomic.AtomicReference
 
+/** Durable ledger plus an immutable read cache for nonblocking work scheduling decisions. */
 internal class NotificationOutbox(private val store: StudioStore) {
-    fun register(root: JSONObject, account: AccountSnapshot) {
-        val owner = account.session.user.id.value
-        val ids = account.tracks.map { it.id.value }.toSet()
-        val observed = root.array(OBSERVED + owner).strings().filter { it in ids }.toSet() +
-            account.tracks.filter { it.status == TrackStatus.Queued || it.status is TrackStatus.Generating }
-                .map { it.id.value }
-        root.put(OBSERVED + owner, JSONArray(observed.toList()))
-        root.put(DIRTY + owner, true)
+    private val entries = AtomicReference<Map<String, NotificationOutboxEntity>>(emptyMap())
+    suspend fun load() {
+        entries.set(store.outboxes().associateBy { it.ownerId })
     }
-
-    fun observed(owner: String): Set<String> = store.read().array(OBSERVED + owner).strings().toSet()
-    fun isDirty(owner: String): Boolean = store.read().optBoolean(DIRTY + owner)
-    fun markDirty(owner: String) = store.change { it.put(DIRTY + owner, true) }
-    fun recorded(owner: String) = store.change { it.remove(DIRTY + owner) }
-
-    companion object {
-        private const val OBSERVED = "notification-observed-"
-        private const val DIRTY = "notification-dirty-"
-        fun remove(root: JSONObject, owner: String) {
-            root.remove(OBSERVED + owner)
-            root.remove(DIRTY + owner)
-        }
+    fun accept(value: NotificationOutboxEntity) {
+        entries.updateAndGet { it + (value.ownerId to value) }
     }
+    fun observed(owner: String): Set<String> = entries.get()[owner]?.observedIds.orEmpty().toSet()
+    fun isDirty(owner: String): Boolean = entries.get()[owner]?.dirty == true
+    suspend fun markDirty(owner: String) = accept(store.setOutboxDirty(owner, true))
+    suspend fun recorded(owner: String) = accept(store.setOutboxDirty(owner, false))
 }

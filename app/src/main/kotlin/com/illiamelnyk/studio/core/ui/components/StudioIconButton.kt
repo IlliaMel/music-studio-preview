@@ -2,6 +2,7 @@ package com.illiamelnyk.studio.core.ui.components
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +33,9 @@ enum class StudioIconButtonStyle {
     /** On a raised surface circle. */
     Surface,
 
+    /** A quiet outlined circle for navigation back to the previous screen. */
+    Navigation,
+
     /** On the inverse surface, for the main action of a bar, such as sending a prompt. */
     Primary,
 
@@ -48,6 +52,9 @@ enum class StudioIconButtonSize {
 
     /** A 32 dp circle with a 20 dp icon. */
     Small,
+
+    /** A 48 dp circle with a 32 dp icon, for the mini player's play and next. */
+    Large,
 }
 
 /**
@@ -70,6 +77,7 @@ fun StudioIconButton(
     val (buttonSize, iconSize) = when (size) {
         StudioIconButtonSize.Medium -> dimens.size.component.iconButton to dimens.size.icon.l
         StudioIconButtonSize.Small -> dimens.size.component.iconButtonSmall to dimens.size.icon.m
+        StudioIconButtonSize.Large -> dimens.size.control.l to dimens.size.icon.xl
     }
     val container = style.containerColor(colors, enabled)
     val anchorWidth = if (comingSoon && container == Color.Transparent) iconSize else buttonSize
@@ -82,7 +90,15 @@ fun StudioIconButton(
         badgeAlignment = Alignment.Top,
     ) {
         Box(
-            Modifier.size(width = anchorWidth, height = buttonSize).background(container, StudioTheme.shapes.full),
+            Modifier.size(width = anchorWidth, height = buttonSize)
+                .background(container, StudioTheme.shapes.full)
+                .then(
+                    if (style == StudioIconButtonStyle.Navigation) {
+                        Modifier.border(dimens.stroke.hairline, colors.outline.strong, StudioTheme.shapes.full)
+                    } else {
+                        Modifier
+                    },
+                ),
             contentAlignment = Alignment.Center,
         ) {
             StudioIcon(
@@ -102,16 +118,25 @@ private fun StudioIconButtonStyle.containerColor(colors: StudioColors, enabled: 
     StudioIconButtonStyle.OnGlass,
     -> Color.Transparent
 
+    StudioIconButtonStyle.Navigation -> colors.surface.level3
+
     StudioIconButtonStyle.Surface -> if (enabled) colors.surface.level4 else colors.surface.level3
 
     StudioIconButtonStyle.Primary -> if (enabled) colors.inverse.surface else colors.surface.level3
 }
 
 private fun StudioIconButtonStyle.contentColor(colors: StudioColors): Color = when (this) {
-    StudioIconButtonStyle.Plain, StudioIconButtonStyle.Surface -> colors.content.primary
+    StudioIconButtonStyle.Plain,
+    StudioIconButtonStyle.Surface,
+    StudioIconButtonStyle.Navigation,
+    -> colors.content.primary
+
     StudioIconButtonStyle.Muted -> colors.content.secondary
+
     StudioIconButtonStyle.Primary -> colors.inverse.content
+
     StudioIconButtonStyle.OnMedia -> colors.overlay.onMediaPrimary
+
     StudioIconButtonStyle.OnGlass -> colors.overlay.onGlass
 }
 

@@ -1,11 +1,12 @@
 package com.illiamelnyk.studio.feature.create.presentation
 
-import com.illiamelnyk.studio.core.data.fake.FakeCatalog
+import com.illiamelnyk.studio.core.data.demo.DemoCatalog
 import com.illiamelnyk.studio.core.data.fake.FakeCreditsRepository
 import com.illiamelnyk.studio.core.data.fake.FakePlaybackController
 import com.illiamelnyk.studio.core.data.fake.FakeSessionRepository
 import com.illiamelnyk.studio.core.data.fake.FakeTrackRepository
 import com.illiamelnyk.studio.core.domain.Outcome
+import com.illiamelnyk.studio.core.domain.session.SignInMethod
 import com.illiamelnyk.studio.core.domain.track.ComposerDraftStore
 import com.illiamelnyk.studio.core.domain.track.GenerationRequest
 import com.illiamelnyk.studio.core.domain.track.RecordingReference
@@ -16,7 +17,6 @@ import com.illiamelnyk.studio.core.domain.track.TrackStatus
 import com.illiamelnyk.studio.feature.create.domain.GenerateTracks
 import com.illiamelnyk.studio.feature.create.domain.NotificationChoice
 import com.illiamelnyk.studio.feature.create.domain.PlayNext
-import com.illiamelnyk.studio.feature.create.domain.TrackRenames
 import com.illiamelnyk.studio.testing.MainDispatcherRule
 import kotlin.time.Clock
 import kotlinx.coroutines.CompletableDeferred
@@ -53,7 +53,7 @@ class SavedRecordingReferenceTest {
         fixture.vm.onIntent(CreateIntent.SendClicked)
         runCurrent()
         assertEquals(fixture.recording.audioUri, fixture.request!!.referenceAudioUri)
-        assertTrue(fixture.request!!.remixSourceIds.isEmpty())
+        assertTrue(fixture.request!!.remixTrackIds.isEmpty())
     }
 
     @Test
@@ -120,7 +120,7 @@ class SavedRecordingReferenceTest {
         var owner = "owner"
         val credits = FakeCreditsRepository()
         val drafts = ComposerDraftStore { owner }
-        val original = FakeCatalog.tracks.first().copy(status = TrackStatus.Ready)
+        val original = DemoCatalog.tracks.first().copy(status = TrackStatus.Ready)
         val recording = original.copy(
             id = TrackId("recording-8ced07a1-2964-4a3f-aa80-75177020463b"),
             title = "Saved idea",
@@ -131,9 +131,12 @@ class SavedRecordingReferenceTest {
         var request: GenerationRequest? = null
         var preparations = 0
         private val playback = FakePlaybackController(scope.backgroundScope)
+        private val sessions = FakeSessionRepository().apply {
+            signIn("test-owner", SignInMethod.Google, "Test listener", useProviderProfile = true)
+        }
         private val tracks = object : TrackRepository by FakeTrackRepository(
             credits,
-            FakeSessionRepository(),
+            sessions,
             scope.backgroundScope,
             Clock.System,
         ) {
@@ -164,7 +167,8 @@ class SavedRecordingReferenceTest {
                 override suspend fun isEnabled() = false
                 override suspend fun answer(enabled: Boolean) = Unit
             },
-            TrackRenames(),
+            sessions,
+            TestGenerationOptionsRepository(),
             drafts,
         )
 

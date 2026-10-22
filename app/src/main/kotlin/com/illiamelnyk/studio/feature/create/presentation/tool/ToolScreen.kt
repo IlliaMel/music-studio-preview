@@ -54,9 +54,13 @@ fun ToolScreen(
                     )
                 }
             }
-            ToolAction(state.canUse, state.hint, state.isSubmitting, onUseClick = {
-                onIntent(ToolIntent.UseToolClicked)
-            })
+            ToolAction(
+                state.canUse,
+                state.hint,
+                state.isSubmitting,
+                onUseClick = { onIntent(ToolIntent.UseToolClicked) },
+                onHintClick = { onIntent(ToolIntent.HintClicked) },
+            )
         }
         SlotSheet(state.slotSheet, onSelect = {
             onIntent(ToolIntent.SlotValueSelected(it))

@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "2026-10-16.fixture.1",
+  "catalogVersion": "2026-10-23.fixture.2",
   "provenance": {
     "provider": "fixture",
     "fictional": true,
-    "notice": "Fictional test catalog. Chart ranks and play counts are deterministic fixtures, not measured popularity."
+    "notice": "Fictional test catalog. Chart ranks and play counts are deterministic fixtures, not measured popularity. Audio is original locally synthesized demo music, not live generation."
   },
   "tracks": [
     {
@@ -390,6 +390,74 @@
       "status": "done",
       "createdAt": "2026-10-01T12:00:00Z",
       "prompt": ""
+    },
+    {
+      "id": "rainy-keys",
+      "title": "Rainy Keys",
+      "artist": "Studio Sessions",
+      "durationMs": 48000,
+      "instrumental": true,
+      "genres": [
+        "jazz",
+        "piano"
+      ],
+      "isRemix": false,
+      "coverSeed": "Cold Brew Mornings",
+      "modelId": "music_v2_5",
+      "status": "done",
+      "createdAt": "2026-10-23T00:00:00Z",
+      "prompt": ""
+    },
+    {
+      "id": "neon-steps",
+      "title": "Neon Steps",
+      "artist": "Studio Sessions",
+      "durationMs": 48000,
+      "instrumental": true,
+      "genres": [
+        "electronic",
+        "dance"
+      ],
+      "isRemix": false,
+      "coverSeed": "Kinetic",
+      "modelId": "music_v2_5",
+      "status": "done",
+      "createdAt": "2026-10-23T00:00:00Z",
+      "prompt": ""
+    },
+    {
+      "id": "cedar-waltz",
+      "title": "Cedar Waltz",
+      "artist": "Studio Sessions",
+      "durationMs": 45000,
+      "instrumental": true,
+      "genres": [
+        "acoustic",
+        "folk"
+      ],
+      "isRemix": false,
+      "coverSeed": "Cedar Room",
+      "modelId": "music_v2_5",
+      "status": "done",
+      "createdAt": "2026-10-23T00:00:00Z",
+      "prompt": ""
+    },
+    {
+      "id": "tide-pool",
+      "title": "Tide Pool",
+      "artist": "Studio Sessions",
+      "durationMs": 60000,
+      "instrumental": true,
+      "genres": [
+        "ambient",
+        "instrumental"
+      ],
+      "isRemix": false,
+      "coverSeed": "Quiet Atlas",
+      "modelId": "music_v2_5",
+      "status": "done",
+      "createdAt": "2026-10-23T00:00:00Z",
+      "prompt": ""
     }
   ],
   "collections": [
@@ -451,6 +519,10 @@
       "coverSeed": "New This Week",
       "isStation": false,
       "trackIds": [
+        "rainy-keys",
+        "neon-steps",
+        "cedar-waltz",
+        "tide-pool",
         "cold-brew",
         "signal-fire",
         "copper-sky",
@@ -472,6 +544,10 @@
       "coverSeed": "Fresh Starts",
       "isStation": false,
       "trackIds": [
+        "rainy-keys",
+        "neon-steps",
+        "cedar-waltz",
+        "tide-pool",
         "signal-fire",
         "copper-sky",
         "lanterns",
@@ -544,6 +620,7 @@
       "coverSeed": "Electronic Mix",
       "isStation": false,
       "trackIds": [
+        "neon-steps",
         "night-drive",
         "copper-sky",
         "static-bloom",
@@ -559,6 +636,7 @@
       "coverSeed": "Acoustic Favorites",
       "isStation": false,
       "trackIds": [
+        "cedar-waltz",
         "lanterns",
         "sundial",
         "cedar-room"
@@ -635,6 +713,8 @@
       "coverSeed": "Deep Focus",
       "isStation": false,
       "trackIds": [
+        "tide-pool",
+        "rainy-keys",
         "night-drive",
         "static-bloom",
         "slow-tide",
@@ -654,6 +734,7 @@
       "coverSeed": "Jazz",
       "isStation": false,
       "trackIds": [
+        "rainy-keys",
         "cold-brew",
         "velvet-rain",
         "small-hours",
@@ -667,6 +748,7 @@
       "coverSeed": "Electronic",
       "isStation": false,
       "trackIds": [
+        "neon-steps",
         "night-drive",
         "copper-sky",
         "static-bloom",
@@ -682,6 +764,7 @@
       "coverSeed": "Ambient",
       "isStation": false,
       "trackIds": [
+        "tide-pool",
         "slow-tide",
         "low-orbit",
         "distant-fields",

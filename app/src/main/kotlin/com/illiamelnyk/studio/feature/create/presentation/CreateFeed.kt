@@ -32,11 +32,12 @@ data class FeedUi(
     val ideas: ImmutableList<PromptIdeaUi>,
     val playingTrackId: TrackId?,
     val menuTrackId: TrackId?,
+    val canGenerate: Boolean,
 )
 
 /** The part of the state the feed draws; typing in the composer leaves it equal, so the feed skips. */
 val CreateState.feed: FeedUi
-    get() = FeedUi(tools, filter, tracks, isLoading, ideas, playingTrackId, menuTrackId)
+    get() = FeedUi(tools, filter, tracks, isLoading, ideas, playingTrackId, menuTrackId, composer.canGenerate)
 
 /** The positions of the feed's fixed items, to scroll to them. */
 object CreateFeedItems {
@@ -90,16 +91,12 @@ fun CreateFeed(
 
             state.isLoading -> trackSkeletons()
 
-            state.tracks.isEmpty() -> item(key = "ideas", contentType = "ideas") {
-                PromptIdeas(state.ideas, onIdeaClick = { onIntent(CreateIntent.IdeaClicked(it)) })
-            }
-
             else -> items(groups, key = { it.first().row.id.value }, contentType = { "track" }) { group ->
                 val grouped = group.first().variationGroupId != null
                 val drawRow: @Composable (CreateTrackUi) -> Unit = { track ->
                     val id = track.row.id
                     CreateTrackItem(
-                        track = track,
+                        track = if (state.canGenerate) track else track.copy(canRetry = false),
                         isPlaying = id == state.playingTrackId,
                         menuExpanded = id == state.menuTrackId,
                         onClick = { onIntent(CreateIntent.TrackClicked(id)) },
@@ -117,6 +114,16 @@ fun CreateFeed(
                 } else {
                     Box(Modifier.animateItem()) { drawRow(group.first()) }
                 }
+            }
+        }
+        // The ideas stay under the user's tracks, and are all there is before the first one.
+        if (state.filter == TracksFilter.Drafts && !state.isLoading) {
+            item(key = "ideas", contentType = "ideas") {
+                PromptIdeas(
+                    state.ideas,
+                    onIdeaClick = { onIntent(CreateIntent.IdeaClicked(it)) },
+                    modifier = Modifier.animateItem(),
+                )
             }
         }
     }

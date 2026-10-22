@@ -58,17 +58,16 @@ class TrackGroupsTest {
     }
 
     @Test
-    fun `ready subtitles use duration and genres and generating subtitles follow stage`() {
+    fun `ready subtitles use duration and genres and generating subtitles stay composing`() {
         val song = track("1", "2026-10-15T09:00:00Z").copy(genres = listOf("r&b", "pop"))
         assertEquals(UiText.Raw("0:36 · r&b, pop"), song.toCreateUi().row.subtitle)
-        assertEquals(
-            UiText.Resource(R.string.create_creating_title),
-            song.copy(status = TrackStatus.Generating(0.49f)).toCreateUi().row.subtitle,
-        )
-        assertEquals(
-            UiText.Resource(R.string.create_creating_artwork),
-            song.copy(status = TrackStatus.Generating(0.5f)).toCreateUi().row.subtitle,
-        )
+        // The service reports no stages, so progress never claims a title or artwork step.
+        listOf(0.1f, 0.49f, 0.5f, 0.9f).forEach { progress ->
+            assertEquals(
+                UiText.Resource(R.string.track_composing_status),
+                song.copy(status = TrackStatus.Generating(progress)).toCreateUi().row.subtitle,
+            )
+        }
     }
 
     @Test

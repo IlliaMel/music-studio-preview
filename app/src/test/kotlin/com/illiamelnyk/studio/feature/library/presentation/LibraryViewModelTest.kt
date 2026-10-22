@@ -1,7 +1,7 @@
 package com.illiamelnyk.studio.feature.library.presentation
 
 import app.cash.turbine.test
-import com.illiamelnyk.studio.core.data.fake.FakeCatalog
+import com.illiamelnyk.studio.core.data.demo.DemoCatalog
 import com.illiamelnyk.studio.core.data.fake.FakePlaybackController
 import com.illiamelnyk.studio.core.data.fake.FakePlaylistRepository
 import com.illiamelnyk.studio.core.domain.AppError
@@ -36,37 +36,37 @@ class LibraryViewModelTest {
         val vm = LibraryViewModel(tracks, playback, FakePlaylistRepository())
         runCurrent()
         assertTrue(vm.state.value.liked.isEmpty())
-        tracks.setLiked(FakeCatalog.tracks[0].id, true)
-        tracks.setLiked(FakeCatalog.tracks[1].id, true)
+        tracks.setLiked(DemoCatalog.tracks[0].id, true)
+        tracks.setLiked(DemoCatalog.tracks[1].id, true)
         runCurrent()
-        assertEquals(listOf(FakeCatalog.tracks[0].id, FakeCatalog.tracks[1].id), vm.state.value.liked.map { it.id })
+        assertEquals(listOf(DemoCatalog.tracks[0].id, DemoCatalog.tracks[1].id), vm.state.value.liked.map { it.id })
         vm.effects.test {
-            vm.onIntent(LibraryIntent.TrackClicked(FakeCatalog.tracks[1].id))
+            vm.onIntent(LibraryIntent.TrackClicked(DemoCatalog.tracks[1].id))
             assertEquals(LibraryEffect.OpenPlayer, awaitItem())
-            assertEquals(FakeCatalog.tracks[1].id, playback.state.value.current?.id)
+            assertEquals(DemoCatalog.tracks[1].id, playback.state.value.current?.id)
             assertEquals(2, playback.state.value.queue.size)
         }
-        tracks.setLiked(FakeCatalog.tracks[0].id, false)
+        tracks.setLiked(DemoCatalog.tracks[0].id, false)
         runCurrent()
-        assertEquals(listOf(FakeCatalog.tracks[1].id), vm.state.value.liked.map { it.id })
+        assertEquals(listOf(DemoCatalog.tracks[1].id), vm.state.value.liked.map { it.id })
     }
 
     @Test fun playlistSelectionPlaysItsMembersAndMoreSelectsCorrectTrack() = runTest(main.testDispatcher) {
         val playlists = FakePlaylistRepository()
         val playlist = (playlists.create("Drive") as Outcome.Success).value
-        playlists.addTrack(playlist.id, FakeCatalog.tracks[3])
+        playlists.addTrack(playlist.id, DemoCatalog.tracks[3])
         val playback = FakePlaybackController(backgroundScope)
         val vm = LibraryViewModel(MemoryTrackRepository(), playback, playlists)
         runCurrent()
         vm.onIntent(LibraryIntent.TabSelected(LibraryTab.Playlists))
         vm.onIntent(LibraryIntent.PlaylistSelected(playlist.id))
         vm.effects.test {
-            vm.onIntent(LibraryIntent.TrackClicked(FakeCatalog.tracks[3].id))
+            vm.onIntent(LibraryIntent.TrackClicked(DemoCatalog.tracks[3].id))
             assertEquals(LibraryEffect.OpenPlayer, awaitItem())
-            assertEquals(listOf(FakeCatalog.tracks[3]), playback.state.value.queue)
+            assertEquals(listOf(DemoCatalog.tracks[3]), playback.state.value.queue)
         }
-        vm.onIntent(LibraryIntent.TrackMoreClicked(FakeCatalog.tracks[3].id))
-        assertEquals(FakeCatalog.tracks[3], vm.state.value.pickerTrack)
+        vm.onIntent(LibraryIntent.TrackMoreClicked(DemoCatalog.tracks[3].id))
+        assertEquals(DemoCatalog.tracks[3], vm.state.value.pickerTrack)
         vm.onIntent(LibraryIntent.BackClicked)
         assertEquals(null, vm.state.value.selectedPlaylistId)
     }

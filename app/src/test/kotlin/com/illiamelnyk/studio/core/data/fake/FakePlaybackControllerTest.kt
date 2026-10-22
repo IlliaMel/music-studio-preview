@@ -1,6 +1,8 @@
 package com.illiamelnyk.studio.core.data.fake
 
 import com.illiamelnyk.studio.core.domain.CoverSeed
+import com.illiamelnyk.studio.core.domain.playback.PlaybackMetadataSnapshot
+import com.illiamelnyk.studio.core.domain.playback.PlaybackTrackMetadata
 import com.illiamelnyk.studio.core.domain.playback.RepeatMode
 import com.illiamelnyk.studio.core.domain.track.MusicModel
 import com.illiamelnyk.studio.core.domain.track.Track
@@ -25,6 +27,51 @@ class FakePlaybackControllerTest {
     private val a = track("a", 2.seconds)
     private val b = track("b", 2.seconds)
     private val c = track("c", 2.seconds)
+
+    @Test
+    fun `metadata refresh keeps queue position and original shuffle order`() = runTest {
+        val player = player()
+        player.play(listOf(a, b, c), 1)
+        player.seekTo(750)
+        player.setShuffle(true)
+        val before = player.state.value
+        player.refreshMetadata(
+            PlaybackMetadataSnapshot(
+                "fixture-owner",
+                listOf(
+                    PlaybackTrackMetadata(b.id, "Updated title", "Updated artist", CoverSeed("updated-cover")),
+                ),
+            ),
+        )
+        assertEquals(before.positionMs, player.state.value.positionMs)
+        assertEquals(before.currentIndex, player.state.value.currentIndex)
+        assertEquals(before.queue.map { it.id }, player.state.value.queue.map { it.id })
+        assertEquals("Updated title", player.state.value.current?.title)
+        player.setShuffle(false)
+        assertEquals(listOf(a.id, b.id, c.id), player.state.value.queue.map { it.id })
+        assertEquals("Updated title", player.state.value.current?.title)
+    }
+
+    @Test
+    fun `shutdown preserves paused snapshot and durable stop invalidates it`() = runTest {
+        val player = player()
+        player.play(listOf(a, b))
+        advance(500.milliseconds)
+        val snapshot = requireNotNull(player.systemSnapshot())
+        assertFalse(snapshot.mediaId == a.id.value)
+        assertEquals(64, snapshot.mediaId.length)
+        player.releaseForServiceShutdown()
+        val paused = player.state.value
+        assertFalse(paused.isPlaying)
+        assertEquals(a.id, paused.current?.id)
+        assertEquals(500L, paused.positionMs)
+        advance(1.seconds)
+        assertEquals(paused, player.state.value)
+        assertEquals(snapshot.mediaId, player.systemSnapshot()?.mediaId)
+        player.stopDurably()
+        assertTrue(player.state.value.queue.isEmpty())
+        assertEquals(null, player.systemSnapshot())
+    }
 
     @Test
     fun `the position moves only while playing`() = runTest {

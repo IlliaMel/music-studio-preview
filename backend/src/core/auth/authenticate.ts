@@ -40,6 +40,14 @@ export const requireOnboarding: MiddlewareHandler<AppEnv> = async (c, next) => {
   await next()
 }
 
+/** Refuse generation inputs before parsing or storing them; other account features remain available. */
+export const requireGenerationAccess: MiddlewareHandler<AppEnv> = async (c, next) => {
+  if (!c.get('user').canGenerate) {
+    throw new ApiError(403, 'GENERATION_NOT_ALLOWED', 'Music generation is currently by invitation')
+  }
+  await next()
+}
+
 function bearerToken(header: string | undefined): string {
   const [scheme, token, ...rest] = header?.trim().split(/\s+/) ?? []
   if (scheme?.toLowerCase() !== 'bearer' || !token || rest.length > 0) {

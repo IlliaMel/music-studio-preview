@@ -1,16 +1,12 @@
 package com.illiamelnyk.studio.core.data.local
 
 import android.content.Context
-import com.illiamelnyk.studio.core.data.fake.FakeCatalog
+import com.illiamelnyk.studio.core.data.demo.DemoCatalog
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.session.SessionDataMode
 import com.illiamelnyk.studio.core.domain.track.GenerationRequest
 import com.illiamelnyk.studio.core.domain.track.Quality
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.json.JSONArray
@@ -31,7 +27,7 @@ class ProductionApiTest {
     @Before
     fun cleanStore() {
         context = RuntimeEnvironment.getApplication()
-        context.filesDir.listFiles()?.filter { it.name.startsWith("studio-state-v1.json") }?.forEach { it.delete() }
+        com.illiamelnyk.studio.core.data.local.StudioStore.clearForTests(context)
     }
 
     @Test
@@ -106,39 +102,46 @@ class ProductionApiTest {
 
     @Test
     fun realIdBearerAndIdempotencyReachOnePostWithoutAutomaticRetry() = runTest {
-        val connection = FixtureConnection()
-        val api = object : StudioApi(
-            context,
-            firebaseConfig,
-            BearerTokenProvider {
-                FirebaseBearerToken(it, "real.fixture.token", Long.MAX_VALUE)
-            },
-        ) {
-            var opened = 0
-            override fun openConnection(url: String): HttpURLConnection {
-                opened++
-                return connection
-            }
+        okhttp3.mockwebserver.MockWebServer().use { server ->
+            server.enqueue(
+                okhttp3.mockwebserver.MockResponse().setResponseCode(503)
+                    .setBody("{\"error\":{\"code\":\"INTERNAL\"}}"),
+            )
+            val client = okhttp3.OkHttpClient.Builder().retryOnConnectionFailure(false).build()
+            val api = StudioApi(
+                context,
+                firebaseConfig,
+                BearerTokenProvider { FirebaseBearerToken(it, "real.fixture.token", Long.MAX_VALUE) },
+                callFactory = okhttp3.Call.Factory { request ->
+                    client.newCall(request.newBuilder().url(server.url(request.url.encodedPath)).build())
+                },
+            )
+            assertEquals(
+                AppError.Server,
+                failure {
+                    api.createTracks(
+                        "firebase:uid",
+                        com.illiamelnyk.studio.core.data.network.CreateTrackDto("Piano"),
+                        "stable-key",
+                    )
+                },
+            )
+            assertEquals(1, server.requestCount)
+            val request = server.takeRequest()
+            assertEquals("Bearer real.fixture.token", request.getHeader("Authorization"))
+            assertEquals("stable-key", request.getHeader("Idempotency-Key"))
+            assertFalse(request.body.readUtf8().contains("real.fixture.token"))
+            assertFalse(request.path!!.contains("real.fixture.token"))
         }
-        connection.status = 503
-        assertEquals(
-            AppError.Server,
-            failure {
-                api.request("POST", "/v1/tracks", "firebase:uid", JSONObject().put("prompt", "Piano"), "stable-key")
-            },
-        )
-        assertEquals(1, api.opened)
-        assertEquals("Bearer real.fixture.token", connection.getRequestProperty("Authorization"))
-        assertEquals("stable-key", connection.getRequestProperty("Idempotency-Key"))
-        assertFalse(connection.sent.toString().contains("real.fixture.token"))
     }
 
     @Test
     fun realAuthorizationIsNotWrittenIntoTrackOrPlaybackJson() {
-        val track = FakeCatalog.glassHarbor.copy(audioHeaders = mapOf("Authorization" to "Bearer private.id.token"))
+        val track = DemoCatalog.glassHarbor
         assertFalse(track.toJson().toString().contains("private.id.token"))
         val old = track.toJson().put("audioHeaders", JSONObject().put("authorization", "Bearer old.secret.token"))
-        assertTrue(old.toTrack().audioHeaders.isEmpty())
+        assertFalse(old.toTrack().toJson().has("audioHeaders"))
+        assertFalse(old.toTrack().toJson().toString().contains("old.secret.token"))
     }
 
     @Test
@@ -168,7 +171,10 @@ class ProductionApiTest {
         assertEquals(
             Outcome.Failure(AppError.UnsupportedMode),
             repository.create(
-                GenerationRequest("Gentle acoustic piano melody", remixTrackId = FakeCatalog.glassHarbor.id.value),
+                GenerationRequest(
+                    "Gentle acoustic piano melody",
+                    remixTrackIds = listOf(DemoCatalog.glassHarbor.id.value),
+                ),
                 1,
             ),
         )
@@ -220,7 +226,10 @@ class ProductionApiTest {
         assertEquals(
             null,
             mock.rejection(
-                GenerationRequest("Gentle acoustic piano melody", remixTrackId = FakeCatalog.glassHarbor.id.value),
+                GenerationRequest(
+                    "Gentle acoustic piano melody",
+                    remixTrackIds = listOf(DemoCatalog.glassHarbor.id.value),
+                ),
                 1,
             ),
         )
@@ -256,22 +265,10 @@ class ProductionApiTest {
         failure.error
     }
 
-    private class FixtureConnection : HttpURLConnection(URL("https://api.example.test")) {
-        var status = 200
-        val sent = ByteArrayOutputStream()
-        override fun connect() = Unit
-        override fun disconnect() = Unit
-        override fun usingProxy(): Boolean = false
-        override fun getResponseCode(): Int = status
-        override fun getInputStream() = ByteArrayInputStream("{}".toByteArray())
-        override fun getErrorStream() = ByteArrayInputStream("{}".toByteArray())
-        override fun getOutputStream() = sent
-    }
-
     private class CapabilitiesApi(
         context: Context,
         config: ApiConfiguration = ApiConfiguration("http://10.0.2.2:8787", ApiAuthMode.Development, true),
-    ) : StudioApi(context, config) {
+    ) : JsonFixtureStudioApi(context, config) {
         var document = liveCapabilities()
         var requests = 0
         var capabilityReads = 0
@@ -281,7 +278,7 @@ class ProductionApiTest {
             uploads++
             return "upload"
         }
-        override suspend fun request(
+        override suspend fun requestFixture(
             method: String,
             path: String,
             token: String,
@@ -294,6 +291,7 @@ class ProductionApiTest {
                 return document
             }
             if (path == "/v1/me") return JSONObject().put("id", "server-owner").put("displayName", "Google name")
+            if (path == "/v1/me/quota") return JSONObject().put("limit", 25).put("remaining", 25)
             if (method == "POST") posts++
             throw ApiFailure(AppError.Server)
         }

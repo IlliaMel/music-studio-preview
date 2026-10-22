@@ -1,7 +1,7 @@
 package com.illiamelnyk.studio.core.data.local
 
 import android.content.Context
-import com.illiamelnyk.studio.core.data.fake.FakeCatalog
+import com.illiamelnyk.studio.core.data.demo.DemoCatalog
 import com.illiamelnyk.studio.core.data.playback.audioCacheKey
 import com.illiamelnyk.studio.core.data.playback.playbackPreferenceKey
 import com.illiamelnyk.studio.core.domain.Outcome
@@ -14,7 +14,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -39,7 +38,206 @@ class DurableStudioRepositoryTest {
         context = RuntimeEnvironment.getApplication()
         context.getSharedPreferences("generation-notifications", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSystemService(android.app.NotificationManager::class.java).cancelAll()
-        context.filesDir.listFiles()?.filter { it.name.startsWith("studio-state-v1.json") }?.forEach { it.delete() }
+        com.illiamelnyk.studio.core.data.local.StudioStore.clearForTests(context)
+    }
+
+    @Test
+    fun firstSignedInSnapshotUsesServerQuotaAndRestoresSongsEvenIfRecordingsFail() = runTest {
+        val api = MemoryApi(context).apply {
+            quotaLimit = 5
+            quotaRemaining = 4
+            failRecordings = true
+        }
+        val runtime = StudioAccountRuntime(
+            context,
+            StudioStore(context),
+            api,
+            StandardTestDispatcher(testScheduler),
+            GenerationWorkScheduler.None,
+            GenerationNotifications.None,
+        )
+        api.onQuota = {
+            runtime.state.value?.let { assertEquals(5, it.credits.dailyLimit) }
+        }
+        assertTrue(DurableSessionRepository(runtime).signInServer() is Outcome.Success)
+        assertEquals(4, runtime.state.value!!.credits.remaining)
+        assertEquals(5, runtime.state.value!!.credits.dailyLimit)
+        assertTrue(runtime.state.value!!.tracks.any { it.id.value == "server-track" })
+    }
+
+    @Test
+    fun foregroundImmediatelyRestoresRemoteLibraryWithoutWaitingForIdlePoll() = runTest {
+        val api = MemoryApi(context)
+        val store = StudioStore(context)
+        val runtime = StudioAccountRuntime(
+            context,
+            store,
+            api,
+            StandardTestDispatcher(testScheduler),
+            GenerationWorkScheduler.None,
+            GenerationNotifications.None,
+        )
+        DurableSessionRepository(runtime).signInServer()
+        val account = runtime.state.value!!
+        runtime.operation { runtime.save(account.copy(tracks = emptyList())) }
+        val readsBefore = api.libraryRequests
+        val startedAt = testScheduler.currentTime
+        var firstReadAt: Long? = null
+        api.onLibrary = { if (firstReadAt == null) firstReadAt = testScheduler.currentTime }
+        runtime.sync.requestInitialRefresh(account.session.user.id.value)
+        runtime.sync.start(backgroundScope)
+        runCurrent()
+        awaitDatabaseWork { api.libraryRequests > readsBefore }
+        runtime.operation { Unit }
+        assertTrue(runtime.state.value!!.tracks.any { it.id.value == "server-track" })
+        assertTrue(requireNotNull(firstReadAt) - startedAt < 2_000)
+    }
+
+    @Test
+    fun cancellationAfterRecordingCommitPreservesThePersistedAudioFile() = runTest {
+        val store = StudioStore(context)
+        var savingJob: kotlinx.coroutines.Job? = null
+        val notifications = object : GenerationNotifications {
+            override fun record(ownerId: String?, tracks: List<Track>) {
+                if (tracks.any { it.id.isRecording }) savingJob?.cancel()
+            }
+            override suspend fun deliver(ownerId: String?) = Unit
+            override fun forget(ownerId: String) = Unit
+        }
+        val repository = DurableStudioRepository(
+            context,
+            store,
+            StudioApi(context),
+            backgroundScope,
+            notifications = notifications,
+        )
+        repository.signInDemo()
+        val source = java.io.File(context.filesDir, "postcommit-cancellation.wav").apply { writeBytes(ByteArray(64)) }
+        try {
+            val task = async {
+                savingJob = coroutineContext[kotlinx.coroutines.Job]
+                repository.saveRecording(
+                    source.toURI().toString(),
+                    "Preserved recording",
+                    kotlin.time.Duration.parse("2s"),
+                )
+            }
+            try {
+                task.await()
+            } catch (_: kotlinx.coroutines.CancellationException) { }
+            assertTrue(task.isCancelled)
+            val committed = store.readAccount("local-demo")!!.tracks.single { it.id.isRecording }
+            assertTrue(java.io.File(java.net.URI(committed.audioUri!!)).isFile)
+            assertEquals("Preserved recording", committed.title)
+        } finally {
+            source.delete()
+        }
+    }
+
+    @Test
+    fun focusedRepositoriesShareOneOwnerAndAtomicLibraryState() = runTest {
+        val repo = DurableStudioRepository(context, StudioStore(context), StudioApi(context), backgroundScope)
+        assertTrue(repo.signInDemo() is Outcome.Success)
+        val created = repo.tracks.create(GenerationRequest("Warm piano with spacious strings"), 1) as Outcome.Success
+        assertEquals(24, repo.creditBalance.credits.first().remaining)
+        val collection = repo.playlists.create("Saved") as Outcome.Success
+        assertTrue(repo.playlists.addTrack(collection.value.id, DemoCatalog.glassHarbor) is Outcome.Success)
+        assertEquals(1, repo.playlists.observeAll().first().single().tracks.size)
+        val owner = repo.sessions.session.first()!!.user.id
+        assertTrue(repo.sessions.signOutIfCurrent(owner))
+        assertTrue(repo.tracks.observeMine().first().isEmpty())
+        assertTrue(repo.playlists.observeAll().first().isEmpty())
+        assertEquals(null, repo.synchronization.activeAccountId)
+        repo.signInDemo()
+        assertEquals(created.value.single().id, repo.tracks.observeMine().first().single().id)
+        assertEquals(1, repo.playlists.observeAll().first().single().tracks.size)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun foregroundPollingStopsWhileUiIsHiddenAndResumesPendingDemoWork() = runTest {
+        val repo = DurableStudioRepository(
+            context,
+            StudioStore(context),
+            StudioApi(context),
+            backgroundScope,
+            dispatcher = StandardTestDispatcher(testScheduler),
+            clock = object : kotlin.time.Clock {
+                override fun now() = kotlin.time.Instant.fromEpochMilliseconds(testScheduler.currentTime)
+            },
+        )
+        repo.synchronization.setForeground(false)
+        repo.signInDemo()
+        repo.tracks.create(GenerationRequest("Warm piano with spacious strings"), 1)
+        runCurrent()
+        advanceTimeBy(10_000)
+        runCurrent()
+        assertEquals(
+            com.illiamelnyk.studio.core.domain.track.TrackStatus.Queued,
+            repo.tracks.observeMine().first().single().status,
+        )
+        repo.synchronization.setForeground(true)
+        runCurrent()
+        advanceTimeBy(2_001)
+        runCurrent()
+        awaitDatabaseWork {
+            repo.tracks.observeMine().first().single().status ==
+                com.illiamelnyk.studio.core.domain.track.TrackStatus.Ready
+        }
+        assertEquals(
+            com.illiamelnyk.studio.core.domain.track.TrackStatus.Ready,
+            repo.tracks.observeMine().first().single().status,
+        )
+    }
+
+    @Test
+    fun referenceDirectoryDoesNotWaitForDatabaseAndRejectsSignedOutOwner() = runTest {
+        val store = StudioStore(context)
+        val repo = DurableStudioRepository(context, store, StudioApi(context), backgroundScope)
+        repo.signInDemo()
+        val expected = repo.referenceDirectory()
+        val entered = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val executor = java.util.concurrent.Executors.newSingleThreadExecutor()
+        val heldDatabase = executor.submit {
+            store.withDatabase {
+                entered.countDown()
+                check(release.await(10, java.util.concurrent.TimeUnit.SECONDS))
+            }
+        }
+        try {
+            assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            val callback = java.util.concurrent.CompletableFuture.supplyAsync { repo.referenceDirectory() }
+            assertEquals(expected, callback.get(2, java.util.concurrent.TimeUnit.SECONDS))
+        } finally {
+            release.countDown()
+            heldDatabase.get(5, java.util.concurrent.TimeUnit.SECONDS)
+            executor.shutdownNow()
+        }
+        repo.sessions.signOut()
+        assertTrue(runCatching { repo.referenceDirectory() }.isFailure)
+        repo.signInDemo()
+        assertEquals(expected, repo.referenceDirectory())
+        assertTrue(repo.referenceDirectory().isDirectory)
+    }
+
+    @Test
+    fun accountDeletionClosesReferenceAccessBeforeRemoteDeletionCompletes() = runTest {
+        val api = MemoryApi(context)
+        val repo = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
+        repo.signInServer()
+        val original = repo.referenceDirectory()
+        api.holdDelete = true
+        val deleting = async { repo.sessions.deleteAccount() }
+        api.deleteStarted.await()
+        assertTrue(runCatching { repo.referenceDirectory() }.isFailure)
+        api.deleteRelease.complete(Unit)
+        assertTrue(deleting.await() is Outcome.Success)
+        assertFalse(original.exists())
+        assertTrue(runCatching { repo.referenceDirectory() }.isFailure)
+        repo.signInDemo()
+        assertTrue(repo.referenceDirectory().isDirectory)
+        assertFalse(repo.referenceDirectory() == original)
     }
 
     @Test
@@ -76,16 +274,16 @@ class DurableStudioRepositoryTest {
     fun signOutHidesPrivateStateAndSignInRestoresLikesAndPlaylists() = runTest {
         val repo = DurableStudioRepository(context, StudioStore(context), StudioApi(context), backgroundScope)
         repo.signInDemo()
-        repo.setLiked(FakeCatalog.glassHarbor.id, true)
+        repo.setLiked(DemoCatalog.glassHarbor.id, true)
         val playlist = (repo.create("Evening") as Outcome.Success).value
-        repo.addTrack(playlist.id, FakeCatalog.glassHarbor)
+        repo.addTrack(playlist.id, DemoCatalog.glassHarbor)
         repo.signOut()
         assertNull(repo.session.first())
         assertTrue(repo.observeLiked().first().isEmpty())
         assertTrue(repo.observeAll().first().isEmpty())
         repo.signInDemo()
         assertEquals(1, repo.observeLiked().first().size)
-        assertEquals(FakeCatalog.glassHarbor.id, repo.observeAll().first().single().tracks.single().id)
+        assertEquals(DemoCatalog.glassHarbor.id, repo.observeAll().first().single().tracks.single().id)
     }
 
     @Test
@@ -98,7 +296,7 @@ class DurableStudioRepositoryTest {
         val otherReference = java.io.File(otherDirectory, "source.wav").apply { writeBytes(ByteArray(64)) }
         repo.create(GenerationRequest("Ambient rain with soft piano"), 1)
         repo.create("Test playlist")
-        repo.setLiked(FakeCatalog.glassHarbor.id, true)
+        repo.setLiked(DemoCatalog.glassHarbor.id, true)
         assertTrue(repo.deleteAccount() is Outcome.Success)
         assertFalse(reference.exists())
         assertFalse(ownedDirectory.exists())
@@ -199,16 +397,16 @@ class DurableStudioRepositoryTest {
         repo.signInDemo()
         val request = GenerationRequest(
             "Cinematic remix with warm strings",
-            remixTrackId = FakeCatalog.glassHarbor.id.value,
+            remixTrackIds = listOf(DemoCatalog.glassHarbor.id.value),
         )
         assertTrue(repo.create(request, 1) is Outcome.Success)
         val remix = repo.observeMine().first().single()
-        assertEquals(FakeCatalog.glassHarbor.id.value, remix.remixTrackId)
+        assertEquals(DemoCatalog.glassHarbor.id.value, remix.remixTrackIds.firstOrNull())
         store.change { root ->
             root.getJSONObject("account-local-demo").getJSONArray("tracks").getJSONObject(0).put("status", "done")
         }
         val restarted = DurableStudioRepository(context, StudioStore(context), StudioApi(context), backgroundScope)
-        val result = restarted.create(request.copy(remixTrackId = remix.id.value), 1)
+        val result = restarted.create(request.copy(remixTrackIds = listOf(remix.id.value)), 1)
         assertTrue(result is Outcome.Failure)
         assertEquals(24, restarted.credits.first().remaining)
         assertEquals(1, restarted.observeMine().first().size)
@@ -251,7 +449,7 @@ class DurableStudioRepositoryTest {
         val api = MemoryApi(context)
         api.failures = listOf(
             api.failure("failed-reference", "deep", reference = "upload-original"),
-            api.failure("failed-remix", "fast", remix = FakeCatalog.glassHarbor.id.value),
+            api.failure("failed-remix", "fast", remix = DemoCatalog.glassHarbor.id.value),
         )
         val repo = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
         repo.signInServer()
@@ -262,7 +460,7 @@ class DurableStudioRepositoryTest {
         val remix = com.illiamelnyk.studio.core.domain.track.TrackId("failed-remix")
         assertTrue(repo.retry(remix) is Outcome.Success)
         assertEquals(
-            listOf(FakeCatalog.glassHarbor.id.value),
+            listOf(DemoCatalog.glassHarbor.id.value),
             api.lastGeneration?.getJSONArray("remixTrackIds")?.strings(),
         )
         assertFalse(requireNotNull(api.lastGeneration).has("remixTrackId"))
@@ -330,6 +528,7 @@ class DurableStudioRepositoryTest {
         assertNull(restarted.session.first())
         assertNull(restarted.activeAccountId)
         runCurrent()
+        awaitDatabaseWork { !restartedStore.read().has("deletion-server-user") }
         assertFalse(restartedStore.read().has("deletion-server-user"))
         assertEquals(1, api.deleteRequests)
     }
@@ -340,7 +539,7 @@ class DurableStudioRepositoryTest {
         val store = StudioStore(context)
         val repo = DurableStudioRepository(context, store, api, backgroundScope)
         repo.signInServer()
-        api.afterDelete = { java.io.File(context.filesDir, "studio-state-v1.json.new").mkdir() }
+        api.afterDelete = { store.failConfirmedDeletionWrites() }
 
         assertTrue(repo.deleteAccount() is Outcome.Failure)
         assertFalse(store.read().getJSONObject("deletion-server-user").getBoolean("remoteConfirmed"))
@@ -372,6 +571,30 @@ class DurableStudioRepositoryTest {
         assertTrue(pending.getBoolean("localPurged"))
         assertFalse(pending.getBoolean("remoteConfirmed"))
         assertEquals(0, pending.getJSONArray("audio").length())
+    }
+
+    @Test
+    fun backgroundRecoveryRetriesDeletionAfterLocalOwnerHasBeenPurged() = runTest {
+        val api = MemoryApi(context)
+        val store = StudioStore(context)
+        val work = RecordingGenerationWork()
+        val repo = DurableStudioRepository(
+            context,
+            store,
+            api,
+            backgroundScope,
+            generationWork = work,
+        )
+        repo.signInServer()
+        api.failDelete = true
+        assertTrue(repo.sessions.deleteAccount() is Outcome.Failure)
+        assertNull(repo.synchronization.activeAccountId)
+        assertEquals("account-deletion", work.owner)
+        assertEquals(Outcome.Success(true), repo.synchronization.recoverPendingDeletions())
+        api.failDelete = false
+        assertEquals(Outcome.Success(false), repo.synchronization.recoverPendingDeletions())
+        assertFalse(store.read().has("deletion-server-user"))
+        assertNull(work.owner)
     }
 
     @Test
@@ -421,12 +644,39 @@ class DurableStudioRepositoryTest {
             assertEquals(requestsBeforePolling, api.libraryRequests)
             assertTrue(store.read().has("deletion-server-user"))
             assertNull(repo.activeAccountId)
-            assertNull(work.owner)
+            assertEquals("account-deletion", work.owner)
             assertEquals(Outcome.Success(false), repo.syncPending("server-user"))
         } finally {
             child.delete()
             blocker.delete()
         }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun pollingRoundThatSeesAGenerationFinishCompletesItsFollowUp() = runTest {
+        val api = MemoryApi(context)
+        api.failures = listOf(api.failure("pending-track", "auto").put("status", "queued"))
+        val quotaTimes = java.util.concurrent.CopyOnWriteArrayList<Long>()
+        api.onQuota = { quotaTimes += testScheduler.currentTime }
+        val repo = DurableStudioRepository(
+            context,
+            StudioStore(context),
+            api,
+            backgroundScope,
+            StandardTestDispatcher(testScheduler),
+        )
+        repo.signInServer()
+        runCurrent()
+        // The server finishes the track before the next 2-second poll.
+        api.failures = listOf(api.failure("pending-track", "auto"))
+        quotaTimes.clear()
+        val roundStart = testScheduler.currentTime
+        advanceTimeBy(2_001)
+        runCurrent()
+        awaitDatabaseWork { quotaTimes.isNotEmpty() }
+        // Cancelled half-way, the quota would only be refreshed by the next idle poll, 30 s later.
+        assertTrue(quotaTimes.first() - roundStart < 10_000)
     }
 
     @Test
@@ -451,14 +701,25 @@ class DurableStudioRepositoryTest {
     @Test
     fun malformedCachedJsonNeverAppearsInDiagnosticLogs() {
         val marker = "PRIVATE_CACHE_TEST_MARKER"
-        java.io.File(context.filesDir, "studio-state-v1.json").writeText("{\"token\":\"" + marker + "\",\"active\":")
+        val original = "{\"token\":\"" + marker + "\",\"active\":"
+        val source = java.io.File(context.filesDir, "studio-state-v1.json").apply { writeText(original) }
         org.robolectric.shadows.ShadowLog.clear()
 
-        StudioStore(context)
+        try {
+            kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) { StudioStore(context).initialize() }
+            org.junit.Assert.fail("Malformed journal must fail closed and retain its source")
+        } catch (failure: LegacyStudioStateCorruptedException) {
+            assertFalse(failure.message.orEmpty().contains(marker))
+        }
+        assertEquals(original, source.readText())
 
         val logs = org.robolectric.shadows.ShadowLog.getLogsForTag("StudioData")
-        assertTrue(logs.isNotEmpty())
-        assertFalse(logs.any { it.msg.contains(marker) || it.throwable?.toString()?.contains(marker) == true })
+        assertTrue(logs.isEmpty())
+        assertFalse(
+            logs.any {
+                it.msg.contains(marker) || it.throwable?.stackTraceToString()?.contains(marker) == true
+            },
+        )
     }
 
     @Test
@@ -475,6 +736,72 @@ class DurableStudioRepositoryTest {
 
         assertNull(work.owner)
         assertEquals(1, api.generationRequests)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun unauthorizedWorkerBlocksOnlyItsOwnerAcrossRestartAndSuccessfulAuthenticationResumesWork() = runTest {
+        val api = MemoryApi(context)
+        val work = RecordingGenerationWork()
+        val repo = DurableStudioRepository(
+            context,
+            StudioStore(context),
+            api,
+            backgroundScope,
+            StandardTestDispatcher(testScheduler),
+            generationWork = work,
+        )
+        repo.signInServer()
+        repo.tracks.create(GenerationRequest("Warm cinematic piano"), 1)
+        api.unauthorizedLibrary = true
+        fun worker(sync: StudioSynchronization) =
+            com.illiamelnyk.studio.core.data.generation.generationWorker(context, sync)
+        assertEquals(androidx.work.ListenableWorker.Result.success(), worker(repo.synchronization).doWork())
+        assertTrue(
+            StudioStore(context).read().getJSONObject("account-server-user").getBoolean("requiresAuthentication"),
+        )
+        assertNull(work.owner)
+        val blockedReads = api.libraryRequests
+        repeat(3) {
+            assertEquals(androidx.work.ListenableWorker.Result.success(), worker(repo.synchronization).doWork())
+        }
+        assertEquals(blockedReads, api.libraryRequests)
+        val previousRuntimeJobs = backgroundScope.coroutineContext[kotlinx.coroutines.Job]!!.children.toList()
+        previousRuntimeJobs.forEach { it.cancel() }
+        previousRuntimeJobs.forEach { it.join() }
+        val restarted = DurableStudioRepository(
+            context,
+            StudioStore(context),
+            api,
+            backgroundScope,
+            StandardTestDispatcher(testScheduler),
+            generationWork = work,
+        )
+        runCurrent()
+        advanceTimeBy(60_001)
+        runCurrent()
+        assertEquals(blockedReads, api.libraryRequests)
+        assertNull(work.owner)
+        assertEquals("server-user", restarted.synchronization.activeAccountId)
+        restarted.signInDemo()
+        assertTrue(restarted.tracks.create(GenerationRequest("Local piano remains available"), 1) is Outcome.Success)
+        api.unauthorizedLibrary = false
+        assertTrue(restarted.signInServer() is Outcome.Success)
+        assertFalse(
+            StudioStore(context).read().getJSONObject("account-server-user").getBoolean("requiresAuthentication"),
+        )
+        assertEquals(1, api.generationRequests)
+        assertTrue(restarted.tracks.create(GenerationRequest("New authenticated piano request"), 1) is Outcome.Success)
+        assertEquals("server-user", work.owner)
+        api.unauthorizedLibrary = true
+        worker(restarted.synchronization).doWork()
+        assertNull(work.owner)
+        api.failDelete = true
+        assertTrue(restarted.sessions.deleteAccount() is Outcome.Failure)
+        assertEquals("account-deletion", work.owner)
+        assertEquals(Outcome.Success(true), restarted.synchronization.recoverPendingDeletions())
+        api.failDelete = false
+        assertEquals(Outcome.Success(false), restarted.synchronization.recoverPendingDeletions())
     }
 
     @Test
@@ -569,6 +896,7 @@ class DurableStudioRepositoryTest {
             work,
         )
         runCurrent()
+        awaitDatabaseWork { work.owner == "server-user" }
 
         assertEquals("server-user", work.owner)
         assertEquals("server-user", restarted.activeAccountId)
@@ -676,7 +1004,6 @@ class DurableStudioRepositoryTest {
         assertTrue(repo.signInFirebase("firebase-user") is Outcome.Success)
         val track = repo.observeMine().first().first().copy(
             audioUri = "https://api.studio.test/v1/tracks/server-track/audio",
-            audioHeaders = emptyMap(),
         )
         assertEquals(mapOf("Authorization" to "Bearer fixture.payload.signature-1"), repo.playbackHeaders(track))
         assertEquals(mapOf("Authorization" to "Bearer fixture.payload.signature-2"), repo.playbackHeaders(track))
@@ -710,13 +1037,17 @@ class DurableStudioRepositoryTest {
             generationWork = work,
             notifications = notifier,
         )
+        // This scenario drives sync explicitly; foreground polling has its own lifecycle coverage.
+        repo.synchronization.setForeground(false)
         repo.signInServer()
         notifier.failRecord = true
         repo.create(GenerationRequest("Warm cinematic piano"), 1)
         assertEquals(Outcome.Success(true), repo.syncPending("server-user"))
         assertTrue(store.read().getBoolean("notification-dirty-server-user"))
         assertEquals("server-user", work.owner)
-        backgroundScope.coroutineContext.cancelChildren()
+        val previousTasks = backgroundScope.coroutineContext[kotlinx.coroutines.Job]!!.children.toList()
+        previousTasks.forEach { it.cancel() }
+        previousTasks.forEach { it.join() }
         val recovered = RetryingNotifications(context)
         val restartedStore = StudioStore(context)
         val restarted = DurableStudioRepository(
@@ -728,7 +1059,13 @@ class DurableStudioRepositoryTest {
             work,
             recovered,
         )
+        restarted.synchronization.setForeground(false)
         runCurrent()
+        awaitDatabaseWork {
+            !restartedStore.read().has("notification-dirty-server-user") &&
+                !recovered.hasPending("server-user") && work.owner == null &&
+                context.getSystemService(android.app.NotificationManager::class.java).activeNotifications.size == 1
+        }
         assertEquals("server-user", restarted.activeAccountId)
         assertFalse(restartedStore.read().has("notification-dirty-server-user"))
         assertFalse(recovered.hasPending("server-user"))
@@ -801,14 +1138,14 @@ class DurableStudioRepositoryTest {
         val store = StudioStore(context)
         val repository = DurableStudioRepository(context, store, api, backgroundScope)
         repository.signInServer()
-        val sources = FakeCatalog.tracks.take(2).map { it.id.value }
+        val sources = DemoCatalog.tracks.take(2).map { it.id.value }
         val request = GenerationRequest("Blend two original catalogue moods", remixTrackIds = sources)
         val result = repository.create(request, 1) as Outcome.Success
         assertEquals(sources, api.lastGeneration!!.getJSONArray("remixTrackIds").strings())
         assertFalse(api.lastGeneration!!.has("remixTrackId"))
-        assertEquals(sources, result.value.single().remixSourceIds)
+        assertEquals(sources, result.value.single().remixTrackIds)
         val restored = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
-        assertEquals(sources, restored.observeById(result.value.single().id).first()!!.remixSourceIds)
+        assertEquals(sources, restored.observeById(result.value.single().id).first()!!.remixTrackIds)
         val credits = repository.credits.first()
         api.maxRemixSources = 1
         assertEquals(
@@ -820,12 +1157,145 @@ class DurableStudioRepositoryTest {
     }
 
     @Test
+    fun expiredReferenceIsRefreshedWithTheSameGenerationKey() = runTest {
+        val api = MemoryApi(context)
+        val store = StudioStore(context)
+        val repository = DurableStudioRepository(context, store, api, backgroundScope)
+        repository.signInServer()
+        val request =
+            GenerationRequest("Refresh the expired reference safely", referenceAudioUri = "file:///source.wav")
+        store.saveUpload("server-user", request.referenceAudioUri!!, "expired-reference")
+        api.expiredReferences.add("expired-reference")
+        assertTrue(repository.create(request, 1) is Outcome.Success)
+        assertEquals(1, api.referenceUploads)
+        assertEquals(2, api.generationKeys.size)
+        assertEquals(api.generationKeys.first(), api.generationKeys.last())
+        assertEquals("fresh-reference-1", api.lastGeneration!!.getString("referenceUploadId"))
+        assertFalse(api.lastGeneration!!.has("referenceAudioUri"))
+        assertEquals("fresh-reference-1", store.uploadFor("server-user", request.referenceAudioUri!!))
+    }
+
+    @Test
+    fun refreshedReferenceSurvivesLostResponseWithoutAnotherUploadOrKey() = runTest {
+        val api = MemoryApi(context)
+        val store = StudioStore(context)
+        val repository = DurableStudioRepository(context, store, api, backgroundScope)
+        repository.signInServer()
+        val request = GenerationRequest("Keep the refreshed request durable", referenceAudioUri = "file:///source.wav")
+        store.saveUpload("server-user", request.referenceAudioUri!!, "expired-reference")
+        api.expiredReferences.add("expired-reference")
+        api.failGeneration = true
+        assertEquals(
+            Outcome.Failure(com.illiamelnyk.studio.core.domain.AppError.Network),
+            repository.create(request, 1),
+        )
+        val pending = store.generationAttempt("server-user")!!
+        assertEquals("fresh-reference-1", pending.request.referenceUploadId)
+        api.failGeneration = false
+        assertTrue(repository.create(request, 1) is Outcome.Success)
+        assertEquals(1, api.referenceUploads)
+        assertEquals(setOf(pending.key), api.generationKeys.toSet())
+    }
+
+    @Test
+    fun networkFailureNeverRefreshesAReferenceAndASecondMissingUploadDoesNotLoop() = runTest {
+        val api = MemoryApi(context)
+        val store = StudioStore(context)
+        val repository = DurableStudioRepository(context, store, api, backgroundScope)
+        repository.signInServer()
+        val request =
+            GenerationRequest("Do not replay uncertain reference requests", referenceAudioUri = "file:///source.wav")
+        store.saveUpload("server-user", request.referenceAudioUri!!, "cached-reference")
+        api.failGeneration = true
+        assertEquals(
+            Outcome.Failure(com.illiamelnyk.studio.core.domain.AppError.Network),
+            repository.create(request, 1),
+        )
+        assertEquals(0, api.referenceUploads)
+        assertEquals(1, api.generationKeys.size)
+        api.failGeneration = false
+        api.expiredReferences.addAll(listOf("cached-reference", "fresh-reference-1"))
+        assertTrue(repository.create(request, 1) is Outcome.Failure)
+        assertEquals(1, api.referenceUploads)
+        assertEquals(3, api.generationKeys.size)
+        assertEquals(1, api.generationKeys.toSet().size)
+    }
+
+    @Test
+    fun typedPendingReferencePreservesItsAcceptedKeyBeforeUploadingAgain() = runTest {
+        val api = MemoryApi(context)
+        val store = StudioStore(context)
+        val repository = DurableStudioRepository(context, store, api, backgroundScope)
+        repository.signInServer()
+        val request =
+            GenerationRequest(
+                "Keep the accepted audio reference identity",
+                referenceAudioUri = "file:///private/source.wav",
+            )
+        store.putGenerationAttempt(
+            "server-user",
+            PendingGeneration(
+                "already-accepted-reference",
+                request.copy(referenceUploadId = "uploaded-source"),
+                1,
+            ),
+        )
+        assertTrue(repository.create(request, 1) is Outcome.Success)
+        assertEquals("already-accepted-reference", api.lastGenerationKey)
+        assertEquals("uploaded-source", api.lastGeneration!!.getString("referenceUploadId"))
+        assertFalse(api.lastGeneration!!.has("referenceAudioUri"))
+    }
+
+    @Test
+    fun ambiguousLegacyHashOnlyReferenceDoesNotSpendANewGenerationKey() = runTest {
+        val api = MemoryApi(context)
+        val store = StudioStore(context)
+        val repository = DurableStudioRepository(context, store, api, backgroundScope)
+        repository.signInServer()
+        val request =
+            GenerationRequest(
+                "Keep the accepted legacy audio reference",
+                referenceAudioUri = "file:///private/source.wav",
+            )
+        val original = org.json.JSONObject().put(
+            "signature",
+            request.copy(
+                referenceAudioUri = null,
+                referenceUploadId = "legacy-upload",
+            ).toJson().put("variants", 1).toString(),
+        ).put("key", "legacy-paid-key")
+        store.change { it.put("pending-server-user", original) }
+        assertEquals(
+            Outcome.Failure(com.illiamelnyk.studio.core.domain.AppError.ProviderOutcomeUnknown),
+            repository.create(request, 1),
+        )
+        assertEquals(0, api.generationRequests)
+        assertEquals("legacy-paid-key", store.generationAttempt("server-user")!!.key)
+    }
+
+    @Test
+    fun malformedLegacyPendingAttemptBlocksPosting() = runTest {
+        val api = MemoryApi(context)
+        val store = StudioStore(context)
+        val repository = DurableStudioRepository(context, store, api, backgroundScope)
+        repository.signInServer()
+        val original = org.json.JSONObject().put("signature", "{unreadable").put("key", "possibly-paid")
+        store.change { it.put("pending-server-user", original) }
+        assertEquals(
+            Outcome.Failure(com.illiamelnyk.studio.core.domain.AppError.ProviderOutcomeUnknown),
+            repository.create(GenerationRequest("Preserve a possibly paid generation attempt"), 1),
+        )
+        assertEquals(0, api.generationRequests)
+        assertTrue(store.generationAttempt("server-user")!!.blocked)
+    }
+
+    @Test
     fun legacyPendingScalarSignatureReusesItsIdempotencyKeyForTheEquivalentArrayRequest() = runTest {
         val api = MemoryApi(context)
         val store = StudioStore(context)
         val repository = DurableStudioRepository(context, store, api, backgroundScope)
         repository.signInServer()
-        val source = FakeCatalog.tracks.first().id.value
+        val source = DemoCatalog.tracks.first().id.value
         val request = GenerationRequest("Keep the original accepted remix identity", remixTrackIds = listOf(source))
         val legacyBody = request.toJson().apply {
             remove("remixTrackIds")
@@ -925,7 +1395,7 @@ class DurableStudioRepositoryTest {
         runCurrent()
         assertTrue("Playback authorization waited for the repository network mutex", playback.isCompleted)
         assertTrue("Export authorization waited for the repository network mutex", export.isCompleted)
-        assertEquals(mapOf("Authorization" to "Bearer dev:illia"), playback.await())
+        assertEquals(mapOf("Authorization" to "Bearer dev:local-developer"), playback.await())
         assertEquals(playback.await(), export.await())
         assertFalse(editing.isCompleted)
         api.profileRelease.complete(Unit)
@@ -1072,28 +1542,51 @@ class DurableStudioRepositoryTest {
         }
     }
 
+    /** runCurrent drains virtual tasks, while suspend Room transactions finish on their own executor. */
+    private suspend fun awaitDatabaseWork(condition: suspend () -> Boolean) =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            kotlinx.coroutines.withTimeout(5_000) {
+                while (!condition()) kotlinx.coroutines.delay(10)
+            }
+        }
+
     private class MemoryApi(
         context: Context,
         configuration: ApiConfiguration = ApiConfiguration("http://10.0.2.2:8787", ApiAuthMode.Development, true),
         bearerTokens: BearerTokenProvider = UnavailableBearerTokenProvider,
-    ) : StudioApi(context, configuration, bearerTokens) {
+    ) : JsonFixtureStudioApi(context, configuration, bearerTokens) {
         override val isAvailable: Boolean = true
         private val likes = mutableSetOf<String>()
         private val members = mutableSetOf<String>()
         private var playlistCreated = false
         var detailRequests = 0
         var libraryRequests = 0
+        var onLibrary: () -> Unit = {}
         var generationRequests = 0
         var returnedGenerationId: String? = null
         var failLibrary = false
+        var unauthorizedLibrary = false
         var renamedTitle: String? = null
         var failures: List<org.json.JSONObject> = emptyList()
         var lastGeneration: org.json.JSONObject? = null
         var lastGenerationKey: String? = null
+        val expiredReferences = mutableSetOf<String>()
+        val generationKeys = mutableListOf<String?>()
+        var referenceUploads = 0
+        var failGeneration = false
+
+        override suspend fun upload(uri: String, token: String): String = "fresh-reference-${++referenceUploads}"
         var maxRemixSources = 4
         var holdProfile = false
+        var onQuota: () -> Unit = {}
+        var quotaLimit = 25
+        var quotaRemaining = 25
+        var failRecordings = false
         var deleted = false
         var deleteRequests = 0
+        var holdDelete = false
+        val deleteStarted = CompletableDeferred<Unit>()
+        val deleteRelease = CompletableDeferred<Unit>()
         var failDelete = false
         var afterDelete: (() -> Unit)? = null
         var profileOwnerId = "server-user"
@@ -1117,7 +1610,7 @@ class DurableStudioRepositoryTest {
             .put("id", "server-playlist").put("name", "Server playlist")
             .put("trackIds", org.json.JSONArray(members.toList()))
 
-        override suspend fun request(
+        override suspend fun requestFixture(
             method: String,
             path: String,
             token: String,
@@ -1132,6 +1625,10 @@ class DurableStudioRepositoryTest {
 
             path == "/v1/me" && method == "DELETE" -> {
                 deleteRequests++
+                if (holdDelete) {
+                    deleteStarted.complete(Unit)
+                    deleteRelease.await()
+                }
                 if (failDelete) throw ApiFailure(com.illiamelnyk.studio.core.domain.AppError.Network)
                 deleted = true
                 afterDelete?.invoke()
@@ -1150,10 +1647,15 @@ class DurableStudioRepositoryTest {
                 .put("id", profileOwnerId).put("displayName", "Server listener")
                 .put("termsVersion", "2026-10-14")
 
-            path == "/v1/me/quota" -> org.json.JSONObject().put("limit", 25).put("remaining", 25)
+            path == "/v1/me/quota" -> {
+                onQuota()
+                org.json.JSONObject().put("limit", quotaLimit).put("remaining", quotaRemaining)
+            }
 
             path.startsWith("/v1/tracks?") -> {
                 libraryRequests++
+                onLibrary()
+                if (unauthorizedLibrary) throw ApiFailure(com.illiamelnyk.studio.core.domain.AppError.Unauthorized)
                 if (failLibrary) throw ApiFailure(com.illiamelnyk.studio.core.domain.AppError.Network)
                 org.json.JSONObject().put(
                     "tracks",
@@ -1165,6 +1667,11 @@ class DurableStudioRepositoryTest {
                 generationRequests++
                 lastGeneration = body?.let { org.json.JSONObject(it.toString()) }
                 lastGenerationKey = key
+                generationKeys.add(key)
+                if (body?.optString("referenceUploadId") in expiredReferences) {
+                    throw ApiFailure(com.illiamelnyk.studio.core.domain.AppError.InvalidReference, "UPLOAD_NOT_FOUND")
+                }
+                if (failGeneration) throw ApiFailure(com.illiamelnyk.studio.core.domain.AppError.Network)
                 track.put("id", returnedGenerationId ?: "replacement-" + key.hashCode())
                     .put("status", "queued").put("audioUrl", org.json.JSONObject.NULL)
                     .put("remixTrackIds", body?.optJSONArray("remixTrackIds") ?: org.json.JSONArray())
@@ -1185,7 +1692,10 @@ class DurableStudioRepositoryTest {
                 )
             }
 
-            path == "/v1/recordings" -> org.json.JSONObject().put("recordings", org.json.JSONArray())
+            path == "/v1/recordings" -> {
+                if (failRecordings) throw ApiFailure(com.illiamelnyk.studio.core.domain.AppError.Network)
+                org.json.JSONObject().put("recordings", org.json.JSONArray())
+            }
 
             path == "/v1/likes" -> org.json.JSONObject().put("trackIds", org.json.JSONArray(likes.toList()))
 

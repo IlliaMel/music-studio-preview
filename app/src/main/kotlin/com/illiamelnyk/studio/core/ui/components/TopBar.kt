@@ -21,6 +21,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.PreviewLightDark
+import androidx.compose.ui.unit.Dp
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.foundation.minimumTouchTarget
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
@@ -43,6 +44,7 @@ fun TopBar(
     navigation: @Composable () -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {},
     centerContent: Boolean = false,
+    horizontalPadding: Dp = StudioTheme.dimens.layout.screenPadding,
     content: @Composable () -> Unit,
 ) {
     val dimens = StudioTheme.dimens
@@ -50,7 +52,7 @@ fun TopBar(
         modifier = modifier
             .fillMaxWidth()
             .height(dimens.size.component.topBar)
-            .padding(horizontal = dimens.layout.screenPadding),
+            .padding(horizontal = horizontalPadding),
         horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -99,8 +101,15 @@ fun TopBar(
     modifier: Modifier = Modifier,
     navigation: @Composable () -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {},
+    horizontalPadding: Dp = StudioTheme.dimens.layout.screenPadding,
 ) {
-    TopBar(modifier = modifier, navigation = navigation, actions = actions, centerContent = true) {
+    TopBar(
+        modifier = modifier,
+        navigation = navigation,
+        actions = actions,
+        centerContent = true,
+        horizontalPadding = horizontalPadding,
+    ) {
         StudioText(title, StudioTheme.typography.titleMedium, maxLines = 1)
     }
 }

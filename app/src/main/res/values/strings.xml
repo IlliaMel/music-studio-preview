@@ -6,6 +6,11 @@
     <string name="ui_remove">Remove %1$s</string>
     <string name="ui_more_options">More options</string>
     <string name="ui_retry">Retry</string>
+    <string name="startup_local_state_unreadable">Your saved local state cannot be read. You can retry or preserve it privately and start with a fresh local cache.</string>
+    <string name="startup_local_recovery_action">Recover local startup</string>
+    <string name="startup_local_recovery_title">Preserve and reset local cache?</string>
+    <string name="startup_local_recovery_message">The unreadable state will be saved privately on this device before the local cache is reset. Your server account and server tracks remain unchanged; sign in again to load them. Pending local attempts will not resume automatically, and unsynced metadata may need recovery. Local recording files will remain on this device. Nothing is uploaded or shared.</string>
+    <string name="startup_local_recovery_confirm">Preserve and reset</string>
     <string name="ui_verified">Verified</string>
     <string name="ui_play">Play</string>
     <string name="ui_pause">Pause</string>
@@ -38,12 +43,18 @@
     <!-- A track in a list -->
     <string name="track_subtitle">%1$s · %2$s</string>
     <string name="track_queued">Waiting to start…</string>
+    <string name="track_composing_status">Composing…</string>
     <string name="track_composing">Composing… %1$d%%</string>
 
     <!-- What went wrong, in words the user can act on -->
     <string name="error_invalid_prompt">This prompt can\'t be used.</string>
     <string name="error_invalid_prompt_suggestion">This prompt can\'t be used. Try instead: %1$s</string>
     <string name="error_quota_exceeded">You\'ve used all of today\'s tracks. New ones tomorrow.</string>
+    <string name="error_provider_unavailable">The music service is unavailable right now. Please try again later.</string>
+    <string name="error_generation_not_allowed">Music generation is currently by invitation.</string>
+    <string name="auth_not_invited_title">Studio is invite-only</string>
+    <string name="auth_not_invited_text">This account isn’t on the invite list yet.</string>
+    <string name="error_service_daily_limit">The service has reached its daily generation limit. Please try again later.</string>
     <string name="error_rate_limited">Too many requests. Try again in a moment.</string>
     <string name="error_unauthorized">Sign in again to continue.</string>
     <string name="error_network">No connection. Check your internet and try again.</string>
@@ -53,7 +64,9 @@
 
     <!-- Welcome and onboarding -->
     <string name="welcome_title">The studio for people who make music</string>
-    <string name="welcome_continue_with_google">Continue with Google (demo)</string>
+    <string name="welcome_continue_with_google">Continue with Google</string>
+    <string name="auth_google_no_account">No Google account is available. Add an account in your device settings and try again.</string>
+    <string name="auth_google_unavailable">Google sign-in could not start. Check your connection, update Google Play services, and try again.</string>
 
     <!-- Listen -->
     <string name="listen_demo_catalog">Demo catalog</string>
@@ -78,6 +91,7 @@
     <string name="player_add_to_playlist">Add to playlist</string>
     <string name="player_download">Download</string>
     <string name="player_like">Like</string>
+    <string name="player_unlike">Unlike</string>
     <string name="player_lyrics">Lyrics</string>
     <string name="player_queue">Queue</string>
     <string name="player_stop">Stop</string>
@@ -165,12 +179,12 @@
     <string name="profile_name_error">Enter a name between 1 and 40 characters.</string>
     <string name="profile_delete">Delete account</string>
     <string name="profile_delete_title">Delete your account?</string>
-    <string name="profile_delete_message">Your profile and generated tracks will be removed from this demo. This cannot be undone.</string>
+    <string name="profile_delete_message">Your profile and generated tracks will be deleted. This cannot be undone.</string>
     <string name="profile_cancel">Cancel</string>
     <string name="profile_backend_mode">Backend mode</string>
     <string name="profile_backend_mock">Local demo: tracks, credits and playlists are saved on this device.</string>
     <string name="profile_about">About this prototype</string>
-    <string name="profile_about_detail">Studio is an independent music creation prototype. Google sign-in and generation are simulated in this build.</string>
+    <string name="profile_about_detail">Studio is an independent music creation prototype for creating, playing, and organizing music.</string>
     <string name="network_offline">You are offline</string>
     <string name="network_offline_detail">An internet connection is required to use the music service.</string>
     <string name="network_retry">Retry</string>

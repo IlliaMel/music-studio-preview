@@ -58,9 +58,11 @@ enum class Tool(val recording: Recording?, val defaultDuration: Duration, val te
     SampleToSong(
         recording = Recording.Voice,
         defaultDuration = 90.seconds,
+        // ElevenLabs refused "a recognizable hook" blended "with the original sample" as copyrighted
+        // material (bad_composition_plan), so the wording keeps to the user's own idea.
         template = ToolTemplate.of(
-            "Build a new song around a short, recognizable hook from the reference. Repeat the hook as a " +
-                "motif, add fresh lyrics and production, and blend the new sections with the original sample.",
+            "Build a new song around the short melodic idea in the reference. Repeat it as the main motif, " +
+                "add fresh lyrics and a full production, and grow the new sections out of it.",
         ),
     ),
     Unplugged(

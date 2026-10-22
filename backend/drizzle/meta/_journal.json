@@ -57,6 +57,27 @@
       "when": 1792107346206,
       "tag": "0007_ordered_remix_sources",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792625846029,
+      "tag": "0008_paid_generation_daily_usage",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792710501178,
+      "tag": "0009_track_paid_reservation_provenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793218434123,
+      "tag": "0010_paid_reference_upload_reservations",
+      "breakpoints": true
     }
   ]
 }

@@ -93,7 +93,6 @@ internal fun GlassPage() {
                 subtitle = "Studio",
                 coverSeed = "Night Drive Through Kyiv",
                 isPlaying = playing,
-                progress = { level },
                 onClick = {},
                 onPlayPause = { playing = !playing },
                 modifier = Modifier

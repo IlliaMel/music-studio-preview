@@ -50,6 +50,8 @@ class PlayerViewModel(
      * doesn't store, such as the catalog's. An entry goes once the repository has caught up.
      */
     private val likedHere = MutableStateFlow<Map<TrackId, Boolean>>(emptyMap())
+    private var likeSequence = 0L
+    private val likeRequests = mutableMapOf<TrackId, Long>()
 
     init {
         // Everything but the position: the track, the controls, the queue.
@@ -179,14 +181,19 @@ class PlayerViewModel(
     private fun toggleLike() {
         val content = state.value.content
         val id = content.track?.id ?: return
-        val liked = !content.isLiked
+        val liked = !(likedHere.value[id] ?: content.isLiked)
+        val request = ++likeSequence
+        likeRequests[id] = request
         likedHere.update { it + (id to liked) }
         viewModelScope.launch {
             val outcome = tracks.setLiked(id, liked)
             // A failure undoes the tap; a success hands over to the repository when it keeps the
             // track. Either way only if no later tap has set the like since.
             val settled = outcome is Outcome.Failure || tracks.observeById(id).first() != null
-            if (settled) likedHere.update { if (it[id] == liked) it - id else it }
+            // Boolean equality cannot distinguish first and third taps in true?false?true.
+            if (likeRequests[id] != request) return@launch
+            if (settled) likedHere.update { it - id }
+            likeRequests.remove(id)
             if (outcome is Outcome.Failure) {
                 val toast = PlayerToastUi(
                     title = UiText.Resource(R.string.player_like_failed),

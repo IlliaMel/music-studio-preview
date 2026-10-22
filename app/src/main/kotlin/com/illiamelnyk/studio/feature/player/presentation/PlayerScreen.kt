@@ -3,9 +3,12 @@ package com.illiamelnyk.studio.feature.player.presentation
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -44,6 +47,7 @@ fun PlayerScreen(
     contentPadding: PaddingValues = PaddingValues(),
 ) {
     val track = state.track ?: return
+    val lyricsVisible = state.showLyrics && state.hasLyrics && !state.isStation
     PlayerBackdrop(track.coverSeed, modifier) {
         PlayerLayout(
             modifier = bodyModifier.padding(contentPadding),
@@ -63,7 +67,10 @@ fun PlayerScreen(
                 Artwork(state, clock, onIntent, artworkModifier, coverModifier)
             },
         ) { compactHeight ->
-            TrackInfoSlot(visible = state.sheet != PlayerSheet.Queue, reserveSpace = !compactHeight) {
+            TrackInfoSlot(
+                visible = state.sheet != PlayerSheet.Queue && !lyricsVisible,
+                reserveSpace = !compactHeight && !lyricsVisible,
+            ) {
                 PlayerTrackInfo(
                     track = track,
                     showLyrics = state.showLyrics && state.hasLyrics && !state.isStation,
@@ -127,16 +134,31 @@ private fun Artwork(
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
-            PlayerArtwork(
-                coverSeed = track.coverSeed,
-                trackKey = track.id.value,
-                showLyrics = state.showLyrics && state.hasLyrics && !state.isStation,
-                lyrics = state.lyrics,
-                positionMs = { clock().positionMs },
-                onLyricLineClick = { onIntent(PlayerIntent.LyricLineClicked(it)) },
-                modifier = Modifier.fillMaxSize(),
-                coverModifier = coverModifier,
-            )
+            val lyricsVisible = state.showLyrics && state.hasLyrics && !state.isStation
+            Column(
+                Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.s),
+            ) {
+                if (lyricsVisible) {
+                    PlayerTrackInfo(
+                        track = track,
+                        showLyrics = true,
+                        onLyricsClick = { onIntent(PlayerIntent.LyricsClicked) },
+                        onQueueClick = { onIntent(PlayerIntent.QueueClicked) },
+                        compact = true,
+                    )
+                }
+                PlayerArtwork(
+                    coverSeed = track.coverSeed,
+                    trackKey = track.id.value,
+                    showLyrics = lyricsVisible,
+                    lyrics = state.lyrics,
+                    positionMs = { clock().positionMs },
+                    onLyricLineClick = { onIntent(PlayerIntent.LyricLineClicked(it)) },
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    coverModifier = coverModifier,
+                )
+            }
         }
     }
 }

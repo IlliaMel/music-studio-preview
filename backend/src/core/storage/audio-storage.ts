@@ -30,6 +30,17 @@ const SAFE_KEY = /^[A-Za-z0-9-]+$/
 export class LocalAudioStorage implements AudioStorage {
   constructor(private readonly directory: string) {}
 
+  /** Proves at startup that audio can be stored, instead of failing after a paid generation. */
+  async ensureWritable(): Promise<void> {
+    await mkdir(this.directory, { recursive: true })
+    const probe = join(this.directory, `.write-check.${randomUUID()}.tmp`)
+    try {
+      await writeFile(probe, '')
+    } finally {
+      await rm(probe, { force: true })
+    }
+  }
+
   async save(key: string, audio: Uint8Array): Promise<void> {
     const destination = this.path(key)
     await mkdir(this.directory, { recursive: true })

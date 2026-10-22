@@ -17,27 +17,37 @@ import androidx.compose.ui.util.lerp
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
 /**
- * The shape of the cover that travels between the players: the mini player's circle at [circleSize]
- * and below, the full player's [largeShape] from [largeSize] up, and in between a rounded square
- * whose corners shrink as it grows. The shape follows the size alone, so the cover morphs smoothly
- * whichever way it travels.
+ * The shape of the cover that travels between the players: the mini player's [smallShape] at
+ * [smallSize] and below, the full player's [largeShape] from [largeSize] up, and in between a radius
+ * that follows the size. The shape follows the size alone, so the cover morphs smoothly whichever
+ * way it travels.
  */
 @Immutable
-internal data class PlayerCoverShape(val circleSize: Dp, val largeSize: Dp, val largeShape: CornerBasedShape) : Shape {
+internal data class PlayerCoverShape(
+    val smallSize: Dp,
+    val smallShape: CornerBasedShape,
+    val largeSize: Dp,
+    val largeShape: CornerBasedShape,
+) : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
         val side = size.minDimension
-        val circle = with(density) { circleSize.toPx() }
+        val small = with(density) { smallSize.toPx() }
         val large = with(density) { largeSize.toPx() }
-        val growth = if (large > circle) ((side - circle) / (large - circle)).coerceIn(0f, 1f) else 1f
-        val radius = lerp(circle / 2, largeShape.topStart.toPx(size, density), growth).coerceAtMost(side / 2)
+        val growth = if (large > small) ((side - small) / (large - small)).coerceIn(0f, 1f) else 1f
+        val radius = lerp(
+            smallShape.topStart.toPx(size, density),
+            largeShape.topStart.toPx(size, density),
+            growth,
+        ).coerceAtMost(side / 2)
         return Outline.Rounded(RoundRect(size.toRect(), CornerRadius(radius)))
     }
 }
 
-/** The cover's shape from the theme: the mini player's cover size, and the large cover's radius. */
+/** The cover's shape from the theme: the mini player's cover size and radius, and the large cover's. */
 @Composable
 @ReadOnlyComposable
 internal fun playerCoverShape(): PlayerCoverShape {
     val covers = StudioTheme.dimens.size.cover
-    return PlayerCoverShape(circleSize = covers.xs, largeSize = covers.l, largeShape = StudioTheme.shapes.l)
+    val shapes = StudioTheme.shapes
+    return PlayerCoverShape(smallSize = covers.xs, smallShape = shapes.s, largeSize = covers.l, largeShape = shapes.l)
 }

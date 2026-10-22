@@ -2,6 +2,7 @@ import { once } from 'node:events'
 import { createServer } from 'node:http'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DatabaseHandle } from '../src/core/db/database.js'
+import { serializeError } from '../src/core/safe-error.js'
 import {
   ElevenLabsMusicProvider,
   type ReferenceAccess,
@@ -218,6 +219,160 @@ describe('ElevenLabs detailed transport', () => {
     ).rejects.toMatchObject({ code: 'PROVIDER_OUTCOME_UNKNOWN' })
     expect(fetcher).not.toHaveBeenCalled()
   })
+  const remixId = '00000000-0000-4000-8000-000000000001'
+  const original = {
+    prompt: 'Cinematic folk with violin',
+    genres: ['folk'],
+    words: [
+      { word: 'Before', startMs: 6000, endMs: 6400 },
+      { word: 'the', startMs: 6450, endMs: 6600 },
+      { word: 'sun', startMs: 6650, endMs: 7000 },
+      { word: 'can', startMs: 7050, endMs: 7300 },
+      { word: 'rise', startMs: 7350, endMs: 7800 },
+      { word: 'A', startMs: 7850, endMs: 8000 },
+      { word: 'silver', startMs: 8050, endMs: 8400 },
+      { word: 'thread', startMs: 9500, endMs: 9900 },
+      { word: 'Later', startMs: 60000, endMs: 60400 },
+    ],
+  }
+  const remixOf = (words = original.words): ReferenceAccess => ({
+    ...access,
+    resolve: async () => ({
+      key: remixId,
+      songId: 'original-song',
+      durationMs: 240000,
+      original: { ...original, words },
+    }),
+  })
+  const remix = { ...request, prompt: 'Make it more rocky', remixTrackId: remixId }
+  it("remixes the planned sections with the original's words and a light reference", async () => {
+    const calls: { path: string; body: Record<string, unknown> }[] = []
+    const fetcher = vi.fn<typeof fetch>(async (url, init) => {
+      const path = new URL(String(url)).pathname
+      calls.push({ path, body: JSON.parse(String(init?.body)) })
+      if (path === '/v1/music/plan')
+        return Response.json({
+          chunks: [
+            {
+              text: '[Intro]\nPlanned words',
+              duration_ms: 12000,
+              positive_styles: ['quiet folk intro'],
+              negative_styles: [],
+              context_adherence: 'high',
+            },
+            {
+              text: '[Finale]\nMore planned words',
+              duration_ms: 18000,
+              positive_styles: ['distorted electric guitar'],
+              negative_styles: ['acoustic only'],
+              conditioning_ref: null,
+            },
+          ],
+        })
+      return response()
+    })
+    await provider(fetcher, true, remixOf()).compose(remix, new AbortController().signal)
+    expect(calls.map((call) => call.path)).toEqual(['/v1/music/plan', '/v1/music/detailed'])
+    expect(calls[0]?.body).toMatchObject({ music_length_ms: 30000, model_id: 'music_v2_5' })
+    expect(String(calls[0]?.body.prompt)).toContain('Cinematic folk with violin (folk)')
+    expect(String(calls[0]?.body.prompt)).toContain('Make it more rocky')
+    expect(calls[1]?.body).toEqual(
+      expect.objectContaining({
+        composition_plan: {
+          chunks: [
+            {
+              text: '[Intro]\nBefore the sun can rise',
+              duration_ms: 12000,
+              positive_styles: ['quiet folk intro'],
+              negative_styles: [],
+              context_adherence: 'high',
+              conditioning_ref: { song_id: 'original-song', range: { start_ms: 0, end_ms: 30000 } },
+              condition_strength: 'low',
+            },
+            {
+              text: '[Finale]\nA silver\nthread',
+              duration_ms: 18000,
+              positive_styles: ['distorted electric guitar'],
+              negative_styles: ['acoustic only'],
+            },
+          ],
+        },
+      }),
+    )
+  })
+  it("keeps the original's words and composes once when planning fails", async () => {
+    const composed: Record<string, unknown>[] = []
+    const fetcher = vi.fn<typeof fetch>(async (url, init) => {
+      if (new URL(String(url)).pathname === '/v1/music/plan')
+        return new Response('private-provider-detail', { status: 500 })
+      composed.push(JSON.parse(String(init?.body)))
+      return response()
+    })
+    await provider(fetcher, true, remixOf()).compose(remix, new AbortController().signal)
+    await provider(fetcher, true, remixOf([])).compose(remix, new AbortController().signal)
+    expect(composed).toHaveLength(2)
+    expect(composed[0]).toMatchObject({
+      composition_plan: {
+        chunks: [
+          {
+            text: 'Before the sun can rise\nA silver\nthread',
+            positive_styles: ['Make it more rocky'],
+            condition_strength: 'low',
+          },
+        ],
+      },
+    })
+    expect(composed[1]).toMatchObject({
+      composition_plan: { chunks: [{ text: '{generate vocals}' }] },
+    })
+  })
+  it('sings the planned lyrics when the original has no words, and none in an instrumental', async () => {
+    const composed: Record<string, unknown>[] = []
+    const fetcher = vi.fn<typeof fetch>(async (url, init) => {
+      if (new URL(String(url)).pathname === '/v1/music/plan')
+        return Response.json({
+          chunks: [
+            {
+              text: '[Verse]\nPlanned words',
+              duration_ms: 30000,
+              positive_styles: ['rock'],
+              negative_styles: ['ballad'],
+            },
+          ],
+        })
+      composed.push(JSON.parse(String(init?.body)))
+      return response()
+    })
+    await provider(fetcher, true, remixOf([])).compose(remix, new AbortController().signal)
+    await provider(fetcher, true, remixOf()).compose(
+      { ...remix, instrumental: true },
+      new AbortController().signal,
+    )
+    expect(composed[0]).toMatchObject({
+      composition_plan: { chunks: [{ text: '[Verse]\nPlanned words', positive_styles: ['rock'] }] },
+    })
+    expect(composed[1]).toMatchObject({
+      composition_plan: {
+        chunks: [{ text: '{instrumental}', negative_styles: ['ballad', 'vocals'] }],
+      },
+    })
+  })
+  it('keeps plan cues and section labels out of the sung words', () => {
+    const result = parseDetailed(
+      'multipart/mixed; boundary="fixture"',
+      fixture({
+        ...metadata,
+        words_timestamps: [
+          { word: '{generate', start_ms: 0, end_ms: 0 },
+          { word: 'vocals}', start_ms: 0, end_ms: 0 },
+          { word: '[Chorus]', start_ms: 100, end_ms: 100 },
+          { word: 'Hello', start_ms: 200, end_ms: 500 },
+        ],
+      }),
+      null,
+    )
+    expect(result.words).toEqual([{ word: 'Hello', startMs: 200, endMs: 500 }])
+  })
   it('rejects malformed multipart, invalid timestamps and oversized streaming bodies', async () => {
     expect(() =>
       parseDetailed('multipart/mixed; boundary=fixture', fixture().subarray(0, 100), null),
@@ -409,5 +564,44 @@ it('maps documented insufficient quota and bad-prompt suggestions without exposi
   await expect(prompt.compose(request, new AbortController().signal)).rejects.toMatchObject({
     code: 'INVALID_PROMPT',
     promptSuggestion: 'A calm instrumental',
+    diagnostic: { step: 'compose', httpStatus: 400, providerStatus: 'bad_prompt' },
   })
+})
+
+it('keeps the first invalid field of a rejected request body for the logs, not its message', async () => {
+  const rejected = provider(
+    vi.fn<typeof fetch>(async () =>
+      Response.json(
+        {
+          detail: [
+            {
+              loc: ['body', 'composition_plan', 'chunks', 0, 'positive_styles', 0],
+              msg: 'private upstream text quoting the prompt',
+              type: 'string_too_long',
+            },
+          ],
+        },
+        { status: 422 },
+      ),
+    ),
+  )
+  const error = await rejected.compose(request, new AbortController().signal).catch((e) => e)
+  expect(error).toMatchObject({
+    code: 'INVALID_PROMPT',
+    diagnostic: {
+      step: 'compose',
+      httpStatus: 422,
+      field: 'body.composition_plan.chunks.0.positive_styles.0 string_too_long',
+    },
+  })
+  expect(serializeError(error)).toEqual({
+    type: 'ProviderError',
+    code: 'INVALID_PROMPT',
+    provider: {
+      step: 'compose',
+      httpStatus: 422,
+      field: 'body.composition_plan.chunks.0.positive_styles.0 string_too_long',
+    },
+  })
+  expect(JSON.stringify(serializeError(error))).not.toContain('private')
 })

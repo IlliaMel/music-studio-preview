@@ -186,8 +186,6 @@
     <string name="create_today">Today</string>
     <string name="create_yesterday">Yesterday</string>
     <string name="create_variation_number">#%1$d</string>
-    <string name="create_creating_title">Creating title\u2026</string>
-    <string name="create_creating_artwork">Creating artwork\u2026</string>
     <string name="create_notify_title">Want a ping when your track is ready?</string>
     <string name="create_notify_message">Tracks take a moment to make. Choose whether Studio may notify you when they are ready.</string>
     <string name="create_notify_yes">Notify me</string>
@@ -212,4 +210,9 @@
         <item quantity="one">· %1$d track</item>
         <item quantity="other">· %1$d tracks</item>
     </plurals>
+    <string name="create_options_loading">Connecting to the music service…</string>
+    <string name="create_options_failed">Couldn’t load music options. Tap to retry.</string>
+    <string name="create_options_lyrics_unsupported">This service cannot use custom lyrics. Choose Auto or Instrumental to continue.</string>
+    <string name="create_options_reference_unsupported">This service cannot use audio references. Remove the reference to continue.</string>
+    <string name="create_options_remix_unsupported">This service cannot use these remix sources. Remove sources to continue.</string>
 </resources>

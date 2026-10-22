@@ -8,6 +8,8 @@ import { drizzle as drizzlePglite } from 'drizzle-orm/pglite'
 import { migrate as migratePglite } from 'drizzle-orm/pglite/migrator'
 import pg from 'pg'
 import type { DatabaseConfig } from '../config.js'
+import type { Logger } from '../logger.js'
+import { serializeError } from '../safe-error.js'
 import * as schema from './schema.js'
 
 export type Schema = typeof schema
@@ -45,9 +47,18 @@ async function migrateUnderLock(pool: pg.Pool): Promise<void> {
   }
 }
 
-export async function openDatabase(config: DatabaseConfig): Promise<DatabaseHandle> {
+export async function openDatabase(
+  config: DatabaseConfig,
+  log?: Pick<Logger, 'error'>,
+): Promise<DatabaseHandle> {
   if (config.kind === 'postgres') {
     const pool = new pg.Pool({ connectionString: config.url, max: 10 })
+    // pg removes a broken idle client before emitting this event. Handling it keeps the
+    // process alive so health checks fail normally and later requests can reconnect.
+    // Never log the client (it contains credentials), or the driver's raw message.
+    pool.on('error', (error) => {
+      log?.error({ databaseError: serializeError(error) }, 'idle database connection lost')
+    })
     return {
       db: drizzleNodePg({ client: pool, schema }),
       migrate: () => migrateUnderLock(pool),

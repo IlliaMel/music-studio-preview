@@ -4,12 +4,21 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
 import com.illiamelnyk.studio.BuildConfig
 import com.illiamelnyk.studio.core.data.generation.AndroidGenerationWorkScheduler
+import com.illiamelnyk.studio.core.data.generation.GenerationSyncWorker
 import com.illiamelnyk.studio.core.data.local.ApiAuthMode
 import com.illiamelnyk.studio.core.data.local.ApiConfiguration
 import com.illiamelnyk.studio.core.data.local.BearerTokenProvider
-import com.illiamelnyk.studio.core.data.local.DurableStudioRepository
+import com.illiamelnyk.studio.core.data.local.DurablePlaylistRepository
+import com.illiamelnyk.studio.core.data.local.DurableSessionRepository
+import com.illiamelnyk.studio.core.data.local.DurableTrackRepository
+import com.illiamelnyk.studio.core.data.local.StudioAccountRuntime
 import com.illiamelnyk.studio.core.data.local.StudioApi
+import com.illiamelnyk.studio.core.data.local.StudioAuthentication
+import com.illiamelnyk.studio.core.data.local.StudioCatalogAccess
+import com.illiamelnyk.studio.core.data.local.StudioGenerationOptionsRepository
+import com.illiamelnyk.studio.core.data.local.StudioReferenceAccess
 import com.illiamelnyk.studio.core.data.local.StudioStore
+import com.illiamelnyk.studio.core.data.local.StudioSynchronization
 import com.illiamelnyk.studio.core.data.local.UnavailableBearerTokenProvider
 import com.illiamelnyk.studio.core.data.network.AndroidNetworkMonitor
 import com.illiamelnyk.studio.core.data.notification.AndroidGenerationNotifications
@@ -17,6 +26,7 @@ import com.illiamelnyk.studio.core.data.playback.AndroidAudioExporter
 import com.illiamelnyk.studio.core.data.playback.AndroidPlaybackController
 import com.illiamelnyk.studio.core.data.playback.LocalLyricsRepository
 import com.illiamelnyk.studio.core.data.playback.PlaybackAutoplayCoordinator
+import com.illiamelnyk.studio.core.data.playback.PlaybackReadiness
 import com.illiamelnyk.studio.core.data.settings.DataStoreThemePreferenceRepository
 import com.illiamelnyk.studio.core.domain.credits.CreditsRepository
 import com.illiamelnyk.studio.core.domain.network.NetworkMonitor
@@ -32,6 +42,7 @@ import com.illiamelnyk.studio.core.domain.session.DeleteAccount
 import com.illiamelnyk.studio.core.domain.session.SessionRepository
 import com.illiamelnyk.studio.core.domain.session.SignOut
 import com.illiamelnyk.studio.core.domain.settings.ThemePreferenceRepository
+import com.illiamelnyk.studio.core.domain.track.GenerationOptionsRepository
 import com.illiamelnyk.studio.core.domain.track.GenerationWorkScheduler
 import com.illiamelnyk.studio.core.domain.track.TrackRepository
 import com.illiamelnyk.studio.core.presentation.OfflineViewModel
@@ -45,6 +56,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import org.koin.android.ext.koin.androidContext
+import org.koin.androidx.workmanager.dsl.workerOf
 import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModelOf
@@ -78,20 +90,31 @@ val coreModule = module {
     singleOf(::GenerationNotificationTargets)
     factoryOf(::OpenGenerationNotification)
     single {
-        DurableStudioRepository(
+        StudioAccountRuntime(
             androidContext(),
             get(),
             get(),
-            get(named(APP_SCOPE)),
+            Dispatchers.IO,
             generationWork = get(),
             notifications = get(),
         )
     }
-    single<SessionRepository> { get<DurableStudioRepository>() }
-    single<CreditsRepository> { get<DurableStudioRepository>() }
-    single<TrackRepository> { get<DurableStudioRepository>() }
+    singleOf(::DurableSessionRepository)
+    singleOf(::DurableTrackRepository)
+    singleOf(::DurablePlaylistRepository)
+    single<SessionRepository> { get<DurableSessionRepository>() }
+    single<CreditsRepository> { get<StudioAccountRuntime>().creditData }
+    single<TrackRepository> { get<DurableTrackRepository>() }
+    single<GenerationOptionsRepository> { StudioGenerationOptionsRepository(get()) }
+    single<PlaylistRepository> { get<DurablePlaylistRepository>() }
+    single<StudioSynchronization> { get<StudioAccountRuntime>().sync }
+    single<StudioAuthentication> { get<DurableSessionRepository>() }
+    single<StudioReferenceAccess> { get<StudioAccountRuntime>() }
+    single<StudioCatalogAccess> { get<StudioAccountRuntime>() }
+    single<PlaybackReadiness> { PlaybackReadiness { get<StudioAccountRuntime>().initialize() } }
+    workerOf(::GenerationSyncWorker)
     single {
-        val repository: DurableStudioRepository = get()
+        val repository: StudioAccountRuntime = get()
         AndroidPlaybackController(
             androidContext(),
             get(named(APP_SCOPE)),
@@ -108,12 +131,12 @@ val coreModule = module {
         }
     }
     single {
-        val repository: DurableStudioRepository = get()
+        val repository: StudioAccountRuntime = get()
         PlaybackAutoplayCoordinator(get(), get(), get(named(APP_SCOPE))) { repository.activeAccountId }
     }
     singleOf(::LocalLyricsRepository) bind LyricsRepository::class
     single<AudioExporter> {
-        val repository: DurableStudioRepository = get()
+        val repository: StudioAccountRuntime = get()
         AndroidAudioExporter(
             androidContext(),
             ownerId = { repository.activeAccountId },
@@ -121,7 +144,6 @@ val coreModule = module {
         )
     }
     factoryOf(::AudioActions)
-    single<PlaylistRepository> { get<DurableStudioRepository>() }
     factoryOf(::SignOut)
     factoryOf(::DeleteAccount)
     single { ToastController(get(named(APP_SCOPE))) }

@@ -8,7 +8,6 @@ import com.illiamelnyk.studio.core.domain.track.TrackStatus
 import com.illiamelnyk.studio.core.presentation.UiText
 import com.illiamelnyk.studio.core.presentation.toClockText
 import com.illiamelnyk.studio.core.presentation.toUiText
-import kotlin.math.roundToInt
 
 /** A track as a row of a list shows it: every text already chosen. */
 @Immutable
@@ -36,7 +35,7 @@ fun Track.toUi(): TrackUi = TrackUi(
     subtitle = when (val status = status) {
         TrackStatus.Queued -> UiText.Resource(R.string.track_queued)
 
-        is TrackStatus.Generating -> UiText.Resource(R.string.track_composing, (status.progress * 100).roundToInt())
+        is TrackStatus.Generating -> UiText.Resource(R.string.track_composing_status)
 
         TrackStatus.Ready, is TrackStatus.Failed -> UiText.Resource(
             R.string.track_subtitle,

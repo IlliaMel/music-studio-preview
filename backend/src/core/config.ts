@@ -22,6 +22,8 @@ export type GenerationConfig = {
   concurrency: number
   timeoutMs: number
   dailyLimit: number
+  allowedEmails?: string[]
+  dailyPaidRequestsTotal?: number
 }
 
 export type Config = {
@@ -30,6 +32,7 @@ export type Config = {
   log: { level: LogLevel; pretty: boolean }
   database: DatabaseConfig
   auth: AuthConfig
+  firebaseDeleteUsers: boolean
   generation: GenerationConfig
   storage: { audioDir: string }
   http: HttpLimits
@@ -87,6 +90,15 @@ const Env = z.object({
   GENERATION_CONCURRENCY: optional(z.coerce.number().int().min(1).max(10)),
   GENERATION_TIMEOUT_MS: optional(z.coerce.number().int().min(10_000)),
   DAILY_GENERATIONS_PER_USER: optional(z.coerce.number().int().min(0)),
+  DAILY_PAID_REQUESTS_TOTAL: optional(z.coerce.number().int().min(0)),
+  GENERATION_ALLOWED_EMAILS: optional(
+    z
+      .string()
+      .transform((value) => value.split(',').map((email) => email.trim().toLowerCase()))
+      .pipe(z.array(z.email()).min(1))
+      .transform((emails) => [...new Set(emails)]),
+  ),
+  FIREBASE_DELETE_USERS: optional(flag),
   MOCK_DELAY_MS: optional(z.coerce.number().int().min(0)),
   FIREBASE_SERVICE_ACCOUNT: optional(ServiceAccountJson),
   FIREBASE_SERVICE_ACCOUNT_FILE: optional(z.string().min(1)),
@@ -194,6 +206,14 @@ export function loadConfig(environment: Record<string, string | undefined>): Con
     problems.push('PUBLIC_BASE_URL: HTTPS is required in production')
   if (env.MUSIC_PROVIDER === 'elevenlabs' && !env.ELEVENLABS_API_KEY)
     problems.push('ELEVENLABS_API_KEY: required when MUSIC_PROVIDER is elevenlabs')
+  // Real accounts reaching the paid provider need both guards, whatever NODE_ENV says: a hosted
+  // environment can override the image's NODE_ENV. Local dev sign-in stays unrestricted.
+  if (env.MUSIC_PROVIDER === 'elevenlabs' && authMode === 'firebase') {
+    if (!env.GENERATION_ALLOWED_EMAILS)
+      problems.push('GENERATION_ALLOWED_EMAILS: required with elevenlabs and Firebase sign-in')
+    if (env.DAILY_PAID_REQUESTS_TOTAL === undefined)
+      problems.push('DAILY_PAID_REQUESTS_TOTAL: required with elevenlabs and Firebase sign-in')
+  }
   if (problems.length > 0) throw new ConfigError(problems)
 
   return {
@@ -207,13 +227,15 @@ export function loadConfig(environment: Record<string, string | undefined>): Con
       authMode === 'firebase' && env.FIREBASE_SERVICE_ACCOUNT
         ? { mode: 'firebase', serviceAccount: env.FIREBASE_SERVICE_ACCOUNT }
         : { mode: 'dev' },
+    firebaseDeleteUsers: env.FIREBASE_DELETE_USERS ?? true,
     generation: {
       provider: env.MUSIC_PROVIDER ?? 'mock',
       ...(env.MUSIC_PROVIDER === 'elevenlabs' && env.ELEVENLABS_API_KEY
         ? {
             elevenlabs: {
               apiKey: env.ELEVENLABS_API_KEY,
-              references: env.ELEVENLABS_ENABLE_REFERENCES ?? false,
+              // Audio Reference comes with every paid plan, as the Music API itself does; false turns it off.
+              references: env.ELEVENLABS_ENABLE_REFERENCES ?? true,
             },
           }
         : {}),
@@ -221,6 +243,12 @@ export function loadConfig(environment: Record<string, string | undefined>): Con
       concurrency: env.GENERATION_CONCURRENCY ?? 2,
       timeoutMs: env.GENERATION_TIMEOUT_MS ?? 5 * 60_000,
       dailyLimit: env.DAILY_GENERATIONS_PER_USER ?? 25,
+      ...(env.GENERATION_ALLOWED_EMAILS !== undefined
+        ? { allowedEmails: env.GENERATION_ALLOWED_EMAILS }
+        : {}),
+      ...(env.DAILY_PAID_REQUESTS_TOTAL !== undefined
+        ? { dailyPaidRequestsTotal: env.DAILY_PAID_REQUESTS_TOTAL }
+        : {}),
     },
     http: {
       requestsPerMinute: env.HTTP_REQUESTS_PER_MINUTE ?? defaultHttpLimits.requestsPerMinute,

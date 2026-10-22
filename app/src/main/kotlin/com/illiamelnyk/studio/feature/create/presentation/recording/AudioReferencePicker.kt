@@ -22,8 +22,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.illiamelnyk.studio.core.domain.playback.PlaybackController
+import com.illiamelnyk.studio.core.ui.components.OverlaySheet
 import com.illiamelnyk.studio.feature.create.domain.RecordedAudio
-import com.illiamelnyk.studio.feature.create.presentation.common.OverlaySheet
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -110,10 +110,12 @@ fun AudioReferencePicker(
                 if (!currentVisible) return@pick
                 picker.launch(
                     arrayOf(
-                        "audio/wav", "audio/x-wav", "audio/wave",
-                        "audio/mp4", "audio/x-m4a", "audio/mpeg",
-                        "audio/aac", "audio/ogg", "application/ogg",
-                        "audio/webm",
+                        "audio/wav",
+                        "audio/x-wav",
+                        "audio/wave",
+                        "audio/mp4",
+                        "audio/x-m4a",
+                        "audio/mpeg",
                     ),
                 )
             },

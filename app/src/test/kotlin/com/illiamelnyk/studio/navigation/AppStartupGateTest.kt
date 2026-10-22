@@ -7,6 +7,7 @@ import com.illiamelnyk.studio.core.data.fake.FakeSessionRepository
 import com.illiamelnyk.studio.core.domain.session.Session
 import com.illiamelnyk.studio.core.domain.session.SessionRepository
 import com.illiamelnyk.studio.core.domain.session.SignInMethod
+import com.illiamelnyk.studio.core.domain.session.SignOut
 import com.illiamelnyk.studio.core.domain.settings.ThemePreference
 import com.illiamelnyk.studio.core.domain.settings.ThemePreferenceRepository
 import com.illiamelnyk.studio.core.presentation.ToastController
@@ -34,8 +35,7 @@ class AppStartupGateTest {
         val sessions = FakeSessionRepository()
         sessions.signIn("startup", SignInMethod.Google, "Startup", useProviderProfile = true)
         val themes = MutableSharedFlow<ThemePreference>()
-        val variants = MutableSharedFlow<ShellVariant>()
-        val model = model(sessions, themes, variants)
+        val model = model(sessions, themes)
         var settled = AppState()
 
         model.state.test {
@@ -46,16 +46,13 @@ class AppStartupGateTest {
             assertEquals(8, ready.creditsLeft)
             assertNull(ready.theme)
             assertFalse(ready.readyForFirstFrame)
-            assertEquals(ShellVariant.Default, ready.shellVariant)
             runCurrent()
 
             themes.emit(ThemePreference.Light)
             val themed = awaitItem()
             assertTrue(themed.readyForFirstFrame)
             assertEquals(ready.copy(theme = ThemePreference.Light), themed)
-            variants.emit(ShellVariant.BottomBar)
-            settled = awaitItem()
-            assertEquals(themed.copy(shellVariant = ShellVariant.BottomBar), settled)
+            settled = themed
         }
         advanceTimeBy(6_000)
         runCurrent()
@@ -73,14 +70,12 @@ class AppStartupGateTest {
             override val session = pending
         }
         val themes = MutableSharedFlow<ThemePreference>()
-        val variants = MutableSharedFlow<ShellVariant>()
-        val model = model(sessions, themes, variants)
+        val model = model(sessions, themes)
 
         model.state.test {
             assertEquals(SessionGate.Loading, awaitItem().gate)
             runCurrent()
             themes.emit(ThemePreference.Dark)
-            variants.emit(ShellVariant.BottomBar)
             expectNoEvents()
             pending.emit(null)
             val signedOut = awaitItem()
@@ -93,7 +88,7 @@ class AppStartupGateTest {
     private fun TestScope.model(
         sessions: SessionRepository,
         themes: MutableSharedFlow<ThemePreference>,
-        variants: MutableSharedFlow<ShellVariant>,
+        playback: FakePlaybackController = FakePlaybackController(backgroundScope),
     ) = AppViewModel(
         sessions,
         FakeCreditsRepository(),
@@ -101,10 +96,8 @@ class AppStartupGateTest {
             override val preference = themes
             override suspend fun set(preference: ThemePreference) = themes.emit(preference)
         },
-        object : ShellVariantSource {
-            override val variant = variants
-        },
-        FakePlaybackController(backgroundScope),
+        playback,
         ToastController(backgroundScope),
+        SignOut(sessions, playback),
     )
 }

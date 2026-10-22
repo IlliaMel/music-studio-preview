@@ -1,10 +1,5 @@
 package com.illiamelnyk.studio.feature.auth.presentation.welcome.components
 
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,19 +20,10 @@ import com.illiamelnyk.studio.core.ui.components.Cover
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
 /**
- * Rows of generated covers drift diagonally on one graphics layer, without per-frame recomposition.
+ * Bundled covers keep a fixed crop and position from the first visible frame.
  */
 @Composable
 fun WelcomeCollage(modifier: Modifier = Modifier) {
-    val drift = rememberInfiniteTransition(label = "collage").animateFloat(
-        initialValue = -1f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            tween(StudioTheme.motion.loop.orb * 4, easing = StudioTheme.motion.loopEasing),
-            RepeatMode.Reverse,
-        ),
-        label = "drift",
-    )
     val dimens = StudioTheme.dimens
     val background = StudioTheme.colors.background
     Box(
@@ -52,8 +38,6 @@ fun WelcomeCollage(modifier: Modifier = Modifier) {
                 .wrapContentSize(unbounded = true)
                 .graphicsLayer {
                     rotationZ = COLLAGE_ANGLE
-                    translationX = drift.value * dimens.spacing.xl.toPx()
-                    translationY = drift.value * dimens.spacing.xl.toPx()
                 },
             verticalArrangement = Arrangement.spacedBy(dimens.layout.itemGap),
         ) {

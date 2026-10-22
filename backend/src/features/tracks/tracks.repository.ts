@@ -16,6 +16,7 @@ import {
 import type { Database } from '../../core/db/database.js'
 import { likes, playlistTracks, uploads } from '../library/library.table.js'
 import { users } from '../users/users.table.js'
+import { paidGenerationDailyUsage } from './paid-usage.table.js'
 import { remixSourceIds } from './tracks.model.js'
 import { type Track, tracks } from './tracks.table.js'
 
@@ -50,6 +51,7 @@ export type CreateOutcome =
   | { kind: 'created'; track: Track }
   | { kind: 'existing'; track: Track }
   | { kind: 'limit-reached'; used: number }
+  | { kind: 'service-limit-reached'; used: number }
   | { kind: 'account-deleting' }
   | { kind: 'upload-not-found' }
   | {
@@ -58,9 +60,8 @@ export type CreateOutcome =
     }
 
 /**
- * Failures the provider does not charge for: it refused the request before generating anything.
- * Every other outcome counts against the limit, including a timeout or an interruption, where
- * the song may well have been generated and paid for.
+ * Mock refusals that do not consume the simulated user quota. Paid providers use the narrower
+ * confirmed-rejection list below: ambiguous outcomes may already have generated a paid song.
  */
 const FREE_FAILURES = [
   'INVALID_PROMPT',
@@ -70,17 +71,26 @@ const FREE_FAILURES = [
   'PROVIDER_UNAVAILABLE',
 ]
 
+// Only explicit credit/credential refusals establish that a paid variant was not generated.
+// Timeouts, transport failures, rate limits and invalid responses remain charged conservatively.
+const PAID_REJECTIONS = ['QUOTA_EXCEEDED', 'PROVIDER_AUTH', 'SERVICE_DAILY_LIMIT']
+
 /** The one definition of "counts against today's limit", for enforcing it and for showing it. */
 const countsTowardLimit = (userId: string, since: Date): SQL | undefined =>
   and(
     eq(tracks.userId, userId),
     gte(tracks.createdAt, since),
-    // Deleted tracks still count: deleting must not hand back a generation that was paid for.
+    // Deleting alone cannot hand back a generation that may already have been paid for.
     not(
       and(
         eq(tracks.status, 'failed'),
-        not(eq(tracks.providerName, 'elevenlabs')),
-        inArray(sql`coalesce(${tracks.errorCode}, '')`, FREE_FAILURES),
+        or(
+          and(
+            not(eq(tracks.providerName, 'elevenlabs')),
+            inArray(sql`coalesce(${tracks.errorCode}, '')`, FREE_FAILURES),
+          ),
+          inArray(sql`coalesce(${tracks.errorCode}, '')`, PAID_REJECTIONS),
+        ),
       ) as SQL,
     ),
   )
@@ -93,15 +103,22 @@ export class TracksRepository {
 
   /**
    * Creates a track unless the same idempotency key was already used, or the user has spent
-   * the day's generations. A per-user lock serialises the check and the insert, so two
-   * requests at the same moment cannot both squeeze under the limit.
+   * the day's generations. Paid variant reservations share a global lock before the owner
+   * lock; admission, owner quota, ledger increment and track insertion commit together.
    */
   async create(
     input: NewTrack,
     limit: { since: Date; max: number },
     now: Date,
+    paidBudget?: { max?: number },
   ): Promise<CreateOutcome> {
     return this.db.transaction(async (tx) => {
+      // Always acquire the global budget lock before an owner lock. Account cleanup takes only
+      // the owner lock, so admission cannot form a reverse-order lock cycle with deletion.
+      if (paidBudget !== undefined)
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtextextended('studio:paid-generation-budget', 0))`,
+        )
       await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${input.userId}, 0))`)
 
       const [owner] = await tx
@@ -118,9 +135,20 @@ export class TracksRepository {
         )
       if (existing) return { kind: 'existing', track: existing }
 
+      let referenceUpload:
+        | Pick<
+            typeof uploads.$inferSelect,
+            'id' | 'providerSongId' | 'providerAttempted' | 'paidReservationDay'
+          >
+        | undefined
       if (input.referenceUploadId) {
         const [upload] = await tx
-          .select({ id: uploads.id })
+          .select({
+            id: uploads.id,
+            providerSongId: uploads.providerSongId,
+            providerAttempted: uploads.providerAttempted,
+            paidReservationDay: uploads.paidReservationDay,
+          })
           .from(uploads)
           .where(
             and(
@@ -130,6 +158,7 @@ export class TracksRepository {
             ),
           )
         if (!upload) return { kind: 'upload-not-found' }
+        referenceUpload = upload
       }
       const generatedSources = remixSourceIds(input).filter((id) => /^[0-9a-f-]{36}$/i.test(id))
       if (generatedSources.length) {
@@ -161,11 +190,43 @@ export class TracksRepository {
 
       const generationId = crypto.randomUUID()
       const variants = input.variants ?? 1
+      if (paidBudget !== undefined) {
+        const day = now.toISOString().slice(0, 10)
+        const reserveUpload =
+          referenceUpload !== undefined &&
+          !referenceUpload.providerSongId &&
+          !referenceUpload.providerAttempted &&
+          referenceUpload.paidReservationDay === null
+        const requests = variants + (reserveUpload ? 1 : 0)
+        const [usage] = await tx
+          .select()
+          .from(paidGenerationDailyUsage)
+          .where(eq(paidGenerationDailyUsage.day, day))
+        const reserved = usage?.reservedVariants ?? 0
+        if (paidBudget.max !== undefined && reserved + requests > paidBudget.max)
+          return { kind: 'service-limit-reached', used: reserved }
+        if (reserveUpload && referenceUpload) {
+          await tx
+            .update(uploads)
+            .set({ paidReservationDay: day })
+            .where(eq(uploads.id, referenceUpload.id))
+        }
+        await tx
+          .insert(paidGenerationDailyUsage)
+          .values({ day, reservedVariants: requests })
+          .onConflictDoUpdate({
+            target: paidGenerationDailyUsage.day,
+            set: {
+              reservedVariants: sql`${paidGenerationDailyUsage.reservedVariants} + ${requests}`,
+            },
+          })
+      }
       const [track] = await tx
         .insert(tracks)
         .values(
           Array.from({ length: variants }, (_, variantIndex) => ({
             ...input,
+            paidReservationDay: paidBudget === undefined ? null : now.toISOString().slice(0, 10),
             generationId,
             variants,
             variantIndex,
@@ -305,11 +366,14 @@ export class TracksRepository {
     if (!saveAudio) return this.finish(id, { ...result, status: 'done' }, now)
     return this.db.transaction(async (tx) => {
       const [active] = await tx
-        .select({ id: tracks.id })
+        .select({ id: tracks.id, status: tracks.status })
         .from(tracks)
-        .where(and(eq(tracks.id, id), eq(tracks.status, 'running'), visible))
+        .where(and(eq(tracks.id, id), visible))
         .for('update')
       if (!active) return false
+      // A lost commit acknowledgement must not delete an already committed paid song.
+      if (active.status === 'done') return true
+      if (active.status !== 'running') return false
       await saveAudio()
       const updated = await tx
         .update(tracks)
@@ -321,6 +385,45 @@ export class TracksRepository {
   }
 
   async fail(id: string, failure: TrackFailure, now: Date): Promise<boolean> {
+    if (PAID_REJECTIONS.includes(failure.code)) {
+      return this.db.transaction(async (tx) => {
+        // Match admission's lock order. Holding this lock through the terminal transition and
+        // refund prevents a concurrent admission or duplicate completion from spending it twice.
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtextextended('studio:paid-generation-budget', 0))`,
+        )
+        const [active] = await tx
+          .select()
+          .from(tracks)
+          .where(and(eq(tracks.id, id), eq(tracks.status, 'running')))
+          .for('update')
+        if (!active) return false
+        await tx
+          .update(tracks)
+          .set({
+            status: 'failed',
+            errorCode: failure.code,
+            // Deleted content must stay erased even when the provider replies afterwards.
+            errorMessage: active.deletedAt ? null : failure.message,
+            promptSuggestion: active.deletedAt ? null : failure.promptSuggestion,
+            finishedAt: now,
+            updatedAt: now,
+          })
+          .where(eq(tracks.id, id))
+        if (active.paidReservationDay !== null) {
+          await tx
+            .update(paidGenerationDailyUsage)
+            .set({ reservedVariants: sql`${paidGenerationDailyUsage.reservedVariants} - 1` })
+            .where(
+              and(
+                eq(paidGenerationDailyUsage.day, active.paidReservationDay),
+                gte(paidGenerationDailyUsage.reservedVariants, 1),
+              ),
+            )
+        }
+        return true
+      })
+    }
     return this.finish(
       id,
       {

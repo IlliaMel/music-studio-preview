@@ -4,7 +4,10 @@ import app.cash.turbine.test
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.data.fake.FakePlaybackController
 import com.illiamelnyk.studio.core.domain.AppError
+import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.playback.RepeatMode
+import com.illiamelnyk.studio.core.domain.track.TrackId
+import com.illiamelnyk.studio.core.domain.track.TrackRepository
 import com.illiamelnyk.studio.core.presentation.UiText
 import com.illiamelnyk.studio.core.ui.components.LyricLine
 import com.illiamelnyk.studio.core.ui.components.LyricWord
@@ -19,6 +22,7 @@ import kotlin.random.Random
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -157,6 +161,43 @@ class PlayerViewModelTest {
         assertTrue(viewModel.state.value.content.isLiked)
         tracks.observeById(sung.id).test { assertEquals(true, awaitItem()?.isLiked) }
     }
+
+    @Test
+    fun `old like failures cannot settle a later third tap with the same desired value`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val pending = mutableListOf<Pair<Boolean, CompletableDeferred<Outcome<Unit>>>>()
+            val repository = object : TrackRepository by tracks {
+                override suspend fun setLiked(id: TrackId, liked: Boolean): Outcome<Unit> {
+                    val answer = CompletableDeferred<Outcome<Unit>>()
+                    pending += liked to answer
+                    return answer.await()
+                }
+            }
+            val playback = playback()
+            playback.play(listOf(sung))
+            val viewModel = PlayerViewModel(playback, lyrics, repository)
+            runCurrent()
+            viewModel.effects.test {
+                // The UI state collector need not run between rapid taps.
+                repeat(3) { viewModel.onIntent(PlayerIntent.LikeClicked) }
+                runCurrent()
+                assertEquals(listOf(true, false, true), pending.map { it.first })
+                assertTrue(viewModel.state.value.content.isLiked)
+                pending[0].second.complete(Outcome.Failure(AppError.Network))
+                runCurrent()
+                assertTrue(viewModel.state.value.content.isLiked)
+                expectNoEvents()
+                pending[1].second.complete(Outcome.Failure(AppError.Network))
+                runCurrent()
+                assertTrue(viewModel.state.value.content.isLiked)
+                expectNoEvents()
+                tracks.replace(sung.copy(isLiked = true))
+                pending[2].second.complete(Outcome.Success(Unit))
+                runCurrent()
+                assertTrue(viewModel.state.value.content.isLiked)
+                expectNoEvents()
+            }
+        }
 
     @Test
     fun `a like that fails to save goes back and says why`() = runTest(mainDispatcherRule.testDispatcher) {
@@ -350,7 +391,7 @@ class PlayerViewModelTest {
 
     @Test
     fun `a remix cannot create another remix draft`() = runTest(mainDispatcherRule.testDispatcher) {
-        val remix = sung.copy(remixTrackId = "original")
+        val remix = sung.copy(remixTrackIds = listOf("original"))
         val playback = playback()
         playback.play(listOf(remix))
         val drafts = com.illiamelnyk.studio.core.domain.track.ComposerDraftStore { "test-owner" }

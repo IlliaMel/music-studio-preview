@@ -24,7 +24,7 @@ import com.illiamelnyk.studio.feature.profile.presentation.components.ProfileHea
 import com.illiamelnyk.studio.feature.profile.presentation.components.ThemeSection
 
 /**
- * The profile: the account, the theme, [debugSettings] in debug builds, and Sign out.
+ * The profile: the account, theme and account actions.
  */
 @Composable
 fun ProfileScreen(
@@ -32,7 +32,6 @@ fun ProfileScreen(
     onIntent: (ProfileIntent) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
-    debugSettings: (@Composable () -> Unit)? = null,
 ) {
     Column(
         modifier = modifier.fillMaxHeight(SHEET_HEIGHT).imePadding().padding(contentPadding),
@@ -54,7 +53,6 @@ fun ProfileScreen(
             state.user?.let { ProfileHeader(user = it, credits = state.credits) }
             ThemeSection(theme = state.theme, onThemeSelect = { onIntent(ProfileIntent.ThemeSelected(it)) })
             ProfileAbout(dataMode = state.dataMode)
-            debugSettings?.invoke()
             ProfileAccountActions(
                 busy = state.isSigningOut || state.isDeleting || state.isSaving,
                 onSignOut = { onIntent(ProfileIntent.SignOutClicked) },

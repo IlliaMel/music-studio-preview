@@ -53,6 +53,8 @@ import com.illiamelnyk.studio.core.ui.theme.StudioTheme
  *
  * It doesn't move out of the keyboard's way by itself: put it in a container with `imePadding()`
  * (the activity resizes with the keyboard, edge to edge), so the insets are applied once.
+ *
+ * @param editorModifier input-surface insets, keeping the options viewport at the full available width.
  */
 @Composable
 fun Composer(
@@ -70,6 +72,7 @@ fun Composer(
     trailingActions: @Composable RowScope.() -> Unit = {},
     showSend: Boolean = true,
     additionalEditor: (@Composable () -> Unit)? = null,
+    editorModifier: Modifier = Modifier,
 ) {
     val leading = remember(leadingActions) { movableContentWithReceiverOf<RowScope> { leadingActions() } }
     val trailing = remember(trailingActions) { movableContentWithReceiverOf<RowScope> { trailingActions() } }
@@ -90,6 +93,7 @@ fun Composer(
     ) {
         if (expanded) options?.invoke()
         Row(
+            modifier = editorModifier,
             horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {

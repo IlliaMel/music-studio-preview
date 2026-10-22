@@ -3,11 +3,14 @@ package com.illiamelnyk.studio.core.data.playback
 import android.os.Handler
 import android.os.Looper
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.withContext
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowLooper
 import org.robolectric.util.ReflectionHelpers
@@ -33,6 +36,23 @@ internal class PlaybackTestScopes(private val scheduler: TestCoroutineScheduler)
         val job = SupervisorJob(parent.coroutineContext[Job])
         jobs += job
         return CoroutineScope(parent.coroutineContext + job)
+    }
+
+    /** Cancel and await while runTest can still advance Main continuations and IO completions. */
+    suspend fun closeSuspending() = withContext(NonCancellable) {
+        if (jobs.isEmpty() && queuedWorkLooper == null) return@withContext
+        try {
+            jobs.forEach { it.cancel() }
+            jobs.joinAll()
+            withContext(Dispatchers.IO) {
+                PlaybackPersistenceWriter.shared.flush()
+                ReflectionHelpers.callStaticMethod<Any?>(Class.forName("android.app.QueuedWork"), "waitToFinish")
+            }
+        } finally {
+            if (originallyPaused) queuedWorkLooper?.pause()
+            jobs.clear()
+            queuedWorkLooper = null
+        }
     }
 
     fun close() {

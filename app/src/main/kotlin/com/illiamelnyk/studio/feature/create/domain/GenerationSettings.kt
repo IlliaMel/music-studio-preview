@@ -47,10 +47,14 @@ data class GenerationSettings(
     val variants: Int = 1,
     val customLyrics: String = "",
     val referenceAudioUri: String? = null,
-    val remixTrackId: String? = null,
     val remixTrackIds: List<String> = emptyList(),
 ) {
-    val remixSourceIds: List<String> get() = remixTrackIds.ifEmpty { listOfNotNull(remixTrackId) }
+
+    /** Composition plans use two minutes when Auto is unset; expose that effective length. */
+    val effectiveDuration: Duration?
+        get() = duration ?: TrackLengths.default.takeIf {
+            lyricsMode == LyricsMode.Custom || referenceAudioUri != null || remixTrackIds.isNotEmpty()
+        }
 
     init {
         require(duration == null || duration in TrackLengths.all) { "$duration is not one of the track lengths" }

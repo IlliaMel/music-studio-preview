@@ -8,6 +8,8 @@ export type CurrentUser = {
   /** The current terms have been accepted. */
   onboarded: boolean
   deleting?: boolean
+  /** Generation policy derived from this request's verified identity claims. */
+  canGenerate: boolean
 }
 
 /** Values every request carries through the middleware chain, read with `c.get(...)`. */

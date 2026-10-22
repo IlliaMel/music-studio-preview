@@ -7,12 +7,16 @@ import com.illiamelnyk.studio.core.data.local.ApiFailure
 import com.illiamelnyk.studio.core.data.local.DurableStudioRepository
 import com.illiamelnyk.studio.core.data.local.FirebaseIdentityMissing
 import com.illiamelnyk.studio.core.data.local.FirebaseReauthenticationRequired
+import com.illiamelnyk.studio.core.data.local.JsonFixtureStudioApi
 import com.illiamelnyk.studio.core.data.local.StudioApi
 import com.illiamelnyk.studio.core.data.local.StudioStore
+import com.illiamelnyk.studio.core.data.local.change
+import com.illiamelnyk.studio.core.data.local.read
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.Outcome
-import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -36,7 +40,7 @@ class FirebaseDeletionRecoveryTest {
     @Before
     fun clean() {
         context = RuntimeEnvironment.getApplication()
-        context.filesDir.listFiles()?.filter { it.name.startsWith("studio-state-v1.json") }?.forEach { it.delete() }
+        com.illiamelnyk.studio.core.data.local.StudioStore.clearForTests(context)
     }
 
     @Test
@@ -129,7 +133,9 @@ class FirebaseDeletionRecoveryTest {
     fun unverifiedReceiptPersistedBeforeCrashStillPurgesLocalAccountOnRestartWithoutRemoteRetry() = runTest {
         val fixture = Fixture(this)
         fixture.repository.signInFirebase("a")
-        backgroundScope.coroutineContext.cancelChildren()
+        val previousRuntimeJobs = backgroundScope.coroutineContext[Job]?.children?.toList().orEmpty()
+        previousRuntimeJobs.forEach { it.cancel() }
+        previousRuntimeJobs.joinAll()
         fixture.store.change { root ->
             root.put(
                 "deletion-server-a",
@@ -152,6 +158,7 @@ class FirebaseDeletionRecoveryTest {
         assertTrue(restarted.observeMine().first().isEmpty())
         assertTrue(fixture.store.read().has("account-server-a"))
         runCurrent()
+        restarted.awaitCurrentOperation()
         val receipt = fixture.store.read().getJSONObject("deletion-server-a")
         assertTrue(receipt.getBoolean("remoteCompletionUnverified"))
         assertTrue(receipt.getBoolean("localPurged"))
@@ -201,14 +208,14 @@ class FirebaseDeletionRecoveryTest {
     }
 
     private inner class JournalApi(client: TestFirebaseClient) :
-        StudioApi(
+        JsonFixtureStudioApi(
             context,
             ApiConfiguration("https://studio.test", ApiAuthMode.Firebase, false),
             FirebaseSdkTokenProvider(client),
         ) {
         var failure: AppError? = null
         var deletions = 0
-        override suspend fun request(
+        override suspend fun requestFixture(
             method: String,
             path: String,
             token: String,

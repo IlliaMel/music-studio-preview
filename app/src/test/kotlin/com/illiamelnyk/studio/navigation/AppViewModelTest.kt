@@ -1,6 +1,7 @@
 package com.illiamelnyk.studio.navigation
 
 import app.cash.turbine.test
+import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.data.fake.FakeCreditsRepository
 import com.illiamelnyk.studio.core.data.fake.FakePlaybackController
 import com.illiamelnyk.studio.core.data.fake.FakeSessionRepository
@@ -11,8 +12,10 @@ import com.illiamelnyk.studio.core.domain.playback.PlaybackState
 import com.illiamelnyk.studio.core.domain.session.DisplayName
 import com.illiamelnyk.studio.core.domain.session.ProfileUpdate
 import com.illiamelnyk.studio.core.domain.session.SignInMethod
+import com.illiamelnyk.studio.core.domain.session.SignOut
 import com.illiamelnyk.studio.core.domain.settings.ThemePreference
 import com.illiamelnyk.studio.core.presentation.ToastController
+import com.illiamelnyk.studio.core.presentation.UiText
 import com.illiamelnyk.studio.feature.player.fake.track
 import com.illiamelnyk.studio.testing.InMemoryThemePreferenceRepository
 import com.illiamelnyk.studio.testing.MainDispatcherRule
@@ -20,6 +23,7 @@ import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.TestScope
@@ -97,7 +101,6 @@ class AppViewModelTest {
                 AppState(
                     gate = SessionGate.SignedIn,
                     theme = ThemePreference.Light,
-                    shellVariant = ShellVariant.TopSwitch,
                     avatarSeed = "dev-illia",
                     creditsLeft = 8,
                     hasPlayback = false,
@@ -158,6 +161,18 @@ class AppViewModelTest {
         }
     }
 
+    @Test
+    fun `an account outside the invite list is told so and signed out`() = runTest(mainDispatcherRule.testDispatcher) {
+        val feedback = ToastController(backgroundScope)
+        viewModel(feedback = feedback)
+        sessions.signIn("guest", SignInMethod.Google, "Guest", useProviderProfile = true, canGenerate = false)
+        assertEquals(SessionGate.SignedOut, sessions.session.first()?.toGate())
+        runCurrent()
+
+        assertEquals(UiText.Resource(R.string.auth_not_invited_title), feedback.message.value?.title)
+        assertNull(sessions.session.first())
+    }
+
     private fun TestScope.viewModel(
         playback: PlaybackController = FakePlaybackController(backgroundScope),
         feedback: ToastController = ToastController(backgroundScope),
@@ -165,11 +180,9 @@ class AppViewModelTest {
         sessions = sessions,
         credits = FakeCreditsRepository(),
         themes = themes,
-        shellVariants = object : ShellVariantSource {
-            override val variant = flowOf(ShellVariant.TopSwitch)
-        },
         playback = playback,
         feedback = feedback,
+        signOut = SignOut(sessions, playback),
     )
 
     private fun name(value: String) = (DisplayName.parse(value) as DisplayName.Parsed.Valid).name

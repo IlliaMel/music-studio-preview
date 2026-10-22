@@ -33,9 +33,6 @@ import org.koin.compose.viewmodel.koinViewModel
  * While the full player is open the pill fades out but keeps its place, so the screens under the
  * player don't move. Its measured pill bounds anchor the full player's card motion.
  *
- * Only the progress line reads the position, in its draw phase, so the ticks of the clock redraw
- * that line and recompose nothing.
- *
  * @param visible `false` to keep the mini player out, whatever plays.
  */
 @Composable
@@ -76,7 +73,6 @@ fun MiniPlayerHost(
                     track = shownTrack,
                     isPlaying = isPlaying,
                     isStation = isStation,
-                    progress = { state.value.progress },
                     onOpen = host.sheet::expand,
                     onPlayPause = { viewModel.onIntent(MiniPlayerIntent.PlayPauseClicked) },
                     onNext = if (!isStation) ({ viewModel.onIntent(MiniPlayerIntent.NextClicked) }) else null,

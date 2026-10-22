@@ -220,7 +220,13 @@ it('rechecks all originals under SQL row locks when a source is deleted between 
   const baseline = (await quota(test.app)).used
   await expect(
     service.create(
-      { id: String(profile.id), firebaseUid: 'alice', onboarded: true, deleting: false },
+      {
+        id: String(profile.id),
+        firebaseUid: 'alice',
+        onboarded: true,
+        deleting: false,
+        canGenerate: true,
+      },
       randomUUID(),
       { prompt, instrumental: false, remixTrackIds: [owned, removed] },
     ),

@@ -102,6 +102,10 @@ sealed interface CreateIntent {
 
     data object QuotaClicked : CreateIntent
 
+    data object ComposerNoticeClicked : CreateIntent
+
+    data object GenerationOptionsRefresh : CreateIntent
+
     data class NotificationAnswered(val notify: Boolean) : CreateIntent
 
     data class QualitySelected(val quality: Quality) : CreateIntent

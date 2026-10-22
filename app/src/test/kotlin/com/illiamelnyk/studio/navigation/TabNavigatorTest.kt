@@ -1,7 +1,6 @@
 package com.illiamelnyk.studio.navigation
 
 import androidx.compose.runtime.mutableStateOf
-import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -15,7 +14,7 @@ class TabNavigatorTest {
 
     @Test
     fun `switching tabs keeps each stack as it was`() {
-        val navigator = navigator(ShellVariant.BottomBar)
+        val navigator = navigator()
         navigator.navigate(tool)
         navigator.select(TopLevelTab.Listen)
         navigator.navigate(collection)
@@ -30,7 +29,7 @@ class TabNavigatorTest {
 
     @Test
     fun `back on the first screen of another tab goes to Create`() {
-        val navigator = navigator(ShellVariant.BottomBar)
+        val navigator = navigator()
         navigator.select(TopLevelTab.Listen)
 
         assertTrue(navigator.goBack())
@@ -41,19 +40,20 @@ class TabNavigatorTest {
 
     @Test
     fun `back pops the selected tab before leaving it`() {
-        val navigator = navigator(ShellVariant.BottomBar)
-        navigator.select(TopLevelTab.Library)
+        val navigator = navigator()
+        navigator.select(TopLevelTab.Listen)
+        navigator.navigate(Destination.Library)
         navigator.navigate(Destination.Profile)
 
         navigator.goBack()
 
-        assertEquals(TopLevelTab.Library, navigator.selectedTab)
+        assertEquals(TopLevelTab.Listen, navigator.selectedTab)
         assertEquals(Destination.Library, navigator.current)
     }
 
     @Test
     fun `back on the first screen of Create leaves the app`() {
-        val navigator = navigator(ShellVariant.BottomBar)
+        val navigator = navigator()
 
         assertFalse(navigator.goBack())
         assertEquals(Destination.Create, navigator.current)
@@ -61,17 +61,18 @@ class TabNavigatorTest {
 
     @Test
     fun `the start tab stays under the selected one`() {
-        val navigator = navigator(ShellVariant.BottomBar)
+        val navigator = navigator()
         assertEquals(listOf(TopLevelTab.Create), navigator.tabsInUse)
 
-        navigator.select(TopLevelTab.Library)
+        navigator.select(TopLevelTab.Listen)
+        navigator.navigate(Destination.Library)
 
-        assertEquals(listOf(TopLevelTab.Create, TopLevelTab.Library), navigator.tabsInUse)
+        assertEquals(listOf(TopLevelTab.Create, TopLevelTab.Listen), navigator.tabsInUse)
     }
 
     @Test
     fun `selecting the shown tab again goes back to its first screen`() {
-        val navigator = navigator(ShellVariant.BottomBar)
+        val navigator = navigator()
         navigator.select(TopLevelTab.Listen)
         navigator.navigate(collection)
         navigator.navigate(Destination.Profile)
@@ -84,18 +85,18 @@ class TabNavigatorTest {
 
     @Test
     fun `opening a tab root selects that tab instead of stacking it`() {
-        val navigator = navigator(ShellVariant.BottomBar)
+        val navigator = navigator()
         navigator.navigate(Destination.Profile)
 
-        navigator.navigate(Destination.Library)
+        navigator.navigate(Destination.Listen)
 
-        assertEquals(TopLevelTab.Library, navigator.selectedTab)
+        assertEquals(TopLevelTab.Listen, navigator.selectedTab)
         assertEquals(listOf(Destination.Create, Destination.Profile), navigator.backStack(TopLevelTab.Create))
     }
 
     @Test
-    fun `with the top switch Library opens on top of Listen and back returns to it`() {
-        val navigator = navigator(ShellVariant.TopSwitch)
+    fun `Library opens on top of Listen and back returns to it`() {
+        val navigator = navigator()
         navigator.select(TopLevelTab.Listen)
 
         navigator.navigate(Destination.Library)
@@ -108,7 +109,7 @@ class TabNavigatorTest {
 
     @Test
     fun `a destination opened from another tab moves there, so no screen is shown twice`() {
-        val navigator = navigator(ShellVariant.BottomBar)
+        val navigator = navigator()
         navigator.navigate(Destination.Profile)
         navigator.select(TopLevelTab.Listen)
 
@@ -120,7 +121,7 @@ class TabNavigatorTest {
 
     @Test
     fun `opening the destination already on top does not stack it twice`() {
-        val navigator = navigator(ShellVariant.BottomBar)
+        val navigator = navigator()
 
         navigator.navigate(Destination.Profile)
         navigator.navigate(Destination.Profile)
@@ -129,95 +130,96 @@ class TabNavigatorTest {
     }
 
     @Test
-    fun `switching to the top switch while on Library shows Library on top of Listen`() {
-        val navigator = navigator(ShellVariant.BottomBar)
-        navigator.select(TopLevelTab.Listen)
-        navigator.navigate(collection)
-        navigator.select(TopLevelTab.Library)
-        navigator.navigate(Destination.Profile)
-
-        navigator.useTabs(ShellVariant.TopSwitch.tabs)
-
+    fun `old selected Library state restores above Listen with its complete stack`() {
+        val navigator = navigator(
+            selectedTab = TopLevelTab.Library,
+            listen = listOf(Destination.Listen, collection),
+            library = listOf(Destination.Library, Destination.Profile),
+        )
         assertEquals(TopLevelTab.Listen, navigator.selectedTab)
         assertEquals(
             listOf(Destination.Listen, collection, Destination.Library, Destination.Profile),
             navigator.backStack(TopLevelTab.Listen),
         )
+        assertEquals(listOf<NavKey>(Destination.Library), navigator.backStack(TopLevelTab.Library))
         assertEquals(Destination.Profile, navigator.current)
-
-        navigator.goBack()
-        navigator.goBack()
+        assertTrue(navigator.goBack())
+        assertTrue(navigator.goBack())
         assertEquals(collection, navigator.current)
     }
 
     @Test
-    fun `switching to the top switch from another tab keeps that tab shown`() {
-        val navigator = navigator(ShellVariant.BottomBar)
-        navigator.navigate(tool)
-
-        navigator.useTabs(ShellVariant.TopSwitch.tabs)
-
+    fun `restoring hidden legacy Library does not change selected Create or its tools`() {
+        val navigator = navigator(
+            create = listOf(Destination.Create, tool),
+            library = listOf(Destination.Library, Destination.Profile),
+        )
         assertEquals(TopLevelTab.Create, navigator.selectedTab)
         assertEquals(tool, navigator.current)
-        assertEquals(listOf<NavKey>(Destination.Listen), navigator.backStack(TopLevelTab.Listen))
+        navigator.select(TopLevelTab.Listen)
+        assertEquals(Destination.Profile, navigator.current)
+        assertEquals(
+            listOf(Destination.Listen, Destination.Library, Destination.Profile),
+            navigator.backStack(TopLevelTab.Listen),
+        )
     }
 
     @Test
-    fun `switching to the bottom bar moves Library and the screens above it to its tab`() {
-        val navigator = navigator(ShellVariant.TopSwitch)
-        navigator.select(TopLevelTab.Listen)
-        navigator.navigate(collection)
-        navigator.navigate(Destination.Library)
-        navigator.navigate(Destination.Profile)
-
-        navigator.useTabs(ShellVariant.BottomBar.tabs)
-
-        assertEquals(TopLevelTab.Library, navigator.selectedTab)
-        assertEquals(listOf(Destination.Library, Destination.Profile), navigator.backStack(TopLevelTab.Library))
-        // Library is in one stack only: Listen keeps what was below it.
-        assertEquals(listOf(Destination.Listen, collection), navigator.backStack(TopLevelTab.Listen))
-    }
-
-    @Test
-    fun `switching back and forth keeps the screens and never shows one twice`() {
-        val navigator = navigator(ShellVariant.TopSwitch)
-        navigator.select(TopLevelTab.Listen)
-        navigator.navigate(Destination.Library)
-
-        navigator.useTabs(ShellVariant.BottomBar.tabs)
-        navigator.useTabs(ShellVariant.TopSwitch.tabs)
-        navigator.useTabs(ShellVariant.BottomBar.tabs)
-
-        assertEquals(TopLevelTab.Library, navigator.selectedTab)
-        assertEquals(listOf<NavKey>(Destination.Listen), navigator.backStack(TopLevelTab.Listen))
-        assertEquals(listOf<NavKey>(Destination.Library), navigator.backStack(TopLevelTab.Library))
+    fun `restoring legacy Library avoids duplicate destinations across visible stacks`() {
+        val navigator = navigator(
+            selectedTab = TopLevelTab.Library,
+            listen = listOf(Destination.Listen, Destination.Library, Destination.Profile),
+            library = listOf(Destination.Library, Destination.Profile),
+        )
         val shown = navigator.tabsInUse.flatMap { navigator.backStack(it) }
         assertEquals(shown.distinct(), shown)
+        assertEquals(
+            listOf(Destination.Listen, Destination.Library, Destination.Profile),
+            navigator.backStack(TopLevelTab.Listen),
+        )
     }
 
     @Test
-    fun `restored on Library in the top switch, Library is shown on top of Listen`() {
-        // Saved with the bottom bar, restored after the variant changed.
-        val navigator = navigator(ShellVariant.TopSwitch, selectedTab = TopLevelTab.Library)
-
+    fun `legacy selected Library root alone restores as a pushed screen`() {
+        val navigator = navigator(selectedTab = TopLevelTab.Library)
         assertEquals(TopLevelTab.Listen, navigator.selectedTab)
         assertEquals(Destination.Library, navigator.current)
+        assertTrue(navigator.goBack())
+        assertEquals(Destination.Listen, navigator.current)
     }
 
     @Test
-    fun `opening Library on Listen in the top switch leaves Library's own stack whole`() {
-        val navigator = navigator(ShellVariant.TopSwitch)
+    fun `saved top switch stacks restore unchanged including Library and collections`() {
+        val listen = listOf(Destination.Listen, Destination.Library, collection)
+        val navigator = navigator(
+            selectedTab = TopLevelTab.Listen,
+            create = listOf(Destination.Create, tool),
+            listen = listen,
+        )
+        assertEquals(collection, navigator.current)
+        assertEquals(listen, navigator.backStack(TopLevelTab.Listen))
+        navigator.select(TopLevelTab.Create)
+        assertEquals(tool, navigator.current)
         navigator.select(TopLevelTab.Listen)
-
-        navigator.navigate(Destination.Library)
-
-        assertEquals(listOf<NavKey>(Destination.Library), navigator.backStack(TopLevelTab.Library))
-        assertEquals(listOf(Destination.Listen, Destination.Library), navigator.backStack(TopLevelTab.Listen))
+        assertEquals(collection, navigator.current)
     }
 
-    private fun navigator(variant: ShellVariant, selectedTab: TopLevelTab = TopLevelTab.Start) = TabNavigator(
-        backStacks = TopLevelTab.entries.associateWith { NavBackStack<NavKey>(it.root) },
+    @Test(expected = IllegalArgumentException::class)
+    fun `Library cannot be selected as a primary tab`() {
+        navigator().select(TopLevelTab.Library)
+    }
+
+    private fun navigator(
+        selectedTab: TopLevelTab = TopLevelTab.Start,
+        create: List<NavKey> = listOf(Destination.Create),
+        listen: List<NavKey> = listOf(Destination.Listen),
+        library: List<NavKey> = listOf(Destination.Library),
+    ) = TabNavigator(
+        backStacks = mapOf(
+            TopLevelTab.Create to create.toMutableList(),
+            TopLevelTab.Listen to listen.toMutableList(),
+            TopLevelTab.Library to library.toMutableList(),
+        ),
         selectedTab = mutableStateOf(selectedTab),
-        tabs = variant.tabs,
     )
 }

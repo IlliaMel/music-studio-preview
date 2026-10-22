@@ -21,6 +21,8 @@ data class User(
     val ageConfirmed: Boolean,
     val acceptedTermsVersion: String?,
     val marketingOptIn: Boolean,
+    /** Older servers omit this capability; explicit denial must survive offline restoration. */
+    val canGenerate: Boolean = true,
 ) {
     /** The avatar art until there are profile pictures: stable for the account. */
     val avatarSeed: CoverSeed get() = CoverSeed(id.value)

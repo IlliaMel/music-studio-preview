@@ -21,9 +21,9 @@ import com.illiamelnyk.studio.feature.player.presentation.components.GlassIconBu
 
 /**
  * The kit's glass [MiniPlayer] for [track] — the cover, the title and the subtitle, play or pause
- * (stop on a station), next and the progress line — with the round Remix wand beside it.
+ * (stop on a station) and next — with the round Remix wand beside it, smaller than the pill as in
+ * ElevenMusic.
  *
- * @param progress read only while drawing the progress line, from 0 to 1.
  * @param onNext `null` hides the next button, as for a station.
  * @param nextEnabled false at the end of a queue; the next button stays in place.
  * @param onRemix `null` hides the wand, as for a station.
@@ -34,7 +34,6 @@ fun MiniPlayerPill(
     track: NowPlayingUi,
     isPlaying: Boolean,
     isStation: Boolean,
-    progress: () -> Float,
     onOpen: () -> Unit,
     onPlayPause: () -> Unit,
     onNext: (() -> Unit)?,
@@ -55,7 +54,6 @@ fun MiniPlayerPill(
                 subtitle = track.subtitle,
                 coverSeed = track.coverSeed,
                 isPlaying = isPlaying,
-                progress = progress,
                 onClick = onOpen,
                 onPlayPause = onPlayPause,
                 onNext = onNext,
@@ -68,7 +66,7 @@ fun MiniPlayerPill(
                 icon = StudioIcons.AutoFixHigh,
                 contentDescription = stringResource(R.string.player_remix),
                 onClick = onRemix,
-                size = dimens.size.component.miniPlayer,
+                size = dimens.size.control.l,
             )
         }
     }
@@ -83,7 +81,6 @@ private fun MiniPlayerPillPreview() {
                 track = NowPlayingUi(TrackId("glass-harbor"), "Glass Harbor", "Mira Vale", "Glass Harbor"),
                 isPlaying = true,
                 isStation = false,
-                progress = { 0.4f },
                 onOpen = {},
                 onPlayPause = {},
                 onNext = {},
@@ -93,7 +90,6 @@ private fun MiniPlayerPillPreview() {
                 track = NowPlayingUi(TrackId("static-bloom"), "Late Night Lo-fi", "Static Bloom", "Static Bloom"),
                 isPlaying = true,
                 isStation = true,
-                progress = { 0f },
                 onOpen = {},
                 onPlayPause = {},
                 onNext = null,

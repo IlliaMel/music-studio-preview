@@ -23,6 +23,8 @@ export type AppServices = {
   provider: MusicProvider
   tracks: TracksFeatureOptions
   http?: HttpLimits
+  generationAllowedEmails?: readonly string[]
+  firebaseDeleteUsers?: boolean
 }
 
 /**
@@ -43,6 +45,10 @@ export function composeApp(services: AppServices, extraFeatures: readonly Featur
   const users = createUsersFeature({
     db,
     auth,
+    policy: {
+      generationAllowedEmails: services.generationAllowedEmails,
+      firebaseDeleteUsers: services.firebaseDeleteUsers,
+    },
     onAccountDeleted: async (userId) => {
       await tracks.service.deleteAllForUser(userId)
       await recordings.service.deleteAllForUser(userId)
@@ -65,6 +71,8 @@ export function composeApp(services: AppServices, extraFeatures: readonly Featur
           qualityModes: services.provider.paid ? ['auto'] : ['auto', 'deep', 'fast'],
           customLyrics: true,
           variants: [1, 2],
+          // Released apps accept exactly these values, so the names stay although references now
+          // come with any paid plan: "enabled-enterprise" means on, the other value means turned off.
           audioReferences: services.provider.paid
             ? services.provider.capabilities?.references
               ? 'enabled-enterprise'

@@ -1,11 +1,13 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { requireGenerationAccess } from '../../core/auth/authenticate.js'
 import type { AppEnv } from '../../core/http/app-env.js'
 import { ApiError } from '../../core/http/errors.js'
 import { fileResponse } from '../../core/http/file-response.js'
 import { validate } from '../../core/http/validation.js'
 import { demoAudioFile } from '../tracks/generation/demo-audio.js'
 import { catalogMetadata, catalogTracks, collections, stations } from './catalog.js'
+import { catalogAudioSettings } from './catalog-audio.js'
 import type { LibraryService } from './library.service.js'
 
 const PlaylistParams = z.object({ id: z.uuid() })
@@ -31,7 +33,8 @@ export const libraryRoutes = (service: LibraryService, publicBaseUrl?: string) =
     .get('/catalog/tracks/:id/audio', (c) => {
       const track = catalogTracks.find((item) => item.id === c.req.param('id'))
       if (!track) throw new ApiError(404, 'TRACK_NOT_FOUND', 'No such catalog track')
-      return fileResponse(demoAudioFile(track.durationMs), 'audio/wav', {
+      const { seed, arrangement } = catalogAudioSettings(track)
+      return fileResponse(demoAudioFile(track.durationMs, seed, arrangement), 'audio/wav', {
         method: c.req.method,
         range: c.req.header('Range'),
       })
@@ -106,7 +109,7 @@ export const libraryRoutes = (service: LibraryService, publicBaseUrl?: string) =
       await service.deleteUpload(c.get('user').id, c.req.valid('param').id)
       return c.body(null, 204)
     })
-    .post('/uploads', async (c) =>
+    .post('/uploads', requireGenerationAccess, async (c) =>
       c.json(
         await service.upload(
           c.get('user').id,

@@ -1,13 +1,13 @@
 import { type Context, Hono } from 'hono'
 import { z } from 'zod'
-import { requireOnboarding } from '../../core/auth/authenticate.js'
+import { requireGenerationAccess, requireOnboarding } from '../../core/auth/authenticate.js'
 import type { AppEnv } from '../../core/http/app-env.js'
 import { ApiError } from '../../core/http/errors.js'
 import { fileResponse } from '../../core/http/file-response.js'
 import { validate } from '../../core/http/validation.js'
 import { catalogTracks } from '../library/catalog.js'
 import { MODEL_IDS } from './generation/music-provider.js'
-import { remixSourceIds } from './tracks.model.js'
+import { remixSourceIds, sungWords } from './tracks.model.js'
 import type { TrackCursor } from './tracks.repository.js'
 import type { TracksService } from './tracks.service.js'
 import type { Track } from './tracks.table.js'
@@ -62,6 +62,7 @@ export const tracksRoutes = (tracks: TracksService, publicBaseUrl?: string) => {
   return new Hono<AppEnv>()
     .post(
       '/tracks',
+      requireGenerationAccess,
       requireOnboarding,
       validate('header', IdempotencyHeader),
       validate('json', CreateTrackBody),
@@ -96,7 +97,10 @@ export const tracksRoutes = (tracks: TracksService, publicBaseUrl?: string) => {
     })
     .get('/tracks/:id', validate('param', TrackParams), async (c) => {
       const track = await tracks.get(c.get('user'), c.req.valid('param').id)
-      return c.json({ ...toTrack(track, audioUrl(c, track.id)), words: track.words ?? [] })
+      return c.json({
+        ...toTrack(track, audioUrl(c, track.id)),
+        words: sungWords(track.words ?? []),
+      })
     })
     .patch(
       '/tracks/:id',

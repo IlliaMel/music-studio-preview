@@ -18,6 +18,7 @@ import com.illiamelnyk.studio.feature.create.presentation.common.DurationOptionU
 import com.illiamelnyk.studio.feature.create.presentation.common.toOptionUi
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 
 /**
  * A track of "Your tracks": its row, and what its menu and a failure need besides.
@@ -51,9 +52,9 @@ fun Track.toCreateUi(): CreateTrackUi {
     val error = (status as? TrackStatus.Failed)?.error
     return CreateTrackUi(
         row = toUi().copy(
-            subtitle = when (val phase = status) {
+            subtitle = when (status) {
                 is TrackStatus.Generating -> UiText.Resource(
-                    if (phase.progress < 0.5f) R.string.create_creating_title else R.string.create_creating_artwork,
+                    R.string.track_composing_status,
                 )
 
                 TrackStatus.Ready -> UiText.Raw(
@@ -72,8 +73,9 @@ fun Track.toCreateUi(): CreateTrackUi {
         fix = (error as? AppError.InvalidPrompt)?.let { PromptFix(it.suggestion ?: prompt, it.suggestion != null) },
         canRetry = error != null && error !is AppError.InvalidPrompt &&
             error != AppError.ProviderOutcomeUnknown && error != AppError.UnsupportedMode &&
-            error != AppError.InvalidReference,
-        progress = (status as? TrackStatus.Generating)?.progress,
+            error != AppError.InvalidReference && error != AppError.GenerationNotAllowed &&
+            error != AppError.ServiceDailyLimit,
+        progress = null,
     )
 }
 
@@ -111,9 +113,18 @@ data class ComposerUi(
     val customLyrics: String = "",
     val referenceLabel: String? = null,
     val remixSources: ImmutableList<RemixSourceUi> = persistentListOf(),
+    val canGenerate: Boolean = true,
     val canSend: Boolean = false,
     val notice: UiText? = null,
     val isSending: Boolean = false,
+    val qualityOptions: ImmutableList<Quality> = Quality.entries.toImmutableList(),
+    val variantOptions: ImmutableList<Int> = persistentListOf(1, 2),
+    val customLyricsSupported: Boolean = true,
+    val audioReferencesSupported: Boolean = true,
+    val optionsReady: Boolean = true,
+    val optionsNotice: UiText? = null,
+    /** The music options are still on their way: their notice shows a spinner. */
+    val connecting: Boolean = false,
 )
 
 /** The choices of the settings sheet, applied to the composer only with Apply. */
@@ -124,12 +135,16 @@ data class SettingsUi(
     val duration: DurationOptionUi?,
     val quality: Quality = Quality.Auto,
     val variants: Int = 1,
+    val qualityOptions: ImmutableList<Quality> = Quality.entries.toImmutableList(),
+    val variantOptions: ImmutableList<Int> = persistentListOf(1, 2),
+    val customLyricsSupported: Boolean = true,
+    val optionsReady: Boolean = true,
 )
 
 fun GenerationSettings.toSettingsUi(): SettingsUi = SettingsUi(
     model = model,
     lyricsMode = lyricsMode,
-    duration = duration?.toOptionUi(),
+    duration = effectiveDuration?.toOptionUi(),
     quality = quality,
     variants = variants,
 )

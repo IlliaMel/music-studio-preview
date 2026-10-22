@@ -139,6 +139,7 @@ fun StudioBottomSheet(
         )
         SheetSurface(
             state = state,
+            visible = visible,
             backProgress = { backProgress.value },
             onDismissRequest = onDismissRequest,
             showCloseButton = showCloseButton,
@@ -171,6 +172,7 @@ private fun Scrim(openFraction: () -> Float, onDismissRequest: () -> Unit) {
 @Composable
 private fun BoxScope.SheetSurface(
     state: AnchoredDraggableState<SheetValue>,
+    visible: Boolean,
     backProgress: () -> Float,
     onDismissRequest: () -> Unit,
     showCloseButton: Boolean,
@@ -195,6 +197,7 @@ private fun BoxScope.SheetSurface(
                         SheetValue.Hidden at size.height.toFloat()
                         SheetValue.Expanded at 0f
                     },
+                    newTarget = if (visible) SheetValue.Expanded else SheetValue.Hidden,
                 )
             }
             // Read while laying out, so the sheet moves without recomposing.

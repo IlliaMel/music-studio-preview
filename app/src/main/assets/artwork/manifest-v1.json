@@ -43,7 +43,9 @@
         "#173D64",
         "#B36E41",
         "#0C172D"
-      ]
+      ],
+      "detailAtlas": "glass-night",
+      "detailIndex": 0
     },
     {
       "id": "night-drive",
@@ -59,7 +61,9 @@
         "#0A3154",
         "#B55E2D",
         "#081027"
-      ]
+      ],
+      "detailAtlas": "glass-night",
+      "detailIndex": 1
     },
     {
       "id": "paper-moons",
@@ -73,7 +77,9 @@
         "#17366A",
         "#B78F62",
         "#0A1638"
-      ]
+      ],
+      "detailAtlas": "paper-unplugged",
+      "detailIndex": 0
     },
     {
       "id": "cold-brew",
@@ -87,7 +93,9 @@
         "#613C20",
         "#A96F35",
         "#17100D"
-      ]
+      ],
+      "detailAtlas": "cold-signal",
+      "detailIndex": 0
     },
     {
       "id": "signal-fire",
@@ -101,7 +109,9 @@
         "#143A68",
         "#B45627",
         "#0A1529"
-      ]
+      ],
+      "detailAtlas": "cold-signal",
+      "detailIndex": 1
     },
     {
       "id": "copper-sky",
@@ -115,7 +125,9 @@
         "#79514B",
         "#A57B58",
         "#182C4A"
-      ]
+      ],
+      "detailAtlas": "copper-lanterns",
+      "detailIndex": 0
     },
     {
       "id": "lanterns",
@@ -129,7 +141,9 @@
         "#123F62",
         "#A56632",
         "#0B192B"
-      ]
+      ],
+      "detailAtlas": "copper-lanterns",
+      "detailIndex": 1
     },
     {
       "id": "static-bloom",
@@ -143,7 +157,9 @@
         "#164C78",
         "#8D406B",
         "#10192E"
-      ]
+      ],
+      "detailAtlas": "bloom-afterglow",
+      "detailIndex": 0
     },
     {
       "id": "afterglow",
@@ -157,7 +173,9 @@
         "#19486A",
         "#A26537",
         "#101D35"
-      ]
+      ],
+      "detailAtlas": "bloom-afterglow",
+      "detailIndex": 1
     },
     {
       "id": "slow-tide",
@@ -171,7 +189,9 @@
         "#284460",
         "#A66B3F",
         "#0C1929"
-      ]
+      ],
+      "detailAtlas": "tide-kinetic",
+      "detailIndex": 0
     },
     {
       "id": "kinetic",
@@ -185,7 +205,9 @@
         "#203C5A",
         "#A76D38",
         "#101B2A"
-      ]
+      ],
+      "detailAtlas": "tide-kinetic",
+      "detailIndex": 1
     },
     {
       "id": "low-orbit",
@@ -199,7 +221,9 @@
         "#0D527D",
         "#325C84",
         "#081426"
-      ]
+      ],
+      "detailAtlas": "orbit-piano",
+      "detailIndex": 0
     },
     {
       "id": "voice-to-song",
@@ -255,7 +279,9 @@
         "#714825",
         "#AC622C",
         "#0C172C"
-      ]
+      ],
+      "detailAtlas": "paper-unplugged",
+      "detailIndex": 1
     },
     {
       "id": "voice-memo",
@@ -297,7 +323,9 @@
         "#163F71",
         "#5E527B",
         "#0B1832"
-      ]
+      ],
+      "detailAtlas": "orbit-piano",
+      "detailIndex": 1
     },
     {
       "id": "ambient",
@@ -312,7 +340,91 @@
         "#164E84",
         "#784C92",
         "#0A1536"
-      ]
+      ],
+      "detailAtlas": "ambient",
+      "detailIndex": 0
+    }
+  ],
+  "detailAtlases": [
+    {
+      "id": "cold-signal",
+      "file": "studio-player-cold-signal-v2.png",
+      "columns": 2,
+      "rows": 1,
+      "insetPx": 1,
+      "width": 1774,
+      "height": 887,
+      "sha256": "ee69ac960048b5acab052538468baeef6d1e93a41783a24eaaa17005ef7f3a99"
+    },
+    {
+      "id": "copper-lanterns",
+      "file": "studio-player-copper-lanterns-v2.png",
+      "columns": 2,
+      "rows": 1,
+      "insetPx": 1,
+      "width": 1774,
+      "height": 887,
+      "sha256": "2202fbacbe29e454504d0fa17dea0e31c8afdd77f7799ee3e4b52e9010574c67"
+    },
+    {
+      "id": "bloom-afterglow",
+      "file": "studio-player-bloom-afterglow-v2.png",
+      "columns": 2,
+      "rows": 1,
+      "insetPx": 1,
+      "width": 1774,
+      "height": 887,
+      "sha256": "2d056ebd6380b314b74f49f47f72fd23fd2225dc6d348ebf1fab24b218369212"
+    },
+    {
+      "id": "tide-kinetic",
+      "file": "studio-player-tide-kinetic-v2.png",
+      "columns": 2,
+      "rows": 1,
+      "insetPx": 1,
+      "width": 1774,
+      "height": 887,
+      "sha256": "f4073cea966eb7aa55997d126376b154a37407e8bb58aaba0925204b21f21563"
+    },
+    {
+      "id": "orbit-piano",
+      "file": "studio-player-orbit-piano-v2.png",
+      "columns": 2,
+      "rows": 1,
+      "insetPx": 1,
+      "width": 1774,
+      "height": 887,
+      "sha256": "07c958c4e5f5861c977e4cccfb87f8f9ad6f4bd5c69affc90b48859d1ac16568"
+    },
+    {
+      "id": "glass-night",
+      "file": "studio-player-glass-night-v2.png",
+      "columns": 2,
+      "rows": 1,
+      "insetPx": 1,
+      "width": 1774,
+      "height": 887,
+      "sha256": "e8aac20092527de0768274a004e9bff9b0617b6e338042ae628196467dfb0abd"
+    },
+    {
+      "id": "paper-unplugged",
+      "file": "studio-player-paper-unplugged-v2.png",
+      "columns": 2,
+      "rows": 1,
+      "insetPx": 1,
+      "width": 1774,
+      "height": 887,
+      "sha256": "bb97665d0e78e765970759d58c496123f9ca2c6bf18cc98656fd14b694619b57"
+    },
+    {
+      "id": "ambient",
+      "file": "studio-player-ambient-v2.png",
+      "columns": 1,
+      "rows": 1,
+      "insetPx": 1,
+      "width": 1254,
+      "height": 1254,
+      "sha256": "b272e01fa954a3cbce18e7bdf349f97311347e0272f7a31fe38a6984a49daa27"
     }
   ]
 }

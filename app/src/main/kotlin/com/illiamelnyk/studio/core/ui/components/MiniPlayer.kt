@@ -1,19 +1,16 @@
 package com.illiamelnyk.studio.core.ui.components
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.PreviewLightDark
@@ -28,12 +25,10 @@ import com.illiamelnyk.studio.core.ui.theme.PreviewSurface
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
 /**
- * The 56 dp glass pill of what is playing, over the bottom of the screen: the round cover, the title
- * and a subtitle, play/pause and next, and a 2 dp progress line along the bottom edge. Tapping the
- * pill opens the player; the whole pill is meant to be the shared element of that transition.
- *
- * [progress] (0 to 1) is read while drawing, so playback ticking doesn't recompose the caller. A
- * [live] station shows a stop button and no progress.
+ * The 56 dp glass pill of what is playing, over the bottom of the screen: the rounded cover, the
+ * title and a subtitle, then play/pause and next side by side. Like ElevenMusic's, it has no
+ * progress line. Tapping the pill opens the player; the whole pill is meant to be the shared element
+ * of that transition. A [live] station shows a stop button.
  *
  * It blurs the [LocalGlassBackdrop] behind it.
  */
@@ -43,7 +38,6 @@ fun MiniPlayer(
     subtitle: String,
     coverSeed: String,
     isPlaying: Boolean,
-    progress: () -> Float,
     onClick: () -> Unit,
     onPlayPause: () -> Unit,
     modifier: Modifier = Modifier,
@@ -54,62 +48,54 @@ fun MiniPlayer(
     val colors = StudioTheme.colors
     val dimens = StudioTheme.dimens
     val shape = StudioTheme.shapes.full
-    Box(
+    Row(
         modifier = modifier
+            .fillMaxWidth()
+            .height(dimens.size.component.miniPlayer)
+            .studioGlass(LocalGlassBackdrop.current, GlassDefaults.style(shape))
+            .clip(shape)
             .clickable(
                 interactionSource = null,
                 indication = studioIndication(shape),
                 role = Role.Button,
                 onClick = onClick,
             )
-            .fillMaxWidth()
-            .height(dimens.size.component.miniPlayer)
-            .studioGlass(LocalGlassBackdrop.current, GlassDefaults.style(shape)),
+            .padding(start = dimens.spacing.s, end = dimens.spacing.xs),
+        horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = dimens.spacing.xs),
-            horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
+        Cover(coverSeed, dimens.size.cover.xs, shape = StudioTheme.shapes.s)
+        Column(
+            Modifier
+                .weight(1f)
+                .padding(start = dimens.spacing.xxs),
         ) {
-            Cover(coverSeed, dimens.size.cover.xs, shape = shape)
-            Column(
-                Modifier
-                    .weight(1f)
-                    .padding(start = dimens.spacing.xxs),
-            ) {
-                StudioText(title, StudioTheme.typography.titleSmall, color = colors.overlay.onGlass, maxLines = 1)
-                StudioText(subtitle, StudioTheme.typography.bodySmall, color = colors.content.secondary, maxLines = 1)
-            }
+            StudioText(title, StudioTheme.typography.titleSmall, color = colors.overlay.onGlass, maxLines = 1)
+            StudioText(subtitle, StudioTheme.typography.bodySmall, color = colors.content.secondary, maxLines = 1)
+        }
+        // Touching targets with no gap, as close as 48 dp targets get to the reference's controls.
+        Row(verticalAlignment = Alignment.CenterVertically) {
             val (icon, description) = when {
                 live -> StudioIcons.StopFilled to stringResource(R.string.ui_stop)
                 isPlaying -> StudioIcons.PauseFilled to stringResource(R.string.ui_pause)
                 else -> StudioIcons.PlayArrowFilled to stringResource(R.string.ui_play)
             }
-            StudioIconButton(icon, description, onClick = onPlayPause, style = StudioIconButtonStyle.OnGlass)
+            StudioIconButton(
+                icon = icon,
+                contentDescription = description,
+                onClick = onPlayPause,
+                style = StudioIconButtonStyle.OnGlass,
+                size = StudioIconButtonSize.Large,
+            )
             if (onNext != null && !live) {
                 StudioIconButton(
                     icon = StudioIcons.FastForwardFilled,
                     contentDescription = stringResource(R.string.ui_next),
                     onClick = onNext,
                     style = StudioIconButtonStyle.OnGlass,
+                    size = StudioIconButtonSize.Large,
                     enabled = nextEnabled,
                 )
-            }
-        }
-        if (!live) {
-            val track = colors.outline.strong
-            val fill = colors.overlay.onGlass
-            Canvas(
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(horizontal = dimens.spacing.xl)
-                    .fillMaxWidth()
-                    .height(dimens.spacing.hairline),
-            ) {
-                drawRect(track)
-                drawRect(fill, size = Size(size.width * progress().coerceIn(0f, 1f), size.height))
             }
         }
     }
@@ -124,7 +110,6 @@ private fun MiniPlayerPreview() {
             subtitle = "Studio",
             coverSeed = "Night Drive Through Kyiv",
             isPlaying = true,
-            progress = { 0.4f },
             onClick = {},
             onPlayPause = {},
             onNext = {},
@@ -134,7 +119,6 @@ private fun MiniPlayerPreview() {
             subtitle = "Rainy Window",
             coverSeed = "Late Night Lo-fi",
             isPlaying = true,
-            progress = { 0f },
             onClick = {},
             onPlayPause = {},
             live = true,

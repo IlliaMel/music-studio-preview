@@ -1,7 +1,12 @@
 package com.illiamelnyk.studio.di
 
 import android.content.Context
-import com.illiamelnyk.studio.core.data.fake.FakeCatalog
+import androidx.work.Configuration
+import androidx.work.WorkerParameters
+import androidx.work.testing.WorkManagerTestInitHelper
+import com.illiamelnyk.studio.core.data.demo.DemoCatalog
+import com.illiamelnyk.studio.core.data.generation.GenerationSyncWorker
+import com.illiamelnyk.studio.core.data.local.StudioAccountRuntime
 import com.illiamelnyk.studio.core.data.playback.AndroidPlaybackController
 import com.illiamelnyk.studio.core.data.playback.PlaybackAutoplayCoordinator
 import com.illiamelnyk.studio.core.domain.track.ComposerDraftStore
@@ -21,6 +26,7 @@ import com.illiamelnyk.studio.feature.player.presentation.PlayerViewModel
 import com.illiamelnyk.studio.feature.player.presentation.mini.MiniPlayerViewModel
 import com.illiamelnyk.studio.feature.profile.presentation.ProfileViewModel
 import com.illiamelnyk.studio.navigation.AppViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -55,6 +61,8 @@ class KoinGraphTest {
                 ),
                 definition<PlaybackAutoplayCoordinator>(Function0::class),
                 definition<ComposerDraftStore>(Function0::class),
+                definition<StudioAccountRuntime>(CoroutineDispatcher::class),
+                definition<GenerationSyncWorker>(WorkerParameters::class),
                 definition<ToolViewModel>(Tool::class),
                 definition<CollectionViewModel>(String::class),
                 definition<PlaylistPickerViewModel>(Track::class),
@@ -64,6 +72,10 @@ class KoinGraphTest {
 
     @Test
     fun `every ViewModel can be created from the graph`() {
+        WorkManagerTestInitHelper.initializeTestWorkManager(
+            RuntimeEnvironment.getApplication(),
+            Configuration.Builder().build(),
+        )
         val koin = koinApplication {
             androidContext(RuntimeEnvironment.getApplication())
             modules(studioModules)
@@ -82,7 +94,7 @@ class KoinGraphTest {
         koin.get<ListenViewModel>()
         koin.get<CollectionViewModel> { parametersOf("trending") }
         koin.get<LibraryViewModel>()
-        koin.get<PlaylistPickerViewModel> { parametersOf(FakeCatalog.tracks.first()) }
+        koin.get<PlaylistPickerViewModel> { parametersOf(DemoCatalog.tracks.first()) }
         koin.get<PlayerViewModel>()
         koin.get<MiniPlayerViewModel>()
         koin.get<ProfileViewModel>()

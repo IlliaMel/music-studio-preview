@@ -20,6 +20,7 @@ import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.isPopup
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -27,6 +28,8 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import com.illiamelnyk.studio.R
+import com.illiamelnyk.studio.core.domain.track.MusicModel
+import com.illiamelnyk.studio.core.domain.track.Quality
 import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.create.domain.Tool
@@ -49,6 +52,24 @@ class CreateScreenTest {
 
     private val intents = mutableListOf<CreateIntent>()
     private var state by mutableStateOf(CreateState(tracks = CreatePreviewData.tracks, isLoading = false))
+
+    @Test
+    fun invitationReplacesSendAndProfileAccessRestoresTheExistingDraft() {
+        state = state.copy(
+            composer = ComposerUi(prompt = "Warm piano with gentle strings", canGenerate = false).checked(8),
+        )
+        show()
+        composeRule.onNodeWithText(string(R.string.error_generation_not_allowed)).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(string(R.string.ui_send)).assertDoesNotExist()
+        composeRule.onNode(hasSetTextAction()).assertIsDisplayed()
+        composeRule.runOnIdle {
+            assertTrue(intents.isEmpty())
+            state = state.copy(composer = state.composer.copy(canGenerate = true).checked(8))
+        }
+        composeRule.onNodeWithText(string(R.string.error_generation_not_allowed)).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription(string(R.string.ui_send)).assertIsEnabled().performClick()
+        assertEquals(CreateIntent.SendClicked, intents.last())
+    }
 
     @Test
     fun remixSourcesShowWithoutPromptOrFocusAndRemovingLastSourceCollapsesComposer() {
@@ -186,6 +207,31 @@ class CreateScreenTest {
             ),
             intents.last(),
         )
+    }
+
+    @Test
+    fun `the writing engine hides when the server offers Auto alone`() {
+        val autoOnly = persistentListOf(Quality.Auto)
+        state = state.copy(
+            composer = ComposerUi(prompt = "Warm piano with gentle strings", qualityOptions = autoOnly),
+            sheet = CreateSheet.Settings(
+                SettingsUi(MusicModel.V2_5, duration = null, qualityOptions = autoOnly),
+            ),
+        )
+        show()
+        composeRule.onNodeWithText(string(R.string.create_settings_title)).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.create_settings_engine)).assertDoesNotExist()
+        composeRule.onNodeWithTag("composerQuality").assertDoesNotExist()
+
+        composeRule.runOnIdle {
+            val all = Quality.entries.toImmutableList()
+            state = state.copy(
+                composer = state.composer.copy(qualityOptions = all),
+                sheet = CreateSheet.Settings(SettingsUi(MusicModel.V2_5, duration = null, qualityOptions = all)),
+            )
+        }
+        composeRule.onNodeWithText(string(R.string.create_settings_engine)).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("composerQuality").assertExists()
     }
 
     @Test

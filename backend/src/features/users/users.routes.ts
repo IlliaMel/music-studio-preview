@@ -19,9 +19,16 @@ const ProfileUpdateBody = z
 /** The signed-in user's own profile: read it, fill it in during onboarding, delete the account. */
 export const usersRoutes = (users: UsersService) =>
   new Hono<AppEnv>()
-    .get('/me', async (c) => c.json(toProfile(await users.getProfile(c.get('user').id))))
+    .get('/me', async (c) =>
+      c.json(toProfile(await users.getProfile(c.get('user').id), c.get('user').canGenerate)),
+    )
     .patch('/me', validate('json', ProfileUpdateBody), async (c) =>
-      c.json(toProfile(await users.updateProfile(c.get('user').id, c.req.valid('json')))),
+      c.json(
+        toProfile(
+          await users.updateProfile(c.get('user').id, c.req.valid('json')),
+          c.get('user').canGenerate,
+        ),
+      ),
     )
     .delete('/me', async (c) => {
       await users.deleteAccount(c.get('user'))
@@ -29,12 +36,13 @@ export const usersRoutes = (users: UsersService) =>
     })
 
 /** The JSON the app sees. Timestamps of consent stay on the server; the app needs only yes/no. */
-const toProfile = (user: User) => {
+const toProfile = (user: User, canGenerate: boolean) => {
   const missing = missingOnboardingSteps(user)
   return {
     id: user.id,
     email: user.email,
     emailVerified: user.emailVerified,
+    canGenerate,
     signInProvider: user.signInProvider,
     displayName: user.displayName,
     ageConfirmed: user.ageConfirmedAt !== null,

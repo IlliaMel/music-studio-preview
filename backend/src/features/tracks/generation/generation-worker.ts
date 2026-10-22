@@ -185,15 +185,38 @@ export class GenerationWorker {
     // The song exists and is paid for; from here on a failure is ours, not the provider's.
     try {
       const { audio: _, ...result } = song
-      const saved = await this.deps.repository.complete(track.id, result, this.now(), () =>
-        this.deps.storage.save(track.id, song.audio),
-      )
+      let saved = false
+      for (let attempt = 0; ; attempt++) {
+        try {
+          saved = await this.deps.repository.complete(track.id, result, this.now(), () =>
+            this.deps.storage.save(track.id, song.audio),
+          )
+          break
+        } catch (error) {
+          if (attempt === 2) throw error
+          await abortableDelay(50 * (attempt + 1), this.shutdown.signal)
+        }
+      }
       // Deleted while it was being generated: the credits are spent, the file is not needed.
       if (!saved) await this.deps.storage.delete(track.id)
       log.info({ durationMs: Math.round(performance.now() - startedAt) }, 'track generated')
     } catch (error) {
-      await this.deps.storage.delete(track.id).catch(() => {})
-      await this.recordFailure(track, SAVE_FAILED, log, error)
+      // A paid result or a lost database acknowledgement cannot justify another paid POST.
+      // Retain any audio already written so the result can be recovered by track id.
+      if (!this.deps.provider.paid) await this.deps.storage.delete(track.id).catch(() => {})
+      await this.recordFailure(
+        track,
+        this.deps.provider.paid
+          ? {
+              ...SAVE_FAILED,
+              code: 'PROVIDER_OUTCOME_UNKNOWN',
+              message:
+                'The paid song could not be saved; recover the existing result instead of generating again',
+            }
+          : SAVE_FAILED,
+        log,
+        error,
+      )
     }
   }
 
@@ -257,6 +280,16 @@ async function withRetries<T>(
 }
 
 function toFailure(error: unknown, timeout: AbortSignal): TrackFailure {
+  // A confirmed rejection is stronger evidence than a deadline that elapsed while decoding
+  // its response. Preserve it so accounting can release only that definitely unspent variant.
+  if (
+    error instanceof ProviderError &&
+    (error.code === 'QUOTA_EXCEEDED' ||
+      error.code === 'PROVIDER_AUTH' ||
+      error.code === 'SERVICE_DAILY_LIMIT')
+  ) {
+    return { code: error.code, message: error.message, promptSuggestion: null }
+  }
   if (timeout.aborted) {
     return { code: 'TIMEOUT', message: 'The generation took too long', promptSuggestion: null }
   }

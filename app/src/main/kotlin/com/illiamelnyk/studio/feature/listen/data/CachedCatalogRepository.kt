@@ -1,14 +1,16 @@
 package com.illiamelnyk.studio.feature.listen.data
 
 import android.content.Context
-import com.illiamelnyk.studio.core.data.fake.PUBLIC_CATALOG_FIXTURE
+import com.illiamelnyk.studio.core.data.demo.DEMO_PUBLIC_CATALOG_DOCUMENT
 import com.illiamelnyk.studio.core.data.local.ApiFailure
-import com.illiamelnyk.studio.core.data.local.DurableStudioRepository
 import com.illiamelnyk.studio.core.data.local.StudioApi
+import com.illiamelnyk.studio.core.data.local.StudioCatalogAccess
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.session.Session
 import com.illiamelnyk.studio.core.domain.session.SessionDataMode
+import com.illiamelnyk.studio.core.domain.session.SessionRepository
+import com.illiamelnyk.studio.core.domain.track.TrackRepository
 import com.illiamelnyk.studio.feature.listen.domain.CatalogCollection
 import com.illiamelnyk.studio.feature.listen.domain.CatalogRepository
 import com.illiamelnyk.studio.feature.listen.domain.CatalogSection
@@ -30,11 +32,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class CachedCatalogRepository(
-    private val data: DurableStudioRepository,
+internal class CachedCatalogRepository(
+    private val sessions: SessionRepository,
+    private val tracks: TrackRepository,
+    private val data: StudioCatalogAccess,
     private val api: StudioApi,
     context: Context,
     private val nowMillis: () -> Long = System::currentTimeMillis,
@@ -52,7 +55,7 @@ class CachedCatalogRepository(
     }
 
     override fun observeCollections(): Flow<List<CatalogCollection>> =
-        combine(observeSnapshot(), data.observeLiked()) { snapshot, _ ->
+        combine(observeSnapshot(), tracks.observeLiked()) { snapshot, _ ->
             snapshot?.collections.orEmpty().map { collection ->
                 collection.copy(
                     tracks = collection.tracks.map { track ->
@@ -79,7 +82,7 @@ class CachedCatalogRepository(
             CatalogSection(kind, collections.filter { it.kind == kind })
         }
 
-    private fun observeSnapshot(): Flow<CatalogSnapshot?> = data.session.flatMapLatest { session ->
+    private fun observeSnapshot(): Flow<CatalogSnapshot?> = sessions.session.flatMapLatest { session ->
         flow {
             if (session == null) {
                 emit(null)
@@ -100,7 +103,11 @@ class CachedCatalogRepository(
             if (previous != null && lastOwner == owner && nowMillis() < validUntil) return@withLock previous
             if (session.dataMode == SessionDataMode.LocalDemo) {
                 if (!api.configuration.debug) throw ApiFailure(AppError.UnsupportedMode)
-                return@withLock remember(owner, CatalogDocument.parse(JSONObject(PUBLIC_CATALOG_FIXTURE)), 60_000)
+                return@withLock remember(
+                    owner,
+                    CatalogDocument.parse(CatalogDocument.decode(DEMO_PUBLIC_CATALOG_DOCUMENT)),
+                    60_000,
+                )
             }
             val cached = cache.read()
             val document = when (val response = data.fetchCatalog()) {
@@ -112,7 +119,7 @@ class CachedCatalogRepository(
                         return@withLock remember(owner, CatalogDocument.parse(cached, api.baseUrl), 1_000)
                     }
                     if (api.configuration.debug) {
-                        val fixture = CatalogDocument.parse(JSONObject(PUBLIC_CATALOG_FIXTURE))
+                        val fixture = CatalogDocument.parse(CatalogDocument.decode(DEMO_PUBLIC_CATALOG_DOCUMENT))
                         return@withLock remember(owner, fixture, 1_000)
                     }
                     throw ApiFailure(response.error)

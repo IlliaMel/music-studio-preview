@@ -26,7 +26,6 @@ import androidx.compose.ui.test.swipe
 import androidx.compose.ui.unit.Density
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
-import com.illiamelnyk.studio.feature.create.presentation.common.OverlaySheet
 import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

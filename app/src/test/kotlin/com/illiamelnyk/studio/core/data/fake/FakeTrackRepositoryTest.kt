@@ -1,5 +1,6 @@
 package com.illiamelnyk.studio.core.data.fake
 
+import com.illiamelnyk.studio.core.data.demo.DemoCatalog
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.credits.Credits
@@ -29,7 +30,7 @@ class FakeTrackRepositoryTest {
     @Test
     fun `liking a catalog track adds it to liked without adding it to creations`() = runTest {
         val repository = repository()
-        val catalogTrack = FakeCatalog.tracks.first()
+        val catalogTrack = DemoCatalog.tracks.first()
         val mine = repository.observeMine().first()
 
         repository.setLiked(catalogTrack.id, true)

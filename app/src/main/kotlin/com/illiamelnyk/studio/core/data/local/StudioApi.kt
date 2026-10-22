@@ -3,17 +3,28 @@ package com.illiamelnyk.studio.core.data.local
 import android.content.Context
 import androidx.core.net.toUri
 import com.illiamelnyk.studio.BuildConfig
+import com.illiamelnyk.studio.core.data.network.CapabilitiesDto
+import com.illiamelnyk.studio.core.data.network.CatalogDto
+import com.illiamelnyk.studio.core.data.network.CreateTrackDto
+import com.illiamelnyk.studio.core.data.network.PlaylistDto
+import com.illiamelnyk.studio.core.data.network.ProfileDto
+import com.illiamelnyk.studio.core.data.network.ProfileUpdateDto
+import com.illiamelnyk.studio.core.data.network.QuotaDto
+import com.illiamelnyk.studio.core.data.network.RecordingDto
+import com.illiamelnyk.studio.core.data.network.RetrofitStudioTransport
+import com.illiamelnyk.studio.core.data.network.TrackDto
+import com.illiamelnyk.studio.core.data.network.TracksPageDto
+import com.illiamelnyk.studio.core.data.network.awaitBoundedBody
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.track.GenerationRequest
 import java.io.IOException
-import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
-import java.net.URL
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
+import okhttp3.Call
+import okhttp3.Request
 
 internal class ApiFailure(val error: AppError, val serverCode: String? = null) : IOException()
 
@@ -24,25 +35,29 @@ open class StudioApi(
         BuildConfig.API_AUTH_MODE,
         BuildConfig.DEBUG,
         BuildConfig.API_ALLOW_LAN_DEVELOPMENT,
+        BuildConfig.FLAVOR,
     ),
     private val bearerTokens: BearerTokenProvider = UnavailableBearerTokenProvider,
     private val nowMillis: () -> Long = System::currentTimeMillis,
+    callFactory: Call.Factory? = null,
 ) {
     open val isAvailable: Boolean = configuration.isAvailable
     val baseUrl: String = configuration.baseUrl.trimEnd('/')
+    private val transport by lazy { RetrofitStudioTransport(baseUrl, callFactory) }
     private val resolvedTokens = java.util.concurrent.ConcurrentHashMap<String, FirebaseBearerToken>()
 
     open suspend fun preflightGeneration(token: String, generation: GenerationRequest, variants: Int) {
-        val capabilities = try {
-            GenerationCapabilities.parse(request("GET", "/v1/capabilities", token))
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (failure: ApiFailure) {
-            throw failure
-        } catch (_: Exception) {
-            throw ApiFailure(AppError.Server)
-        }
-        capabilities.rejection(generation, variants)?.let { throw ApiFailure(it) }
+        loadGenerationCapabilities(token).rejection(generation, variants)?.let { throw ApiFailure(it) }
+    }
+
+    internal suspend fun loadGenerationCapabilities(token: String): GenerationCapabilities = try {
+        GenerationCapabilities.from(getCapabilities(token))
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: ApiFailure) {
+        throw failure
+    } catch (_: Exception) {
+        throw ApiFailure(AppError.Server)
     }
 
     internal suspend fun authorization(token: String): String {
@@ -123,102 +138,87 @@ open class StudioApi(
         }
     }
 
-    open suspend fun request(
-        method: String,
-        path: String,
+    internal open suspend fun getProfile(token: String): ProfileDto = transport.profile(authorization(token))
+    internal open suspend fun updateProfile(token: String, update: ProfileUpdateDto): ProfileDto =
+        transport.updateProfile(authorization(token), update)
+    internal open suspend fun deleteAccount(token: String) = transport.deleteAccount(authorization(token))
+    internal open suspend fun getQuota(token: String): QuotaDto = transport.quota(authorization(token))
+    internal open suspend fun getCapabilities(token: String): CapabilitiesDto =
+        transport.capabilities(authorization(token))
+    internal open suspend fun getCatalog(token: String): CatalogDto = transport.catalog(authorization(token))
+    internal open suspend fun listTracks(token: String, cursor: String? = null): TracksPageDto =
+        transport.tracks(authorization(token), cursor)
+    internal open suspend fun getTrack(token: String, id: com.illiamelnyk.studio.core.domain.track.TrackId): TrackDto =
+        transport.track(authorization(token), id.value)
+    internal open suspend fun createTracks(
         token: String,
-        body: JSONObject? = null,
-        key: String? = null,
-    ): JSONObject = withContext(Dispatchers.IO) {
+        payload: CreateTrackDto,
+        idempotencyKey: String,
+    ): List<TrackDto> = transport.createTracks(authorization(token), idempotencyKey, payload)
+    internal open suspend fun renameTrack(
+        token: String,
+        id: com.illiamelnyk.studio.core.domain.track.TrackId,
+        title: String,
+    ) {
         val bearer = authorization(token)
-        val connection = openConnection(baseUrl + path)
-        try {
-            connection.requestMethod = method
-            connection.connectTimeout = 5_000
-            connection.readTimeout = 15_000
-            connection.setRequestProperty("Authorization", "Bearer " + bearer)
-            connection.setRequestProperty("Accept", "application/json")
-            key?.let { connection.setRequestProperty("Idempotency-Key", it) }
-            body?.let {
-                connection.doOutput = true
-                connection.setRequestProperty("Content-Type", "application/json")
-                connection.outputStream.use { stream -> stream.write(it.toString().toByteArray(Charsets.UTF_8)) }
-            }
-            response(connection)
-        } catch (error: ApiFailure) {
-            throw error
-        } catch (_: SocketTimeoutException) {
-            throw ApiFailure(AppError.Timeout)
-        } catch (_: IOException) {
-            throw ApiFailure(AppError.Network)
-        } finally {
-            connection.disconnect()
+        if (id.value.startsWith("recording-")) {
+            transport.renameRecording(bearer, id.value.removePrefix("recording-"), title)
+        } else {
+            transport.renameTrack(bearer, id.value, title)
         }
     }
+    internal open suspend fun deleteTrack(token: String, id: com.illiamelnyk.studio.core.domain.track.TrackId) {
+        val bearer = authorization(token)
+        if (id.value.startsWith("recording-")) {
+            transport.deleteRecording(bearer, id.value.removePrefix("recording-"))
+        } else {
+            transport.deleteTrack(bearer, id.value)
+        }
+    }
+    internal open suspend fun listLikes(token: String): List<String> = transport.likes(authorization(token))
+    internal open suspend fun setLiked(
+        token: String,
+        id: com.illiamelnyk.studio.core.domain.track.TrackId,
+        liked: Boolean,
+    ) = transport.setLiked(authorization(token), id.value, liked)
+    internal open suspend fun listPlaylists(token: String): List<PlaylistDto> =
+        transport.playlists(authorization(token))
+    internal open suspend fun createPlaylist(token: String, name: String): PlaylistDto =
+        transport.createPlaylist(authorization(token), name)
+    internal open suspend fun setPlaylistTrack(
+        token: String,
+        playlistId: String,
+        trackId: com.illiamelnyk.studio.core.domain.track.TrackId,
+        included: Boolean,
+    ) = transport.setPlaylistTrack(authorization(token), playlistId, trackId.value, included)
+    internal open suspend fun listRecordings(token: String): List<RecordingDto> =
+        transport.recordings(authorization(token))
 
     open suspend fun upload(uri: String, token: String): String = withContext(Dispatchers.IO) {
         val bearer = authorization(token)
-        val parsed = uri.toUri()
         val bytes = readAudio(uri, bearer)
-        if (bytes.isEmpty() || bytes.size > MAX_UPLOAD_BYTES) throw ApiFailure(AppError.InvalidPrompt(null))
-        val fallback = context.contentResolver.getType(parsed) ?: audioTypeFromPath(uri)
-        val type = audioContentType(bytes, fallback)
-        if (type !in SUPPORTED_AUDIO_TYPES) throw ApiFailure(AppError.InvalidPrompt(null))
-        val connection = openConnection(baseUrl + "/v1/uploads")
-        try {
-            connection.requestMethod = "POST"
-            connection.connectTimeout = 5_000
-            connection.readTimeout = 30_000
-            connection.doOutput = true
-            connection.setRequestProperty("Authorization", "Bearer " + bearer)
-            connection.setRequestProperty("Content-Type", type)
-            connection.setFixedLengthStreamingMode(bytes.size)
-            connection.outputStream.use { it.write(bytes) }
-            response(connection).getString("id")
-        } catch (error: ApiFailure) {
-            throw error
-        } catch (_: SocketTimeoutException) {
-            throw ApiFailure(AppError.Timeout)
-        } catch (_: IOException) {
-            throw ApiFailure(AppError.Network)
-        } finally {
-            connection.disconnect()
-        }
+        if (bytes.isEmpty() || bytes.size > MAX_UPLOAD_BYTES) throw ApiFailure(AppError.InvalidReference)
+        val type = audioContentType(bytes, context.contentResolver.getType(uri.toUri()) ?: audioTypeFromPath(uri))
+        if (type !in SUPPORTED_AUDIO_TYPES) throw ApiFailure(AppError.InvalidReference)
+        transport.upload(bytes, type, bearer)
     }
 
-    open suspend fun putRecording(id: String, uri: String, title: String, durationMs: Long, token: String): JSONObject =
-        withContext(Dispatchers.IO) {
-            val bearer = authorization(token)
-            val parsed = uri.toUri()
-            val bytes = readAudio(uri, bearer)
-            if (bytes.isEmpty() || bytes.size > MAX_UPLOAD_BYTES) throw ApiFailure(AppError.InvalidReference)
-            val type = audioContentType(bytes, context.contentResolver.getType(parsed) ?: audioTypeFromPath(uri))
-            if (type !in setOf("audio/mp4", "audio/wav", "audio/mpeg")) throw ApiFailure(AppError.InvalidReference)
-            val connection = openConnection(baseUrl + "/v1/recordings/" + id)
-            try {
-                connection.requestMethod = "PUT"
-                connection.connectTimeout = 5_000
-                connection.readTimeout = 30_000
-                connection.doOutput = true
-                connection.setRequestProperty("Authorization", "Bearer " + bearer)
-                connection.setRequestProperty("Content-Type", type)
-                connection.setRequestProperty("X-Recording-Title", android.net.Uri.encode(title))
-                connection.setRequestProperty("X-Recording-Duration-Ms", durationMs.toString())
-                connection.setFixedLengthStreamingMode(bytes.size)
-                connection.outputStream.use { it.write(bytes) }
-                response(connection)
-            } catch (failure: ApiFailure) {
-                throw failure
-            } catch (_: SocketTimeoutException) {
-                throw ApiFailure(AppError.Timeout)
-            } catch (_: IOException) {
-                throw ApiFailure(AppError.Network)
-            } finally {
-                connection.disconnect()
-            }
-        }
+    internal open suspend fun putRecording(
+        id: String,
+        uri: String,
+        title: String,
+        durationMs: Long,
+        token: String,
+    ): RecordingDto = withContext(Dispatchers.IO) {
+        val bearer = authorization(token)
+        val bytes = readAudio(uri, bearer)
+        if (bytes.isEmpty() || bytes.size > MAX_UPLOAD_BYTES) throw ApiFailure(AppError.InvalidReference)
+        val type = audioContentType(bytes, context.contentResolver.getType(uri.toUri()) ?: audioTypeFromPath(uri))
+        if (type !in setOf("audio/mp4", "audio/wav", "audio/mpeg")) throw ApiFailure(AppError.InvalidReference)
+        transport.recording(id, bytes, type, title, durationMs, bearer)
+    }
 
-    private fun readAudio(uri: String, bearer: String): ByteArray {
+    private suspend fun readAudio(uri: String, bearer: String): ByteArray {
         fun bounded(input: java.io.InputStream): ByteArray = input.use {
             val output = java.io.ByteArrayOutputStream()
             val buffer = ByteArray(8192)
@@ -244,68 +244,26 @@ open class StudioApi(
         ) {
             throw ApiFailure(AppError.InvalidReference)
         }
-        val connection = openConnection(uri)
         try {
-            connection.connectTimeout = 5_000
-            connection.readTimeout = 30_000
-            connection.setRequestProperty("Authorization", "Bearer " + bearer)
-            if (connection.responseCode != 200) {
-                response(connection)
-                throw ApiFailure(AppError.InvalidReference)
+            val request = Request.Builder().url(uri).header("Authorization", "Bearer " + bearer).build()
+            return transport.calls.newCall(request).awaitBoundedBody(MAX_UPLOAD_BYTES) { response ->
+                if (response.code != 200) throw transport.statusFailure(response.code, null)
+                if (response.body == null) throw ApiFailure(AppError.InvalidReference)
             }
-            return bounded(connection.inputStream)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (failure: ApiFailure) {
             throw failure
         } catch (_: SocketTimeoutException) {
             throw ApiFailure(AppError.Timeout)
         } catch (_: IOException) {
             throw ApiFailure(AppError.Network)
-        } finally {
-            connection.disconnect()
         }
-    }
-
-    protected open fun openConnection(url: String): HttpURLConnection =
-        (URL(url).openConnection() as HttpURLConnection).apply { instanceFollowRedirects = false }
-
-    private fun response(connection: HttpURLConnection): JSONObject {
-        val status = connection.responseCode
-        val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-        val text = stream?.bufferedReader()?.use {
-            it.readText()
-        }.orEmpty()
-        val json = if (text.isBlank()) JSONObject() else JSONObject(text)
-        if (status !in 200..299) {
-            val error = json.optJSONObject("error") ?: json
-            throw ApiFailure(
-                when (status) {
-                    401, 403 -> AppError.Unauthorized
-
-                    429 -> {
-                        if (error.optString("code") in listOf("QUOTA_EXCEEDED", "DAILY_LIMIT")) {
-                            AppError.QuotaExceeded
-                        } else {
-                            AppError.RateLimited
-                        }
-                    }
-
-                    else -> apiError(error.optString("code"), error.stringOrNull("promptSuggestion"))
-                },
-                serverCode = error.stringOrNull("code"),
-            )
-        }
-        return json
     }
 
     private companion object {
         const val MAX_UPLOAD_BYTES = 20 * 1024 * 1024
-        val SUPPORTED_AUDIO_TYPES = setOf(
-            "audio/wav",
-            "audio/mp4",
-            "audio/mpeg",
-            "audio/aac",
-            "audio/ogg",
-            "audio/webm",
-        )
+        val SUPPORTED_AUDIO_TYPES =
+            setOf("audio/wav", "audio/mp4", "audio/mpeg", "audio/aac", "audio/ogg", "audio/webm")
     }
 }

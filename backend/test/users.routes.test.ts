@@ -48,6 +48,7 @@ describe('GET /v1/me', () => {
       id: expect.any(String),
       email: 'alice@dev.local',
       emailVerified: true,
+      canGenerate: true,
       signInProvider: 'dev',
       displayName: 'alice',
       ageConfirmed: false,

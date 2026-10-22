@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.SystemClock
 import androidx.core.net.toUri
 import com.illiamelnyk.studio.R
+import com.illiamelnyk.studio.core.data.local.audioContentType
 import com.illiamelnyk.studio.feature.create.domain.AudioRecorder
 import com.illiamelnyk.studio.feature.create.domain.RecordedAudio
 import java.io.File
@@ -114,8 +115,13 @@ class AndroidAudioRecorder(
                     }
                 }
             }
+            val header = output.inputStream().use { input -> ByteArray(12).also { input.read(it) } }
+            val type = audioContentType(header, context.contentResolver.getType(source))
+            require(type in setOf("audio/wav", "audio/mp4", "audio/mpeg")) {
+                "Choose a WAV, M4A or MP3 audio file"
+            }
             val duration = readDurationMs(output)
-            require(duration in 1_000..300_000) { "Audio must be 1 second to 5 minutes" }
+            require(duration in 3_000..300_000) { "Audio must be 3 seconds to 5 minutes" }
             require(output.parentFile?.canonicalFile == referenceDirectory().canonicalFile) { "Account changed" }
             RecordedAudio(Uri.fromFile(output).toString(), "Audio reference", duration)
         } catch (error: Exception) {

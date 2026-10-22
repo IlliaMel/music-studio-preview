@@ -2,5 +2,6 @@
 
 export * from '../../features/library/library.table.js'
 export * from '../../features/recordings/recordings.table.js'
+export * from '../../features/tracks/paid-usage.table.js'
 export * from '../../features/tracks/tracks.table.js'
 export * from '../../features/users/users.table.js'

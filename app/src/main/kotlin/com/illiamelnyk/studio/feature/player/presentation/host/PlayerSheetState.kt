@@ -2,6 +2,7 @@ package com.illiamelnyk.studio.feature.player.presentation.host
 
 import androidx.activity.BackEventCompat
 import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.SeekableTransitionState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.DraggableState
@@ -117,12 +118,12 @@ internal class PlayerSheetState(
         try {
             transitionState.seekTo(fractionFor(startExpanded), targetState = previewTarget)
             progress.conflate().collect { event ->
-                val expanded = startExpanded * (1f - event.progress.coerceIn(0f, 1f) * BACK_PREVIEW_REACH)
+                val expanded = startExpanded * (1f - event.progress.coerceIn(0f, 1f))
                 transitionState.seekTo(fractionFor(expanded), targetState = previewTarget)
             }
-            animateTo(false)
+            animateTo(false, backGesture = true)
         } catch (cancelled: CancellationException) {
-            withContext(NonCancellable) { animateTo(restoreExpanded) }
+            withContext(NonCancellable) { animateTo(restoreExpanded, backGesture = true) }
             throw cancelled
         }
     }
@@ -138,19 +139,26 @@ internal class PlayerSheetState(
     }
 
     /** Animates to [expanded], from wherever the transition is, in the time the rest of the way takes. */
-    private suspend fun animateTo(expanded: Boolean) {
+    private suspend fun animateTo(expanded: Boolean, backGesture: Boolean = false) {
         if (transitionState.currentState == transitionState.targetState && transitionState.currentState != expanded) {
             // Sets the other player up first: composing it takes a frame or more, and the clock of
             // the animation shouldn't run meanwhile, nor the cover start before its end is known.
             transitionState.seekTo(0f, targetState = expanded)
         }
         val remaining = if (expanded) 1f - expandedFraction else expandedFraction
-        transitionState.animateTo(expanded, settleSpec(remaining, expanded))
+        transitionState.animateTo(expanded, settleSpec(remaining, expanded, backGesture))
     }
 
-    private fun settleSpec(remaining: Float, expanded: Boolean): FiniteAnimationSpec<Float> {
-        val duration = motion.duration.long * if (expanded) 1f else COLLAPSE_DURATION_FRACTION
-        return tween((duration * remaining).roundToInt(), easing = motion.easing.emphasized)
+    private fun settleSpec(remaining: Float, expanded: Boolean, backGesture: Boolean): FiniteAnimationSpec<Float> {
+        val duration = if (backGesture) {
+            motion.duration.medium.toFloat()
+        } else {
+            motion.duration.long * if (expanded) 1f else COLLAPSE_DURATION_FRACTION
+        }
+        return tween(
+            (duration * remaining).roundToInt(),
+            easing = if (backGesture) LinearEasing else motion.easing.emphasized,
+        )
     }
 
     private class Drag(val target: Boolean, val fractions: Channel<Float>, val job: Job) {
@@ -163,9 +171,6 @@ internal class PlayerSheetState(
 
         /** A fling faster than this, in player heights per second, completes or cancels the drag. */
         const val FLING_FRACTION_PER_SECOND = 0.5f
-
-        /** How far the back gesture closes the player before it completes: a preview, not the move. */
-        const val BACK_PREVIEW_REACH = 0.3f
     }
 }
 

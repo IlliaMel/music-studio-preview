@@ -1,5 +1,6 @@
 package com.illiamelnyk.studio.core.data.local
 
+import com.illiamelnyk.studio.core.data.network.serverAppError
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.CoverSeed
 import com.illiamelnyk.studio.core.domain.playback.LyricWord
@@ -21,8 +22,7 @@ internal fun Track.toJson(): JSONObject = JSONObject().apply {
     put("variantIndex", variantIndex)
     put("variants", variants)
     put("quality", quality.name.lowercase())
-    put("remixTrackId", remixSourceIds.firstOrNull())
-    put("remixTrackIds", JSONArray(remixSourceIds))
+    put("remixTrackIds", JSONArray(remixTrackIds))
     put("referenceUploadId", referenceUploadId)
     put("title", title)
     put("artist", artist)
@@ -41,15 +41,6 @@ internal fun Track.toJson(): JSONObject = JSONObject().apply {
         JSONArray(
             words.map { word ->
                 JSONObject().put("word", word.text).put("startMs", word.startMs).put("endMs", word.endMs)
-            },
-        ),
-    )
-    put(
-        "audioHeaders",
-        JSONObject(
-            audioHeaders.filter { (key, value) ->
-                !key.equals("Authorization", true) ||
-                    value.startsWith("Bearer dev:")
             },
         ),
     )
@@ -79,7 +70,7 @@ internal fun Track.toJson(): JSONObject = JSONObject().apply {
     }
 }
 
-internal fun JSONObject.toTrack(artist: String = "", headers: Map<String, String> = emptyMap()): Track {
+internal fun JSONObject.toTrack(artist: String = ""): Track {
     val styleJson = optJSONObject("style")
     val uri = stringOrNull("audioUrl")
     return Track(
@@ -88,7 +79,6 @@ internal fun JSONObject.toTrack(artist: String = "", headers: Map<String, String
         variantIndex = optInt("variantIndex"),
         variants = optInt("variants", 1),
         quality = Quality.entries.firstOrNull { it.name.equals(optString("quality"), true) } ?: Quality.Auto,
-        remixTrackId = remixSources().firstOrNull(),
         remixTrackIds = remixSources(),
         referenceUploadId = stringOrNull("referenceUploadId"),
         title = stringOrNull("title") ?: getString("prompt").take(40),
@@ -119,19 +109,6 @@ internal fun JSONObject.toTrack(artist: String = "", headers: Map<String, String
         isLiked = optBoolean("isLiked"),
         genres = array("genres").strings(),
         audioUri = uri,
-        audioHeaders = if (headers.isNotEmpty() &&
-            uri != null
-        ) {
-            headers
-        } else {
-            optJSONObject("audioHeaders")?.let { json ->
-                json.keys().asSequence().filter {
-                    !it.equals("Authorization", true) ||
-                        json.optString(it).startsWith("Bearer dev:")
-                }
-                    .associateWith { json.getString(it) }
-            }.orEmpty()
-        },
         customLyrics = stringOrNull("customLyrics"),
         words = array("words").objects().map { word ->
             LyricWord(word.getString("word"), word.getLong("startMs"), word.getLong("endMs"))
@@ -147,7 +124,7 @@ internal fun GenerationRequest.toJson(): JSONObject = JSONObject().apply {
     put("instrumental", instrumental)
     put("customLyrics", customLyrics)
     put("referenceUploadId", referenceUploadId)
-    if (remixSourceIds.isNotEmpty()) put("remixTrackIds", JSONArray(remixSourceIds))
+    if (remixTrackIds.isNotEmpty()) put("remixTrackIds", JSONArray(remixTrackIds))
     put("referenceAudioUri", referenceAudioUri)
 }
 
@@ -159,26 +136,19 @@ internal fun JSONObject.toRequest(): GenerationRequest = GenerationRequest(
     instrumental = optBoolean("instrumental"),
     customLyrics = stringOrNull("customLyrics"),
     referenceUploadId = stringOrNull("referenceUploadId"),
-    remixTrackId = remixSources().firstOrNull(),
     remixTrackIds = remixSources(),
     referenceAudioUri = stringOrNull("referenceAudioUri"),
 )
 
 internal fun JSONArray.strings(): List<String> = (0 until length()).map { getString(it) }
-internal fun apiError(code: String, suggestion: String? = null): AppError = when (code) {
-    "INVALID_PROMPT", "PROMPT_REJECTED", "VALIDATION" -> AppError.InvalidPrompt(suggestion)
-    "QUOTA_EXCEEDED", "DAILY_LIMIT" -> AppError.QuotaExceeded
-    "RATE_LIMITED" -> AppError.RateLimited
-    "UNAUTHORIZED", "ACCOUNT_DELETED", "ACCOUNT_DISABLED" -> AppError.Unauthorized
-    "TIMEOUT", "GENERATION_TIMEOUT" -> AppError.Timeout
-    "UNSUPPORTED_MODE" -> AppError.UnsupportedMode
-    "INVALID_REFERENCE", "REMIX_OF_REMIX", "NOT_READY", "TRACK_NOT_FOUND" -> AppError.InvalidReference
-    "PROVIDER_OUTCOME_UNKNOWN" -> AppError.ProviderOutcomeUnknown
-    else -> AppError.Server
-}
+internal fun apiError(code: String, suggestion: String? = null): AppError = serverAppError(code, suggestion)
+
 private fun errorCode(error: AppError): String = when (error) {
     is AppError.InvalidPrompt -> "INVALID_PROMPT"
-    AppError.QuotaExceeded -> "QUOTA_EXCEEDED"
+    AppError.QuotaExceeded -> "DAILY_LIMIT"
+    AppError.ProviderUnavailable -> "PROVIDER_UNAVAILABLE"
+    AppError.GenerationNotAllowed -> "GENERATION_NOT_ALLOWED"
+    AppError.ServiceDailyLimit -> "SERVICE_DAILY_LIMIT"
     AppError.Unauthorized -> "UNAUTHORIZED"
     AppError.Timeout -> "TIMEOUT"
     AppError.UnsupportedMode -> "UNSUPPORTED_MODE"

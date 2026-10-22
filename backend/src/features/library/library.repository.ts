@@ -1,6 +1,7 @@
-import { and, asc, eq, isNull, lt, notExists, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, isNull, lt, notExists, sql } from 'drizzle-orm'
 import type { Database } from '../../core/db/database.js'
 import { ApiError } from '../../core/http/errors.js'
+import { paidGenerationDailyUsage } from '../tracks/paid-usage.table.js'
 import { tracks } from '../tracks/tracks.table.js'
 import { users } from '../users/users.table.js'
 import { likes, playlists, playlistTracks, uploads } from './library.table.js'
@@ -181,16 +182,133 @@ export class LibraryRepository {
       .where(and(eq(uploads.id, id), eq(uploads.userId, userId)))
     return upload
   }
-  async claimRemoteUpload(id: string): Promise<boolean> {
-    const updated = await this.db
-      .update(uploads)
-      .set({ providerAttempted: true })
-      .where(and(eq(uploads.id, id), eq(uploads.providerAttempted, false)))
-      .returning({ id: uploads.id })
-    return updated.length === 1
+  async claimRemoteUpload(
+    id: string,
+    maxPaidRequestsTotal?: number,
+    attemptId = crypto.randomUUID(),
+  ): Promise<boolean> {
+    return this.db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended('studio:paid-generation-budget', 0))`,
+      )
+      const [source] = await tx
+        .select({ userId: uploads.userId })
+        .from(uploads)
+        .where(eq(uploads.id, id))
+      if (!source) return false
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${source.userId}, 0))`)
+      const [upload] = await tx
+        .select({
+          attempted: uploads.providerAttempted,
+          songId: uploads.providerSongId,
+          paidReservationDay: uploads.paidReservationDay,
+        })
+        .from(uploads)
+        .where(eq(uploads.id, id))
+        .for('update')
+      if (!upload || upload.attempted || upload.songId) return false
+      let day = upload.paidReservationDay
+      if (day === null) {
+        // A queued sibling may outlive a confirmed upload refusal and its refund. It
+        // needs a fresh reservation before trying again, under the same global lock.
+        day = new Date().toISOString().slice(0, 10)
+        const [usage] = await tx
+          .select()
+          .from(paidGenerationDailyUsage)
+          .where(eq(paidGenerationDailyUsage.day, day))
+        if (
+          maxPaidRequestsTotal !== undefined &&
+          (usage?.reservedVariants ?? 0) >= maxPaidRequestsTotal
+        ) {
+          throw new ApiError(
+            429,
+            'SERVICE_DAILY_LIMIT',
+            'The paid upload reservation limit is exhausted',
+          )
+        }
+        await tx
+          .insert(paidGenerationDailyUsage)
+          .values({ day, reservedVariants: 1 })
+          .onConflictDoUpdate({
+            target: paidGenerationDailyUsage.day,
+            set: {
+              reservedVariants: sql`${paidGenerationDailyUsage.reservedVariants} + 1`,
+            },
+          })
+      }
+      await tx
+        .update(uploads)
+        .set({ providerAttempted: true, providerAttemptId: attemptId, paidReservationDay: day })
+        .where(eq(uploads.id, id))
+      return true
+    })
   }
-  async saveRemoteUpload(id: string, providerSongId: string, durationMs: number): Promise<void> {
-    await this.db.update(uploads).set({ providerSongId, durationMs }).where(eq(uploads.id, id))
+  async saveRemoteUpload(
+    id: string,
+    providerSongId: string,
+    durationMs: number,
+    attemptId?: string,
+  ): Promise<void> {
+    if (!attemptId) throw new Error('A remote upload result needs its attempt identity')
+    const saved = await this.db
+      .update(uploads)
+      .set({ providerSongId, durationMs })
+      .where(
+        and(
+          eq(uploads.id, id),
+          eq(uploads.providerAttemptId, attemptId),
+          eq(uploads.providerAttempted, true),
+        ),
+      )
+      .returning({ id: uploads.id })
+    if (!saved.length) throw new Error('The upload attempt is no longer current')
+  }
+
+  /** Only a proven credit/auth rejection permits another upload attempt and a reservation refund. */
+  async rejectRemoteUpload(id: string, attemptId?: string): Promise<void> {
+    if (!attemptId) return
+    await this.db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended('studio:paid-generation-budget', 0))`,
+      )
+      const [source] = await tx
+        .select({ userId: uploads.userId })
+        .from(uploads)
+        .where(eq(uploads.id, id))
+      if (!source) return
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${source.userId}, 0))`)
+      const [upload] = await tx
+        .select({
+          providerAttempted: uploads.providerAttempted,
+          providerSongId: uploads.providerSongId,
+          paidReservationDay: uploads.paidReservationDay,
+          providerAttemptId: uploads.providerAttemptId,
+        })
+        .from(uploads)
+        .where(eq(uploads.id, id))
+        .for('update')
+      if (
+        !upload?.providerAttempted ||
+        upload.providerSongId ||
+        upload.providerAttemptId !== attemptId
+      )
+        return
+      await tx
+        .update(uploads)
+        .set({ providerAttempted: false, providerAttemptId: null, paidReservationDay: null })
+        .where(eq(uploads.id, id))
+      if (upload.paidReservationDay !== null) {
+        await tx
+          .update(paidGenerationDailyUsage)
+          .set({ reservedVariants: sql`${paidGenerationDailyUsage.reservedVariants} - 1` })
+          .where(
+            and(
+              eq(paidGenerationDailyUsage.day, upload.paidReservationDay),
+              gte(paidGenerationDailyUsage.reservedVariants, 1),
+            ),
+          )
+      }
+    })
   }
   async deleteUpload(userId: string, id: string): Promise<void> {
     await this.db.transaction(async (tx) => {

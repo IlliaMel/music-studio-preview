@@ -12,6 +12,7 @@ import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
 import com.illiamelnyk.studio.core.ui.components.ComingSoonSheetContent
+import com.illiamelnyk.studio.core.ui.components.OverlaySheet
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
 /**

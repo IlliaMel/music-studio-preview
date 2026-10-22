@@ -1,7 +1,9 @@
 package com.illiamelnyk.studio.navigation
 
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -88,6 +90,54 @@ class OwnerScopedTabsTest {
             owner.value = "owner-a"
         }
         composeRule.onNodeWithTag("privatePrompt").assertTextEquals("Empty")
+        composeRule.runOnIdle {
+            assertEquals(3, created.size)
+            assertEquals(2, cleared)
+        }
+    }
+
+    @Test
+    fun nonNavigationPlayerModelSurvivesActivityRecreationButClearsOnOwnerChange() {
+        val owner = mutableStateOf("owner-a")
+        val created = mutableListOf<PrivatePromptViewModel>()
+        var cleared = 0
+        val factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                PrivatePromptViewModel { cleared++ }.also { created += it } as T
+        }
+        // Players live outside NavDisplay, so they must receive the signed-in shell's store.
+        val content: @Composable () -> Unit = {
+            StudioTheme {
+                OwnerScopedTabs(owner.value) {
+                    val storeOwner = requireNotNull(LocalViewModelStoreOwner.current)
+                    val model = ViewModelProvider(storeOwner, factory)[PrivatePromptViewModel::class.java]
+                    StudioText(
+                        model.prompt,
+                        StudioTheme.typography.bodyMedium,
+                        Modifier.testTag("privatePlayer").clickable { model.prompt = "Owner A player state" },
+                    )
+                }
+            }
+        }
+        composeRule.activityRule.scenario.onActivity { it.setContent(content = content) }
+        composeRule.onNodeWithTag("privatePlayer").performClick()
+        composeRule.onNodeWithTag("privatePlayer").assertTextEquals("Owner A player state")
+        composeRule.activityRule.scenario.recreate()
+        composeRule.activityRule.scenario.onActivity { it.setContent(content = content) }
+        composeRule.onNodeWithTag("privatePlayer").assertTextEquals("Owner A player state")
+        composeRule.runOnIdle {
+            assertEquals(1, created.size)
+            assertEquals(0, cleared)
+            owner.value = "owner-b"
+        }
+        composeRule.onNodeWithTag("privatePlayer").assertTextEquals("Empty")
+        composeRule.runOnIdle {
+            assertEquals(2, created.size)
+            assertEquals(1, cleared)
+            owner.value = "owner-a"
+        }
+        composeRule.onNodeWithTag("privatePlayer").assertTextEquals("Empty")
         composeRule.runOnIdle {
             assertEquals(3, created.size)
             assertEquals(2, cleared)

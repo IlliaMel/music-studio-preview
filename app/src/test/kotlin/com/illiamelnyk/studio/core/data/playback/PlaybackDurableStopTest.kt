@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
@@ -45,7 +46,7 @@ class PlaybackDurableStopTest {
     }
 
     @Test
-    fun durableStopKeepsNativeStopOnMainWhileBlockedCommitAllowsMainWork() = runTest {
+    fun durableStopKeepsNativeStopOnMainWhileBlockedCommitAllowsMainWork() = runPlaybackTest {
         val owner = "durable-stop-main"
         val preferences = restoredQueue(owner)
         val entered = CountDownLatch(1)
@@ -59,7 +60,7 @@ class PlaybackDurableStopTest {
             check(release.await(5, TimeUnit.SECONDS))
             true
         }
-        val playback = AndroidPlaybackController(wrapped, playbackScopes.wrap(backgroundScope), ownerId = { owner })
+        val playback = testPlaybackController(wrapped, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         val stopping = async { playback.stopDurably() }
         try {
             runCurrent()
@@ -79,12 +80,12 @@ class PlaybackDurableStopTest {
     }
 
     @Test
-    fun durableStopReportsCheckedCommitFailureAfterClearingNativeState() = runTest {
+    fun durableStopReportsCheckedCommitFailureAfterClearingNativeState() = runPlaybackTest {
         val owner = "durable-stop-failure"
         val preferences = restoredQueue(owner)
         val stoppedThread = AtomicReference<Thread?>()
         val playback =
-            AndroidPlaybackController(
+            testPlaybackController(
                 wrapped(preferences, stoppedThread) {
                     false
                 },
@@ -98,12 +99,12 @@ class PlaybackDurableStopTest {
     }
 
     @Test
-    fun failedDurableStopRetryRemovesTheOriginalPersistedQueue() = runTest {
+    fun failedDurableStopRetryRemovesTheOriginalPersistedQueue() = runPlaybackTest {
         val owner = "durable-retry-original"
         val preferences = restoredQueue(owner)
         val allowCommit = AtomicBoolean(false)
         val playback =
-            AndroidPlaybackController(
+            testPlaybackController(
                 wrapped(preferences, AtomicReference()) {
                     allowCommit.get()
                 },
@@ -118,15 +119,15 @@ class PlaybackDurableStopTest {
     }
 
     @Test
-    fun failedOldControllerRetryCannotRemoveReplacementControllersQueue() = runTest {
+    fun failedOldControllerRetryCannotRemoveReplacementControllersQueue() = runPlaybackTest {
         val owner = "durable-retry-replacement"
         val preferences = restoredQueue(owner)
         val allowCommit = AtomicBoolean(false)
         val wrapped = wrapped(preferences, AtomicReference()) { allowCommit.get() }
-        val old = AndroidPlaybackController(wrapped, playbackScopes.wrap(backgroundScope), ownerId = { owner })
+        val old = testPlaybackController(wrapped, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         assertTrue(runCatching { old.stopDurably() }.exceptionOrNull() is IOException)
         allowCommit.set(true)
-        val replacement = AndroidPlaybackController(wrapped, playbackScopes.wrap(backgroundScope), ownerId = { owner })
+        val replacement = testPlaybackController(wrapped, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         replacement.seekTo(12000)
         replacement.releaseForServiceShutdown()
         old.stopDurably()
@@ -136,12 +137,12 @@ class PlaybackDurableStopTest {
     }
 
     @Test
-    fun failedRemovalCannotEraseFreshSameOwnerPlaybackOnTheSameController() = runTest {
+    fun failedRemovalCannotEraseFreshSameOwnerPlaybackOnTheSameController() = runPlaybackTest {
         val owner = "durable-retry-same-controller"
         val preferences = restoredQueue(owner)
         val allowCommit = AtomicBoolean(false)
         val playback =
-            AndroidPlaybackController(
+            testPlaybackController(
                 wrapped(preferences, AtomicReference()) {
                     allowCommit.get()
                 },
@@ -190,6 +191,13 @@ class PlaybackDurableStopTest {
             }
             override fun getSharedPreferences(name: String, mode: Int): SharedPreferences =
                 if (name == "playback") shared else super.getSharedPreferences(name, mode)
+        }
+    }
+    private fun runPlaybackTest(test: suspend TestScope.() -> Unit) = runTest {
+        try {
+            test()
+        } finally {
+            playbackScopes.closeSuspending()
         }
     }
 }

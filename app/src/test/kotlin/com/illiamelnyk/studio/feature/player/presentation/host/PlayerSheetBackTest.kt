@@ -69,6 +69,68 @@ class PlayerSheetBackTest {
         verifyInterruptedBack(opening = true, cancel = false)
     }
 
+    @Test fun backPreviewTracksTheWholeGestureLinearlyAndCanReturnToZero() {
+        showPlayer()
+        val events = Channel<BackEventCompat>(Channel.UNLIMITED)
+        lateinit var job: Job
+        composeRule.runOnIdle { job = scope.launch { sheet.collapseWithBack(events.receiveAsFlow()) } }
+        for (progress in listOf(0.2f, 0.4f, 0.8f, 0.4f, 0f)) {
+            composeRule.runOnIdle {
+                events.trySend(BackEventCompat(0f, 0f, progress, BackEventCompat.EDGE_LEFT))
+            }
+            composeRule.mainClock.advanceTimeBy(64)
+            composeRule.runOnIdle { assertEquals(1f - progress, sheet.expandedFraction, 0.015f) }
+        }
+        composeRule.runOnIdle { job.cancel() }
+        composeRule.mainClock.advanceTimeBy(1_000)
+        events.close()
+    }
+
+    @Test fun fullProgressCanStillBeCancelledWithoutLosingTheBackHandler() {
+        showPlayer()
+        val events = Channel<BackEventCompat>(Channel.UNLIMITED)
+        lateinit var job: Job
+        composeRule.runOnIdle {
+            job = scope.launch { sheet.collapseWithBack(events.receiveAsFlow()) }
+            events.trySend(BackEventCompat(0f, 0f, 1f, BackEventCompat.EDGE_LEFT))
+        }
+        composeRule.mainClock.advanceTimeBy(64)
+        composeRule.runOnIdle {
+            assertEquals(0f, sheet.expandedFraction, 0.015f)
+            assertTrue(sheet.handlesBack)
+            job.cancel()
+        }
+        composeRule.mainClock.advanceTimeBy(300)
+        composeRule.runOnIdle {
+            assertTrue(sheet.isExpanded)
+            assertTrue(sheet.handlesBack)
+            assertEquals(1f, sheet.expandedFraction, 0.001f)
+        }
+        events.close()
+    }
+
+    @Test fun backCommitSettlesTheRemainingDistanceWithinMediumDuration() {
+        showPlayer()
+        val (events, _) = previewBack()
+        composeRule.runOnIdle { events.close() }
+        composeRule.mainClock.advanceTimeBy(160)
+        composeRule.runOnIdle {
+            assertFalse(sheet.handlesBack)
+            assertEquals(0f, sheet.expandedFraction, 0.001f)
+        }
+    }
+
+    @Test fun disabledMotionSettlesBackWithoutAnExtraDuration() {
+        showPlayer(StudioMotion(duration = StudioMotion.Durations(short = 0, medium = 0, long = 0)))
+        val (events, _) = previewBack()
+        composeRule.runOnIdle { events.close() }
+        composeRule.mainClock.advanceTimeBy(64)
+        composeRule.runOnIdle {
+            assertFalse(sheet.handlesBack)
+            assertEquals(0f, sheet.expandedFraction, 0.001f)
+        }
+    }
+
     private fun verifyInterruptedBack(opening: Boolean, cancel: Boolean) {
         showPlayer()
         if (opening) {
@@ -89,18 +151,18 @@ class PlayerSheetBackTest {
         composeRule.runOnIdle { assertEquals("Zero progress must not jump", start, sheet.expandedFraction, 0.015f) }
         composeRule.runOnIdle { events.trySend(BackEventCompat(0f, 0f, 0.8f, BackEventCompat.EDGE_LEFT)) }
         composeRule.mainClock.advanceTimeBy(64)
-        composeRule.runOnIdle { assertEquals(start * 0.76f, sheet.expandedFraction, 0.015f) }
+        composeRule.runOnIdle { assertEquals(start * 0.2f, sheet.expandedFraction, 0.015f) }
         composeRule.runOnIdle { if (cancel) job.cancel() else events.close() }
         composeRule.mainClock.advanceTimeBy(1000)
         composeRule.runOnIdle { assertEquals(if (cancel && opening) 1f else 0f, sheet.expandedFraction, 0.001f) }
         events.close()
     }
 
-    private fun showPlayer() {
+    private fun showPlayer(motion: StudioMotion = StudioMotion()) {
         composeRule.mainClock.autoAdvance = false
         composeRule.setContent {
             scope = rememberCoroutineScope()
-            sheet = remember { PlayerSheetState(true, scope, StudioMotion()) }
+            sheet = remember { PlayerSheetState(true, scope, motion) }
             val transition = rememberTransition(sheet.transitionState, label = "backTest")
             val expansion by transition.animateFloat(label = "expansion") { if (it) 1f else 0f }
             Box(Modifier.fillMaxSize().graphicsLayer { alpha = expansion })

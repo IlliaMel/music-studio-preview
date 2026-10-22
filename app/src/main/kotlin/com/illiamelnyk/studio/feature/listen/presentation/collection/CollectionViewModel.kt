@@ -73,11 +73,21 @@ class CollectionViewModel(
 
     private fun load(forceRefresh: Boolean = false) {
         loadJob?.cancel()
-        setState { copy(isLoading = true, failed = false) }
+        queue = emptyList()
+        setState {
+            copy(
+                isLoading = true,
+                failed = false,
+                collection = null,
+                tracks = kotlinx.collections.immutable.persistentListOf(),
+                versions = kotlinx.collections.immutable.persistentMapOf(),
+                pickerTrack = null,
+            )
+        }
         loadJob = viewModelScope.launch {
             val timeout = launch {
                 delay(8_000)
-                setState { copy(isLoading = false, failed = true) }
+                showFailure()
             }
             try {
                 if (forceRefresh) catalog.refresh()
@@ -109,7 +119,7 @@ class CollectionViewModel(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                setState { copy(isLoading = false, failed = true) }
+                showFailure()
             } finally {
                 timeout.cancel()
             }
@@ -117,9 +127,24 @@ class CollectionViewModel(
     }
 
     private fun play(startIndex: Int, shuffle: Boolean) {
+        if (state.value.isLoading || state.value.failed) return
         if (startIndex !in queue.indices) return
         playback.setShuffle(shuffle)
         playback.play(queue, startIndex)
         sendEffect(CollectionEffect.OpenPlayer)
+    }
+
+    private fun showFailure() {
+        queue = emptyList()
+        setState {
+            copy(
+                isLoading = false,
+                failed = true,
+                collection = null,
+                tracks = kotlinx.collections.immutable.persistentListOf(),
+                versions = kotlinx.collections.immutable.persistentMapOf(),
+                pickerTrack = null,
+            )
+        }
     }
 }

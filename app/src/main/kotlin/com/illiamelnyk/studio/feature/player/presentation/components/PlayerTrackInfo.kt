@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import com.illiamelnyk.studio.R
+import com.illiamelnyk.studio.core.ui.components.Cover
 import com.illiamelnyk.studio.core.ui.components.VerifiedMark
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
@@ -26,6 +27,7 @@ fun PlayerTrackInfo(
     onLyricsClick: (() -> Unit)?,
     onQueueClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     val colors = StudioTheme.colors
     val dimens = StudioTheme.dimens
@@ -34,12 +36,13 @@ fun PlayerTrackInfo(
         horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xxs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (compact) Cover(track.coverSeed, dimens.size.cover.s)
         Column(Modifier.weight(1f)) {
             StudioText(
                 track.title,
-                StudioTheme.typography.titleLarge,
+                if (compact) StudioTheme.typography.labelLarge else StudioTheme.typography.titleLarge,
                 color = colors.overlay.onMediaPrimary,
-                maxLines = 2,
+                maxLines = if (compact) 1 else 2,
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xxs),
@@ -47,7 +50,7 @@ fun PlayerTrackInfo(
             ) {
                 StudioText(
                     text = track.subtitle,
-                    style = StudioTheme.typography.bodyMedium,
+                    style = if (compact) StudioTheme.typography.bodySmall else StudioTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f, fill = false),
                     color = colors.overlay.onMediaSecondary,
                     maxLines = 1,

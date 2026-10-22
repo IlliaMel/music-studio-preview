@@ -215,7 +215,7 @@ describe('library', () => {
 
   it('lists the mock catalog with collection and station membership', async () => {
     const catalog = await (await request('/catalog')).json()
-    expect(catalog.tracks).toHaveLength(24)
+    expect(catalog.tracks).toHaveLength(28)
     expect(catalog.tracks[0].audioUrl).toBe(
       'https://api.studio.test/v1/catalog/tracks/glass-harbor/audio',
     )
@@ -225,7 +225,7 @@ describe('library', () => {
     const rotatedCollection = await (await request('/collections/new-1')).json()
     const expectedCollection = catalog.collections.find((item) => item.id === 'new-1')
     expect(rotatedCollection.tracks.map((track) => track.id)).toEqual(expectedCollection?.trackIds)
-    expect(rotatedCollection.tracks[0].id).toBe('signal-fire')
+    expect(rotatedCollection.tracks[0].id).toBe('rainy-keys')
     const rotatedStation = await (await request('/stations/stations-1')).json()
     expect(rotatedStation.tracks.map((track) => track.id)).toEqual([
       'slow-tide',

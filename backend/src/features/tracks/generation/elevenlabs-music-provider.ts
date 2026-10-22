@@ -1,9 +1,17 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { validAudio } from '../../../core/audio/audio-container.js'
-import { remixSourceIds } from '../tracks.model.js'
+import { remixSourceIds, sungWords, type Word } from '../tracks.model.js'
 import { boundedBody, invalidResponse, Plan, parseDetailed } from './elevenlabs-response.js'
-import { type ComposeRequest, type MusicProvider, ProviderError } from './music-provider.js'
+import {
+  type ComposeRequest,
+  type MusicProvider,
+  type ProviderDiagnostic,
+  ProviderError,
+} from './music-provider.js'
+
+/** What a remix changes: the original's description, genres and sung words. */
+export type RemixOriginal = { prompt: string; genres: string[]; words: Word[] }
 
 export type MusicReference = {
   key: string
@@ -12,11 +20,30 @@ export type MusicReference = {
   audio?: Buffer
   contentType?: string
   attempted?: boolean
+  attemptId?: string
+  original?: RemixOriginal
 }
+
+const PlannedChunks = z.object({
+  chunks: z
+    .array(
+      z.object({
+        text: z.string().max(10000).nullable().optional(),
+        duration_ms: z.number().int().min(3000).max(120000),
+        positive_styles: z.array(z.string().max(300)).max(50).nullable().optional(),
+        negative_styles: z.array(z.string().max(300)).max(50).nullable().optional(),
+        context_adherence: z.enum(['low', 'medium', 'high']).nullable().optional(),
+      }),
+    )
+    .min(1)
+    .max(30),
+})
+type RemixPlan = z.infer<typeof PlannedChunks>['chunks']
 export type ReferenceAccess = {
   resolve(request: ComposeRequest): Promise<MusicReference>
   claim(reference: MusicReference): Promise<boolean>
   save(reference: MusicReference, songId: string, durationMs: number): Promise<void>
+  rejected?(reference: MusicReference): Promise<void>
 }
 
 export class ElevenLabsMusicProvider implements MusicProvider {
@@ -60,7 +87,7 @@ export class ElevenLabsMusicProvider implements MusicProvider {
     if ((request.referenceUploadId || remixTrackId) && !this.options.references)
       throw new ProviderError(
         'UNSUPPORTED_MODE',
-        'Audio references require ElevenLabs enterprise inpainting access and ELEVENLABS_ENABLE_REFERENCES=true',
+        'Audio references are turned off on this server (ELEVENLABS_ENABLE_REFERENCES=false)',
         false,
       )
     if (request.referenceUploadId && remixTrackId)
@@ -72,10 +99,21 @@ export class ElevenLabsMusicProvider implements MusicProvider {
         false,
       )
     if (request.customLyrics || request.referenceUploadId || remixTrackId) buildChunks(request)
-    if (request.customLyrics?.split('\n').some((line) => line.length > 200))
+    if (request.customLyrics?.split('\n').some((line) => [...line].length > 200))
       throw new ProviderError(
         'UNSUPPORTED_MODE',
         'ElevenLabs lyrics allow at most 200 characters per line',
+        false,
+      )
+    if (
+      request.customLyrics &&
+      [...request.customLyrics.matchAll(/^[ \t]*\[([^\]\r\n]*)\]/gm)].some(
+        (match) => [...(match[1] ?? '')].length < 1 || [...(match[1] ?? '')].length > 100,
+      )
+    )
+      throw new ProviderError(
+        'UNSUPPORTED_MODE',
+        'Section names must contain 1 to 100 characters',
         false,
       )
   }
@@ -90,9 +128,23 @@ export class ElevenLabsMusicProvider implements MusicProvider {
       store_for_inpainting: this.options.references,
     }
     if (request.customLyrics || request.referenceUploadId || request.remixTrackId) {
-      const chunks = buildChunks(request)
-      if (request.referenceUploadId || request.remixTrackId) {
-        const reference = await this.options.access.resolve(request)
+      const reference =
+        request.referenceUploadId || request.remixTrackId
+          ? await this.options.access.resolve(request)
+          : undefined
+      const original = request.remixTrackId ? reference?.original : undefined
+      const plan = original ? await this.planRemix(request, original, signal) : undefined
+      const chunks = plan
+        ? plannedChunks(request, original, plan)
+        : buildChunks({
+            ...request,
+            customLyrics:
+              request.customLyrics ??
+              (request.instrumental
+                ? undefined
+                : originalLines(original, request.lengthMs ?? 120000).join('\n') || undefined),
+          })
+      if (reference) {
         const source =
           reference.songId && reference.durationMs
             ? { songId: reference.songId, durationMs: reference.durationMs }
@@ -103,7 +155,8 @@ export class ElevenLabsMusicProvider implements MusicProvider {
           song_id: source.songId,
           range: { start_ms: 0, end_ms: Math.min(source.durationMs, 30000) },
         }
-        first.condition_strength = 'medium'
+        // A remix asks for a change, so the original only guides it; a tool keeps the recorded melody.
+        first.condition_strength = original ? 'low' : 'medium'
       }
       body = { ...body, composition_plan: { chunks }, seed: stableSeed(request) }
     } else
@@ -128,6 +181,39 @@ export class ElevenLabsMusicProvider implements MusicProvider {
     } catch (error) {
       if (error instanceof ProviderError) throw error
       throw invalidResponse()
+    }
+  }
+
+  /**
+   * Plans the remix through the free plan endpoint: sections with the English style tags that "the
+   * original plus the requested change" needs, since a request such as "make it more rocky" is not a
+   * style on its own. If planning fails, the remix still composes, with the request as its style.
+   */
+  private async planRemix(
+    request: ComposeRequest,
+    original: RemixOriginal,
+    signal: AbortSignal,
+  ): Promise<RemixPlan | undefined> {
+    const genres = original.genres.length ? ` (${original.genres.join(', ')})` : ''
+    const prompt = `A remix of an existing song: ${original.prompt}${genres}. Requested change: ${request.prompt}`
+    try {
+      const response = await this.post(
+        '/v1/music/plan',
+        JSON.stringify({
+          prompt: prompt.slice(0, 2000),
+          music_length_ms: request.lengthMs ?? 120000,
+          model_id: request.modelId,
+        }),
+        AbortSignal.any([signal, AbortSignal.timeout(20000)]),
+        'application/json',
+      )
+      const { chunks } = PlannedChunks.parse(
+        JSON.parse((await boundedBody(response, 1024 * 1024)).toString('utf8')),
+      )
+      return chunks.some((chunk) => chunk.positive_styles?.length) ? chunks : undefined
+    } catch {
+      signal.throwIfAborted()
+      return undefined
     }
   }
 
@@ -170,7 +256,18 @@ export class ElevenLabsMusicProvider implements MusicProvider {
       `reference.${extension}`,
     )
     form.set('extract_composition_plan', 'music_v2_5')
-    const response = await this.post('/v1/music/upload', form, signal)
+    let response: Response
+    try {
+      response = await this.post('/v1/music/upload', form, signal)
+    } catch (error) {
+      if (
+        error instanceof ProviderError &&
+        (error.code === 'PROVIDER_AUTH' || error.code === 'QUOTA_EXCEEDED')
+      ) {
+        await this.options.access.rejected?.(reference)
+      }
+      throw error
+    }
     let parsed: unknown
     try {
       parsed = JSON.parse((await boundedBody(response, 2 * 1024 * 1024)).toString('utf8'))
@@ -226,6 +323,7 @@ export class ElevenLabsMusicProvider implements MusicProvider {
     if (response.ok) return response
     let providerStatus: string | undefined
     let suggestion: string | undefined
+    let field: string | undefined
     try {
       const errorBody: unknown = JSON.parse((await boundedBody(response, 65536)).toString('utf8'))
       const detail = z
@@ -240,7 +338,23 @@ export class ElevenLabsMusicProvider implements MusicProvider {
         providerStatus = detail.data.detail.status
         if (providerStatus === 'bad_prompt') suggestion = detail.data.detail.data?.prompt_suggestion
       }
+      // A rejected request body lists its invalid fields instead: keep the first one's path and kind.
+      const invalid = z
+        .object({
+          detail: z.array(
+            z.object({ loc: z.array(z.union([z.string(), z.number()])), type: z.string() }),
+          ),
+        })
+        .safeParse(errorBody)
+      const first = invalid.success ? invalid.data.detail[0] : undefined
+      if (first) field = `${first.loc.join('.')} ${first.type}`
     } catch {}
+    const diagnostic: ProviderDiagnostic = {
+      step: path.startsWith('/v1/music/upload') ? 'upload' : 'compose',
+      httpStatus: response.status,
+      ...(providerStatus ? { providerStatus } : {}),
+      ...(field ? { field } : {}),
+    }
     if (
       providerStatus === 'quota_exceeded' ||
       providerStatus === 'insufficient_credits' ||
@@ -250,12 +364,16 @@ export class ElevenLabsMusicProvider implements MusicProvider {
         'QUOTA_EXCEEDED',
         'ElevenLabs account has insufficient credits',
         false,
+        undefined,
+        diagnostic,
       )
     if (response.status === 401 || response.status === 403)
       throw new ProviderError(
         'PROVIDER_AUTH',
         'ElevenLabs key or feature entitlement was rejected',
         false,
+        undefined,
+        diagnostic,
       )
     if (response.status === 422 || response.status === 400)
       throw new ProviderError(
@@ -263,17 +381,22 @@ export class ElevenLabsMusicProvider implements MusicProvider {
         'ElevenLabs rejected the prompt or composition plan; review its content and supported limits',
         false,
         suggestion,
+        diagnostic,
       )
     if (response.status === 429)
       throw new ProviderError(
         'RATE_LIMITED',
         'ElevenLabs rate limit reached; submit a new request later',
         false,
+        undefined,
+        diagnostic,
       )
     throw new ProviderError(
       'PROVIDER_OUTCOME_UNKNOWN',
       'ElevenLabs did not confirm the result; check request history before retrying',
       false,
+      undefined,
+      diagnostic,
     )
   }
 }
@@ -288,6 +411,76 @@ function stableSeed(request: ComposeRequest): number {
       .readUInt32BE(0) & 0x7fffffff
   )
 }
+/** A vocal remix sings the original's words: the lines sung in the part that fits its length. */
+function originalLines(original: RemixOriginal | undefined, lengthMs: number): string[] {
+  const words = original ? sungWords(original.words) : []
+  if (!words.length) return []
+  return lyricLines(words, (words[0]?.startMs ?? 0) + lengthMs * 0.8).slice(0, 900)
+}
+
+/**
+ * The planned sections, in order, with their own styles. Their lyrics become the remix's: the
+ * user's lyrics or the original's words, shared out by section length. Only an original without
+ * words keeps the planned lyrics.
+ */
+function plannedChunks(
+  request: ComposeRequest,
+  original: RemixOriginal | undefined,
+  plan: RemixPlan,
+): Record<string, unknown>[] {
+  const totalMs = plan.reduce((sum, chunk) => sum + chunk.duration_ms, 0)
+  const lyrics = request.instrumental
+    ? []
+    : (request.customLyrics?.split('\n') ?? originalLines(original, totalMs))
+  let taken = 0
+  let elapsedMs = 0
+  return plan.map((chunk, index) => {
+    elapsedMs += chunk.duration_ms
+    const until =
+      index === plan.length - 1 ? lyrics.length : Math.round((lyrics.length * elapsedMs) / totalMs)
+    const lines = lyrics.slice(taken, until).slice(0, 29)
+    taken = until
+    const label = /^\[[^\]\r\n]{1,100}\]$/.exec(chunk.text?.split('\n')[0]?.trim() ?? '')?.[0]
+    const text = request.instrumental
+      ? '{instrumental}'
+      : lyrics.length
+        ? [label, ...(lines.length ? lines : ['{instrumental}'])].filter(Boolean).join('\n')
+        : chunk.text?.trim() || '{generate vocals}'
+    const negative = chunk.negative_styles ?? []
+    return {
+      text,
+      duration_ms: chunk.duration_ms,
+      positive_styles: chunk.positive_styles?.length ? chunk.positive_styles : [request.prompt],
+      negative_styles: request.instrumental ? [...negative.slice(0, 49), 'vocals'] : negative,
+      ...(chunk.context_adherence ? { context_adherence: chunk.context_adherence } : {}),
+    }
+  })
+}
+
+/** Timed words carry no line breaks: a pause, or a capital after a few words, starts a new line. */
+function lyricLines(words: Word[], untilMs: number): string[] {
+  const lines: string[] = []
+  let line: string[] = []
+  let lastEndMs = 0
+  for (const { word, startMs, endMs } of words) {
+    if (startMs >= untilMs) break
+    const text = word.trim()
+    const breaks =
+      startMs - lastEndMs >= 800 ||
+      line.length >= 12 ||
+      (line.length >= 4 && /^\p{Lu}/u.test(text)) ||
+      [...line, text].join(' ').length > 150
+    if (line.length && breaks) {
+      lines.push(line.join(' '))
+      line = []
+    }
+    if (text) line.push(text)
+    lastEndMs = endMs
+  }
+  if (line.length) lines.push(line.join(' '))
+  return lines
+}
+
 function buildChunks(request: ComposeRequest): Record<string, unknown>[] {
   const lines = request.customLyrics?.split('\n') ?? []
   const duration = request.lengthMs ?? 120000

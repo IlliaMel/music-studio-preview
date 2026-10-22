@@ -32,19 +32,16 @@ data class Track(
     val isLiked: Boolean,
     val genres: List<String> = emptyList(),
     val audioUri: String? = null,
-    val audioHeaders: Map<String, String> = emptyMap(),
     val customLyrics: String? = null,
     val words: List<LyricWord> = emptyList(),
     val generationId: String? = null,
     val variantIndex: Int = 0,
     val variants: Int = 1,
-    val remixTrackId: String? = null,
     val referenceUploadId: String? = null,
     val quality: Quality = Quality.Auto,
     val remixTrackIds: List<String> = emptyList(),
 ) {
-    val remixSourceIds: List<String> get() = remixTrackIds.ifEmpty { listOfNotNull(remixTrackId) }
-    val isRemix: Boolean get() = remixSourceIds.isNotEmpty()
+    val isRemix: Boolean get() = remixTrackIds.isNotEmpty()
     val canRemixOriginal: Boolean get() = status == TrackStatus.Ready && !isRemix && !id.isRecording
     val canUseAsReference: Boolean get() = status == TrackStatus.Ready && id.isRecording && audioUri != null
 }

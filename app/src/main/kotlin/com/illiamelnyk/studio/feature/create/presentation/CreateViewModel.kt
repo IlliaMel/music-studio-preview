@@ -6,7 +6,11 @@ import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.credits.CreditsRepository
 import com.illiamelnyk.studio.core.domain.playback.PlaybackController
+import com.illiamelnyk.studio.core.domain.session.SessionRepository
 import com.illiamelnyk.studio.core.domain.track.ComposerDraftStore
+import com.illiamelnyk.studio.core.domain.track.GenerationOptions
+import com.illiamelnyk.studio.core.domain.track.GenerationOptionsRepository
+import com.illiamelnyk.studio.core.domain.track.Quality
 import com.illiamelnyk.studio.core.domain.track.Track
 import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.core.domain.track.TrackRepository
@@ -22,7 +26,6 @@ import com.illiamelnyk.studio.feature.create.domain.GenerationSettings
 import com.illiamelnyk.studio.feature.create.domain.LyricsMode
 import com.illiamelnyk.studio.feature.create.domain.NotificationChoice
 import com.illiamelnyk.studio.feature.create.domain.PlayNext
-import com.illiamelnyk.studio.feature.create.domain.TrackRenames
 import com.illiamelnyk.studio.feature.create.domain.endedGenerations
 import com.illiamelnyk.studio.feature.create.presentation.common.ComingSoonFeature
 import com.illiamelnyk.studio.feature.create.presentation.common.ToastUi
@@ -33,6 +36,7 @@ import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
@@ -48,15 +52,21 @@ class CreateViewModel(
     private val playNext: PlayNext,
     private val clock: Clock,
     private val notificationChoice: NotificationChoice,
-    private val renames: TrackRenames,
+    sessions: SessionRepository,
+    private val generationOptions: GenerationOptionsRepository,
     private val drafts: ComposerDraftStore = ComposerDraftStore(),
-) : MviViewModel<CreateState, CreateIntent, CreateEffect>(CreateState()) {
+) : MviViewModel<CreateState, CreateIntent, CreateEffect>(
+    CreateState(composer = ComposerUi(canGenerate = false, optionsReady = false)),
+) {
 
     /** The tracks as the repository last sent them: to play, to share, and to see generations end. */
     private var myTracks: List<Track> = emptyList()
 
     /** What the composer generates with; the composer's state shows it. */
     private var settings = GenerationSettings()
+    private var options: GenerationOptions? = null
+    private var optionsLoading = false
+    private var optionsFailed = false
 
     /** `null` until the credits are known. */
     private var creditsLeft: Int? = null
@@ -67,13 +77,20 @@ class CreateViewModel(
     private val composerOwner = drafts.currentOwner
 
     init {
-        tracks.observeMine().onEach(::showTracks).launchIn(viewModelScope)
+        loadOptions()
+        sessions.session.map { it?.user?.canGenerate == true }
+            .distinctUntilChanged()
+            .onEach { allowed -> updateComposer { copy(canGenerate = allowed) } }
+            .launchIn(viewModelScope)
+        combine(tracks.observeMine(), tracks.observeLibrarySynced(), ::Pair)
+            .onEach { (list, synced) -> showTracks(list, synced) }
+            .launchIn(viewModelScope)
         drafts.sources.onEach { sources ->
             referenceSelection += 1
-            val firstSelection = settings.remixSourceIds.isEmpty() && sources.isNotEmpty()
+            val firstSelection = settings.remixTrackIds.isEmpty() && sources.isNotEmpty()
             changeSettings {
                 copy(
-                    remixTrackId = sources.firstOrNull()?.id?.value,
+
                     remixTrackIds = sources.map { it.id.value },
                     referenceAudioUri = if (sources.isNotEmpty()) null else referenceAudioUri,
                 )
@@ -156,28 +173,42 @@ class CreateViewModel(
 
             CreateIntent.QuotaClicked -> openQuota()
 
+            CreateIntent.ComposerNoticeClicked -> if (optionsFailed) {
+                loadOptions()
+            } else if (creditsLeft ==
+                0
+            ) {
+                openQuota()
+            }
+
+            CreateIntent.GenerationOptionsRefresh -> loadOptions()
+
             is CreateIntent.NotificationAnswered -> answerNotifications(intent.notify)
 
-            is CreateIntent.QualitySelected -> changeSettings { copy(quality = intent.quality) }
+            is CreateIntent.QualitySelected -> if (intent.quality in options?.qualityModes.orEmpty()) {
+                changeSettings { copy(quality = intent.quality) }
+            }
 
             CreateIntent.InstrumentalRemoved -> changeSettings { copy(lyricsMode = LyricsMode.Auto) }
 
             CreateIntent.LyricsClicked -> setState { copy(sheet = CreateSheet.Lyrics) }
 
-            CreateIntent.CustomLyricsClicked -> {
+            CreateIntent.CustomLyricsClicked -> if (options?.customLyrics == true) {
                 changeSettings { copy(lyricsMode = LyricsMode.Custom) }
                 setState { copy(sheet = null) }
             }
 
             is CreateIntent.CustomLyricsChanged -> changeSettings { copy(customLyrics = intent.text.take(5_000)) }
 
-            CreateIntent.ReferenceClicked -> setState { copy(sheet = CreateSheet.Reference) }
+            CreateIntent.ReferenceClicked -> if (options?.audioReferences == true) {
+                setState { copy(sheet = CreateSheet.Reference) }
+            }
 
-            is CreateIntent.ReferenceSelected -> {
+            is CreateIntent.ReferenceSelected -> if (options?.audioReferences == true) {
                 referenceSelection += 1
                 drafts.clear()
                 changeSettings {
-                    copy(referenceAudioUri = intent.uri, remixTrackId = null, remixTrackIds = emptyList())
+                    copy(referenceAudioUri = intent.uri, remixTrackIds = emptyList())
                 }
                 updateComposer {
                     copy(referenceLabel = intent.title, remixSources = kotlinx.collections.immutable.persistentListOf())
@@ -188,7 +219,7 @@ class CreateViewModel(
             CreateIntent.ReferenceRemoved -> {
                 referenceSelection += 1
                 drafts.clear()
-                changeSettings { copy(referenceAudioUri = null, remixTrackId = null, remixTrackIds = emptyList()) }
+                changeSettings { copy(referenceAudioUri = null, remixTrackIds = emptyList()) }
                 updateComposer {
                     copy(referenceLabel = null, remixSources = kotlinx.collections.immutable.persistentListOf())
                 }
@@ -223,15 +254,19 @@ class CreateViewModel(
 
             CreateIntent.RenameConfirmed -> rename()
 
-            CreateIntent.VariantsClicked -> changeSettings {
-                copy(variants = if (variants == 1) GenerationSettings.MAX_VARIANTS else 1)
+            CreateIntent.VariantsClicked -> options?.variantCounts?.sorted()?.let { counts ->
+                changeSettings { copy(variants = counts[(counts.indexOf(variants) + 1) % counts.size]) }
             }
 
             CreateIntent.SettingsClicked -> openSettings()
 
-            is CreateIntent.SettingsQualitySelected -> editDraft { copy(quality = intent.quality) }
+            is CreateIntent.SettingsQualitySelected -> if (intent.quality in options?.qualityModes.orEmpty()) {
+                editDraft { copy(quality = intent.quality) }
+            }
 
-            is CreateIntent.SettingsVariantsSelected -> editDraft { copy(variants = intent.variants) }
+            is CreateIntent.SettingsVariantsSelected -> if (intent.variants in options?.variantCounts.orEmpty()) {
+                editDraft { copy(variants = intent.variants) }
+            }
 
             is CreateIntent.SettingsModelSelected -> editDraft { copy(model = intent.model) }
 
@@ -239,11 +274,15 @@ class CreateViewModel(
                 copy(lyricsMode = if (intent.instrumental) LyricsMode.Instrumental else LyricsMode.Auto)
             }
 
-            CreateIntent.SettingsCustomLyricsSelected -> editDraft { copy(lyricsMode = LyricsMode.Custom) }
+            CreateIntent.SettingsCustomLyricsSelected -> if (options?.customLyrics == true) {
+                editDraft { copy(lyricsMode = LyricsMode.Custom) }
+            }
 
             is CreateIntent.SettingsDurationSelected -> editDraft { copy(duration = intent.duration?.toOptionUi()) }
 
-            CreateIntent.SettingsReset -> editDraft { GenerationSettings().toSettingsUi() }
+            CreateIntent.SettingsReset -> editDraft {
+                GenerationSettings().normalized(options).toSettingsUi().withOptions(options)
+            }
 
             CreateIntent.SettingsApplied -> applySettings()
 
@@ -253,18 +292,19 @@ class CreateViewModel(
         }
     }
 
-    private fun showTracks(list: List<Track>) {
+    /** @param synced whether the library came from the server: until then, no tracks means loading. */
+    private fun showTracks(list: List<Track>, synced: Boolean) {
         val ended = endedGenerations(before = myTracks, after = list)
         myTracks = list
         setState {
             copy(
-                tracks = list.map(renames::apply).toGroupedCreateUi(
+                tracks = list.toGroupedCreateUi(
                     today = java.time.Instant.ofEpochMilli(
                         clock.now().toEpochMilliseconds(),
                     ).atZone(ZoneId.systemDefault()).toLocalDate(),
                     zone = ZoneId.systemDefault(),
                 ),
-                isLoading = false,
+                isLoading = list.isEmpty() && !synced,
                 // A track that went away takes its menu with it.
                 menuTrackId = menuTrackId?.takeIf { id -> list.any { it.id == id } },
             )
@@ -274,16 +314,21 @@ class CreateViewModel(
 
     /** Plays the ready tracks from the one tapped; tracks still composing or failed can't play. */
     private fun play(id: TrackId) {
-        val ready = myTracks.filter { it.status == TrackStatus.Ready }.map(renames::apply)
+        val ready = myTracks.filter { it.status == TrackStatus.Ready }
         val index = ready.indexOfFirst { it.id == id }
         if (index >= 0) {
-            playback.play(ready, index)
+            if (playback.state.value.current?.id != id) playback.play(ready, index)
             sendEffect(CreateEffect.OpenPlayer)
         }
     }
 
     private fun retry(id: TrackId) {
+        if (!state.value.composer.canGenerate) {
+            showError(AppError.GenerationNotAllowed)
+            return
+        }
         viewModelScope.launch {
+            if (!state.value.composer.canGenerate) return@launch
             val result = tracks.retry(id)
             if (result is Outcome.Failure) showError(result.error)
         }
@@ -297,7 +342,7 @@ class CreateViewModel(
     private fun onMenuAction(action: TrackMenuAction) {
         val id = state.value.menuTrackId ?: return
         setState { copy(menuTrackId = null) }
-        val track = myTracks.find { it.id == id }?.let(renames::apply) ?: return
+        val track = myTracks.find { it.id == id } ?: return
         when (action) {
             TrackMenuAction.PlayNext -> {
                 if (playback.state.value.current?.id == track.id) return
@@ -323,6 +368,10 @@ class CreateViewModel(
 
     private fun useRecordingReference(track: Track) {
         if (!track.canUseAsReference || composerOwner == null || drafts.currentOwner != composerOwner) return
+        if (options?.audioReferences != true) {
+            showError(AppError.UnsupportedMode)
+            return
+        }
         val selection = ++referenceSelection
         viewModelScope.launch {
             when (val result = tracks.prepareRecordingReference(track.id)) {
@@ -367,7 +416,6 @@ class CreateViewModel(
                 tracks.delete(id).also { outcome ->
                     if (outcome is Outcome.Success) {
                         playback.removeTrack(id)
-                        renames.remove(id)
                     }
                 }
             }
@@ -377,6 +425,10 @@ class CreateViewModel(
 
     private fun send() {
         val composer = state.value.composer
+        if (!composer.canGenerate) {
+            showError(AppError.GenerationNotAllowed)
+            return
+        }
         if (creditsLeft == 0) {
             openQuota()
             return
@@ -385,6 +437,10 @@ class CreateViewModel(
         val submittedSettings = settings
         updateComposer { copy(isSending = true) }
         viewModelScope.launch {
+            if (!state.value.composer.canGenerate) {
+                updateComposer { copy(isSending = false) }
+                return@launch
+            }
             val result = generateTracks(composer.prompt, submittedSettings)
             // Text typed while the request was on its way stays.
             val clear = result is Outcome.Success && state.value.composer.prompt == composer.prompt
@@ -401,7 +457,7 @@ class CreateViewModel(
                     if (clearReference) {
                         drafts.clear()
                         changeSettings {
-                            copy(referenceAudioUri = null, remixTrackId = null, remixTrackIds = emptyList())
+                            copy(referenceAudioUri = null, remixTrackIds = emptyList())
                         }
                     }
                     setState { copy(filter = TracksFilter.Drafts) }
@@ -429,9 +485,7 @@ class CreateViewModel(
             try {
                 when (val result = tracks.rename(draft.id, title)) {
                     is Outcome.Success -> {
-                        renames.rename(draft.id, title)
                         setState { if (sheet === draft) copy(sheet = null) else this }
-                        showTracks(myTracks)
                     }
 
                     is Outcome.Failure -> showError(result.error)
@@ -443,7 +497,7 @@ class CreateViewModel(
     }
 
     private fun openSettings() {
-        setState { copy(sheet = CreateSheet.Settings(settings.toSettingsUi())) }
+        setState { copy(sheet = CreateSheet.Settings(settings.toSettingsUi().withOptions(options))) }
     }
 
     private fun editDraft(edit: SettingsUi.() -> SettingsUi) {
@@ -455,6 +509,7 @@ class CreateViewModel(
 
     private fun applySettings() {
         val draft = (state.value.sheet as? CreateSheet.Settings)?.draft ?: return
+        if (!draft.optionsReady || (draft.lyricsMode == LyricsMode.Custom && !draft.customLyricsSupported)) return
         setState { copy(sheet = null) }
         changeSettings {
             copy(
@@ -479,13 +534,73 @@ class CreateViewModel(
     private fun openComingSoon(feature: ComingSoonFeature) = setState { copy(sheet = CreateSheet.ComingSoon(feature)) }
 
     private fun changeSettings(change: GenerationSettings.() -> GenerationSettings) {
-        settings = settings.change()
+        settings = settings.change().normalized(options)
         updateComposer()
     }
 
     /** Changes the composer with [change], then shows the settings and works out whether it can send. */
     private fun updateComposer(change: ComposerUi.() -> ComposerUi = { this }) {
-        setState { copy(composer = composer.change().withSettings(settings).checked(creditsLeft)) }
+        val current = options
+        val optionsNotice = when {
+            optionsFailed -> R.string.create_options_failed
+
+            current == null -> R.string.create_options_loading
+
+            settings.lyricsMode == LyricsMode.Custom && !current.customLyrics ->
+                R.string.create_options_lyrics_unsupported
+
+            settings.referenceAudioUri != null && !current.audioReferences ->
+                R.string.create_options_reference_unsupported
+
+            settings.remixTrackIds.isNotEmpty() && !current.audioReferences ->
+                R.string.create_options_remix_unsupported
+
+            settings.remixTrackIds.size > current.maxRemixSources -> R.string.create_options_remix_unsupported
+
+            else -> null
+        }
+        setState {
+            copy(
+                composer = composer.change().withSettings(settings).copy(
+                    qualityOptions = Quality.entries.filter { it in current?.qualityModes.orEmpty() }.toImmutableList(),
+                    variantOptions = current?.variantCounts.orEmpty().sorted().toImmutableList(),
+                    customLyricsSupported = current?.customLyrics == true,
+                    audioReferencesSupported = current?.audioReferences == true,
+                    optionsReady = current != null,
+                    optionsNotice = optionsNotice?.let { UiText.Resource(it) },
+                    connecting = current == null && !optionsFailed,
+                ).checked(creditsLeft),
+            )
+        }
+    }
+
+    private fun loadOptions() {
+        if (optionsLoading) return
+        optionsLoading = true
+        optionsFailed = false
+        options = null
+        updateComposer()
+        viewModelScope.launch {
+            try {
+                when (val result = generationOptions.load()) {
+                    is Outcome.Success -> {
+                        options = result.value
+                        settings = settings.normalized(options)
+                    }
+
+                    is Outcome.Failure -> optionsFailed = true
+                }
+                editDraft {
+                    copy(
+                        quality = settingsForOptions(quality, options),
+                        variants = variantsForOptions(variants, options),
+                    ).withOptions(options)
+                }
+                updateComposer()
+            } finally {
+                optionsLoading = false
+            }
+        }
     }
 
     private fun openQuota() = setState { copy(sheet = CreateSheet.Quota(dailyLimit)) }

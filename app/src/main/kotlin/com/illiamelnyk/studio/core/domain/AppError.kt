@@ -15,6 +15,15 @@ sealed interface AppError {
     /** The daily generation limit is used up. */
     data object QuotaExceeded : AppError
 
+    /** Music generation is unavailable at the provider, independently of the user's allowance. */
+    data object ProviderUnavailable : AppError
+
+    /** The signed-in account has not been invited to generate music. */
+    data object GenerationNotAllowed : AppError
+
+    /** The service's shared paid-generation allowance is exhausted for today. */
+    data object ServiceDailyLimit : AppError
+
     /** Too many requests in a short time; trying again a little later works. */
     data object RateLimited : AppError
 

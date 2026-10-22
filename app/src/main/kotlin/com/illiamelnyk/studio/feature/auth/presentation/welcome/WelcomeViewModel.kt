@@ -1,8 +1,10 @@
 package com.illiamelnyk.studio.feature.auth.presentation.welcome
 
 import androidx.lifecycle.viewModelScope
+import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.presentation.MviViewModel
+import com.illiamelnyk.studio.core.presentation.UiText
 import com.illiamelnyk.studio.core.presentation.toUiText
 import com.illiamelnyk.studio.feature.auth.domain.AuthRepository
 import kotlinx.coroutines.CancellationException
@@ -48,7 +50,11 @@ class WelcomeViewModel(private val auth: AuthRepository) :
             is WelcomeIntent.GoogleCredentialFailed -> {
                 if (awaitingCredential == intent.requestId) {
                     awaitingCredential = null
-                    setState { copy(isSigningIn = false, notice = intent.error.toUiText()) }
+                    val message = when (intent.failure) {
+                        GoogleCredentialFailure.NoAccount -> R.string.auth_google_no_account
+                        GoogleCredentialFailure.Unavailable -> R.string.auth_google_unavailable
+                    }
+                    setState { copy(isSigningIn = false, notice = UiText.Resource(message)) }
                 }
             }
         }

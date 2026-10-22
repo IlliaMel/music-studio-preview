@@ -1,8 +1,8 @@
 package com.illiamelnyk.studio.di
 
 import com.illiamelnyk.studio.core.data.local.ApiAuthMode
-import com.illiamelnyk.studio.core.data.local.DurableStudioRepository
 import com.illiamelnyk.studio.core.data.local.StudioApi
+import com.illiamelnyk.studio.core.data.local.StudioAuthentication
 import com.illiamelnyk.studio.feature.auth.data.DevelopmentAuthRepository
 import com.illiamelnyk.studio.feature.auth.data.FirebaseClient
 import com.illiamelnyk.studio.feature.auth.data.FirebaseConfiguration
@@ -21,7 +21,7 @@ val authModule = module {
     single<FirebaseClient> { FirebaseSdkClient(androidContext(), get()) }
     factory { GoogleCredentialRequest(get<FirebaseConfiguration>().webClientId) }
     single<AuthRepository> {
-        val data: DurableStudioRepository = get()
+        val data: StudioAuthentication = get()
         if (get<StudioApi>().configuration.authMode == ApiAuthMode.Development) {
             DevelopmentAuthRepository(data)
         } else {

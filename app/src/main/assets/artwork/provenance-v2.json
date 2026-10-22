@@ -1,0 +1,131 @@
+{
+  "fixtureVersion": "studio-player-artwork-v2",
+  "generationDate": "2026-10-23",
+  "tool": "Built-in image_gen.imagegen",
+  "model": "Not exposed by the tool; no model identifier asserted",
+  "externalSourceImages": [],
+  "derivation": "Identity-preserving generative detail reconstruction of this project's v1 atlas artwork. Fine details are generated, not recovered original pixels. Subjects, compositions and palettes were used as references.",
+  "imageProcessing": "Generated PNG bytes copied unchanged. No offline crop, resize, or reencode. Source rectangles selected at runtime.",
+  "outputs": [
+    {
+      "file": "studio-player-cold-signal-v2.png",
+      "reference": "studio-covers-atlas-v1.png",
+      "promptSummary": "Two edge-to-edge equal square covers, Cold Brew Mornings on left and Signal Fire on right, referenced from v1 row1 columns4/5. Preserve recognizable subjects, composition, viewpoint, lighting and colors while rendering finer detail for the full Android player. No typography, logos, borders or gutters.",
+      "actualDimensions": [
+        1774,
+        887
+      ],
+      "sha256": "ee69ac960048b5acab052538468baeef6d1e93a41783a24eaaa17005ef7f3a99",
+      "bytes": 2289170,
+      "grid": [
+        2,
+        1
+      ]
+    },
+    {
+      "file": "studio-player-copper-lanterns-v2.png",
+      "reference": "studio-covers-atlas-v1.png",
+      "prompt": "Use case: identity-preserve. Edit target: supplied original artwork atlas. Create ONE HIGH-RESOLUTION HORIZONTAL TWO-COVER PLAYER ATLAS, aspect ratio exactly2:1, TWO equally sized square panels side by side, touching edge to edge. LEFT: source row2 column1 Copper Sky, floating warm copper/chrome rings above pink-orange sunset clouds, preserve their perspective and centered silhouettes. RIGHT: source row2 column2 Lanterns on the Vistula, glowing floating amber paper lanterns on a dark cobalt river, blue mountainous river valley and warmly lit village on the shores. Preserve each existing cover's recognizable identity, subject shapes, viewpoint, composition, lighting, atmosphere and color palette; improve fine textures and edge detail for a large Android music player. This is detail restoration/reconstruction of the existing fictional artwork, not a redesign. Render at largest native resolution possible, ideally at least2048x1024 overall. No new subjects, typography, lettering, logos, watermarks, UI, packaging, borders, margins, gaps, gutters or rounded corners. Art fills every edge of each exact square panel. Do not include any other source panels.",
+      "actualDimensions": [
+        1774,
+        887
+      ],
+      "sha256": "2202fbacbe29e454504d0fa17dea0e31c8afdd77f7799ee3e4b52e9010574c67",
+      "bytes": 2749764,
+      "grid": [
+        2,
+        1
+      ]
+    },
+    {
+      "file": "studio-player-bloom-afterglow-v2.png",
+      "reference": "studio-covers-atlas-v1.png",
+      "prompt": "Use case: identity-preserve. Edit target: supplied original artwork atlas. Create ONE HIGH-RESOLUTION HORIZONTAL TWO-COVER PLAYER ATLAS, aspect ratio exactly2:1, TWO equally sized square panels side by side, touching edge to edge. LEFT: source row2 column3 Static Bloom, translucent iridescent glass flower with blue glowing ribbed petals and a luminous orange/pink center on dark background. RIGHT: source row2 column4 Afterglow Avenue, blue futuristic waterfront city with tall glowing amber arches and illuminated architectural reflections. Preserve each existing cover's recognizable identity, subject shapes, viewpoint, composition, lighting, atmosphere and color palette; improve fine textures and edge detail for a large Android music player. This is detail restoration/reconstruction of the existing fictional artwork, not a redesign. Render at largest native resolution possible, ideally at least2048x1024 overall. No new subjects, typography, lettering, logos, watermarks, UI, packaging, borders, margins, gaps, gutters or rounded corners. Art fills every edge of each exact square panel. Do not include any other source panels.",
+      "actualDimensions": [
+        1774,
+        887
+      ],
+      "sha256": "2d056ebd6380b314b74f49f47f72fd23fd2225dc6d348ebf1fab24b218369212",
+      "bytes": 2947645,
+      "grid": [
+        2,
+        1
+      ]
+    },
+    {
+      "file": "studio-player-tide-kinetic-v2.png",
+      "reference": "studio-covers-atlas-v1.png",
+      "prompt": "Use case: identity-preserve. Edit target: supplied original artwork atlas. Create ONE HIGH-RESOLUTION HORIZONTAL TWO-COVER PLAYER ATLAS, aspect ratio exactly2:1, TWO equally sized square panels side by side, touching edge to edge. LEFT: source row2 column5 Slow Tide, close ocean-like flowing dark blue chrome liquid waves with amber sunset highlights and distant warm sun. RIGHT: source row3 column1 Kinetic, intricate chrome and amber gyroscopic rings around a central reflective sphere, subtle blue/orange sound bars beside its base on a dark studio backdrop. Preserve each existing cover's recognizable identity, subject shapes, viewpoint, composition, lighting, atmosphere and color palette; improve fine textures and edge detail for a large Android music player. This is detail restoration/reconstruction of the existing fictional artwork, not a redesign. Render at largest native resolution possible, ideally at least2048x1024 overall. No new subjects, typography, lettering, logos, watermarks, UI, packaging, borders, margins, gaps, gutters or rounded corners. Art fills every edge of each exact square panel. Do not include any other source panels.",
+      "actualDimensions": [
+        1774,
+        887
+      ],
+      "sha256": "f4073cea966eb7aa55997d126376b154a37407e8bb58aaba0925204b21f21563",
+      "bytes": 2282964,
+      "grid": [
+        2,
+        1
+      ]
+    },
+    {
+      "file": "studio-player-orbit-piano-v2.png",
+      "reference": "studio-covers-atlas-v1.png",
+      "prompt": "Use case: identity-preserve. Edit target: supplied original artwork atlas. Create ONE HIGH-RESOLUTION HORIZONTAL TWO-COVER PLAYER ATLAS, aspect ratio exactly2:1, TWO equally sized square panels side by side, touching edge to edge. LEFT: source row3 column2 Low Orbit, dark blue planet with intricate orange/cyan illuminated surface and broad blue/orange orbital rings surrounded by smaller spheres in space. RIGHT: source row4 column4 Night Piano, white and black piano keys sweep diagonally up from lower-left into a vivid blue star field and glowing cosmic spiral, preserve this composition. Preserve each existing cover's recognizable identity, subject shapes, viewpoint, composition, lighting, atmosphere and color palette; improve fine textures and edge detail for a large Android music player. This is detail restoration/reconstruction of the existing fictional artwork, not a redesign. Render at largest native resolution possible, ideally at least2048x1024 overall. No new subjects, typography, lettering, logos, watermarks, UI, packaging, borders, margins, gaps, gutters or rounded corners. Art fills every edge of each exact square panel. Do not include any other source panels.",
+      "actualDimensions": [
+        1774,
+        887
+      ],
+      "sha256": "07c958c4e5f5861c977e4cccfb87f8f9ad6f4bd5c69affc90b48859d1ac16568",
+      "bytes": 3130783,
+      "grid": [
+        2,
+        1
+      ]
+    },
+    {
+      "file": "studio-player-glass-night-v2.png",
+      "reference": "studio-hero-atlas-v1.png",
+      "prompt": "Use case: identity-preserve. Edit target: supplied original artwork atlas. Create ONE HIGH-RESOLUTION HORIZONTAL TWO-COVER PLAYER ATLAS, aspect ratio exactly2:1, TWO equally sized square panels side by side, touching edge to edge. LEFT: source upper-left Glass Harbor, angular transparent glass pavilion lit amber from within on waterfront at blue/pink dusk, reflected in calm harbor water with small sailboats. RIGHT: source upper-right Night Drive, winding mountain coastal road with orange and cyan light trails, blue night harbor, distant mountains and warm shoreline lights. Preserve each existing cover's recognizable identity, subject shapes, viewpoint, composition, lighting, atmosphere and color palette; improve fine textures and edge detail for a large Android music player. This is detail restoration/reconstruction of the existing fictional artwork, not a redesign. Render at largest native resolution possible, ideally at least2048x1024 overall. No new subjects, typography, lettering, logos, watermarks, UI, packaging, borders, margins, gaps, gutters or rounded corners. Art fills every edge of each exact square panel. Do not include any other source panels.",
+      "actualDimensions": [
+        1774,
+        887
+      ],
+      "sha256": "e8aac20092527de0768274a004e9bff9b0617b6e338042ae628196467dfb0abd",
+      "bytes": 2944707,
+      "grid": [
+        2,
+        1
+      ]
+    },
+    {
+      "file": "studio-player-paper-unplugged-v2.png",
+      "reference": "studio-hero-atlas-v1.png",
+      "prompt": "Use case: identity-preserve. Edit target: supplied original artwork atlas. Create ONE HIGH-RESOLUTION HORIZONTAL TWO-COVER PLAYER ATLAS, aspect ratio exactly2:1, TWO equally sized square panels side by side, touching edge to edge. LEFT: source lower-left Paper Moons, large glowing faceted folded-paper crescent moon and smaller crescents suspended by thin glowing strings in a deep blue starry sky over pink-blue sunset clouds. RIGHT: source lower-right Unplugged, front-facing acoustic guitar formed from detailed warm amber light threads, luminous sound ribbons and sparks against a dark blue cloudy backdrop. Preserve each existing cover's recognizable identity, subject shapes, viewpoint, composition, lighting, atmosphere and color palette; improve fine textures and edge detail for a large Android music player. This is detail restoration/reconstruction of the existing fictional artwork, not a redesign. Render at largest native resolution possible, ideally at least2048x1024 overall. No new subjects, typography, lettering, logos, watermarks, UI, packaging, borders, margins, gaps, gutters or rounded corners. Art fills every edge of each exact square panel. Do not include any other source panels.",
+      "actualDimensions": [
+        1774,
+        887
+      ],
+      "sha256": "bb97665d0e78e765970759d58c496123f9ca2c6bf18cc98656fd14b694619b57",
+      "bytes": 2723337,
+      "grid": [
+        2,
+        1
+      ]
+    },
+    {
+      "file": "studio-player-ambient-v2.png",
+      "reference": "studio-covers-atlas-v1.png",
+      "prompt": "Use case: identity-preserve. Edit target: supplied original artwork atlas. Create ONE HIGH-RESOLUTION SQUARE PLAYER COVER. SINGLE square cover only: extract source row4 column5 Ambient Spaces. Preserve the bright blue/cyan/purple cosmic nebula with central glowing orange concentric ripple rings and star field, same framing and composition. Preserve each existing cover's recognizable identity, subject shapes, viewpoint, composition, lighting, atmosphere and color palette; improve fine textures and edge detail for a large Android music player. This is detail restoration/reconstruction of the existing fictional artwork, not a redesign. Render at largest native resolution possible, ideally at least1254x1254. No new subjects, typography, lettering, logos, watermarks, UI, packaging, borders, margins, gaps, gutters or rounded corners. Art fills every edge of each exact square panel. Do not include any other source panels.",
+      "actualDimensions": [
+        1254,
+        1254
+      ],
+      "sha256": "b272e01fa954a3cbce18e7bdf349f97311347e0272f7a31fe38a6984a49daa27",
+      "bytes": 3059680,
+      "grid": [
+        1,
+        1
+      ]
+    }
+  ]
+}

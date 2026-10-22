@@ -12,7 +12,7 @@ import org.koin.dsl.module
 
 /** The Listen tab and its collections. A collection's screen gets the collection id as a parameter. */
 val listenModule = module {
-    single { CachedCatalogRepository(get(), get(), androidContext()) } bind CatalogRepository::class
+    single { CachedCatalogRepository(get(), get(), get(), get(), androidContext()) } bind CatalogRepository::class
     viewModelOf(::ListenViewModel)
     viewModel { (collectionId: String) -> CollectionViewModel(collectionId, get(), get()) }
 }

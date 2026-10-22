@@ -7,7 +7,6 @@ import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
-import com.illiamelnyk.studio.debug.debugSettings
 import com.illiamelnyk.studio.feature.create.domain.Tool
 import com.illiamelnyk.studio.feature.create.presentation.CreateRoute
 import com.illiamelnyk.studio.feature.create.presentation.tool.ToolRoute
@@ -55,16 +54,13 @@ fun signedInEntries(
             contentPadding = contentPadding,
         )
     }
-    // Library is a tab in one shell variant and opens on top of Listen in the other; it reads which
-    // one each time, so it follows a switch of the variant.
-    entry<Destination.Library>(metadata = transitions.tabRootWhile { TopLevelTab.Library in navigator.tabs }) {
-        val libraryIsTab = TopLevelTab.Library in navigator.tabs
-        val contentPadding = if (libraryIsTab) padding.value.tabRoot else padding.value.screen
+    entry<Destination.Library> {
+        val contentPadding = padding.value.screen
         LibraryRoute(
-            onBack = if (libraryIsTab) null else ({ navigator.goBack() }),
+            onBack = { navigator.goBack() },
             onOpenPlayer = onOpenPlayer,
             onExplore = {
-                if (!libraryIsTab) navigator.goBack()
+                navigator.goBack()
                 navigator.select(TopLevelTab.Listen)
             },
             modifier = Modifier.destination(StudioTheme.colors.background, contentPadding),
@@ -106,7 +102,6 @@ fun signedInEntries(
             onClose = navigator::goBack,
             modifier = Modifier.destination(StudioTheme.colors.background, contentPadding),
             contentPadding = contentPadding,
-            debugSettings = debugSettings,
         )
     }
 }

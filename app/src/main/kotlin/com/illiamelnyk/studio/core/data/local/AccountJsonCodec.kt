@@ -53,6 +53,7 @@ internal object AccountJsonCodec {
         },
         credits = Credits(json.optInt("remaining", 25), json.optInt("limit", 25)),
         creditDay = json.optString("day", utcDay()),
+        requiresAuthentication = json.optBoolean("requiresAuthentication"),
     )
 
     fun encode(account: AccountSnapshot): JSONObject = JSONObject().apply {
@@ -72,6 +73,7 @@ internal object AccountJsonCodec {
         put("remaining", account.credits.remaining)
         put("limit", account.credits.dailyLimit)
         put("day", account.creditDay)
+        put("requiresAuthentication", account.requiresAuthentication)
     }
 
     private fun User.toJson(): JSONObject = JSONObject().apply {
@@ -83,6 +85,7 @@ internal object AccountJsonCodec {
         put("ageConfirmed", ageConfirmed)
         put("termsVersion", acceptedTermsVersion)
         put("marketingOptIn", marketingOptIn)
+        put("canGenerate", canGenerate)
     }
 }
 
@@ -104,6 +107,7 @@ internal fun JSONObject.toSession(dataMode: SessionDataMode = SessionDataMode.De
         ageConfirmed = optBoolean("ageConfirmed"),
         acceptedTermsVersion = stringOrNull("termsVersion"),
         marketingOptIn = optBoolean("marketingOptIn"),
+        canGenerate = optBoolean("canGenerate", true),
     ),
     onboarding = Onboarding(emptySet(), optJSONObject("onboarding")?.optString("termsVersion") ?: "2026-10-14"),
 )

@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -57,9 +59,17 @@ fun PlayerQueueContent(
     val minimumPinnedHeight =
         (size.touchTarget * 3 + size.component.trackRow + spacing * 3) * LocalDensity.current.fontScale
     BoxWithConstraints(modifier.fillMaxSize()) {
-        if (maxHeight < minimumPinnedHeight) {
+        val compact = maxHeight < minimumPinnedHeight
+        val queueScrollState = rememberLazyListState()
+        // Stable row keys otherwise anchor the old visible row, hiding a newly inserted head above it.
+        // Metadata updates and tail appends should still leave a user browsing the queue in place.
+        LaunchedEffect(track.id, shuffle, upNext.firstOrNull()?.id, compact) {
+            queueScrollState.scrollToItem(0)
+        }
+        if (compact) {
             LazyColumn(
                 Modifier.fillMaxSize().testTag("playerQueue"),
+                state = queueScrollState,
                 verticalArrangement = Arrangement.spacedBy(spacing),
             ) {
                 item("nowPlaying") { QueueNowPlaying(track, onClose, onLyrics) }
@@ -72,7 +82,10 @@ fun PlayerQueueContent(
                 QueueNowPlaying(track, onClose, onLyrics)
                 QueueModes(shuffle, repeat, autoplay, onShuffle, onRepeat, onAutoplay)
                 if (upNext.isNotEmpty()) QueueHeading(true, onClear)
-                LazyColumn(Modifier.fillMaxWidth().weight(1f).testTag("playerQueue")) {
+                LazyColumn(
+                    Modifier.fillMaxWidth().weight(1f).testTag("playerQueue"),
+                    state = queueScrollState,
+                ) {
                     queueTracks(upNext, onTrackClick, onMove, repeat, autoplay)
                 }
             }

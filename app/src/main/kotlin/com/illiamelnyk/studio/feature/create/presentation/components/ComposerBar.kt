@@ -2,12 +2,6 @@ package com.illiamelnyk.studio.feature.create.presentation.components
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandHorizontally
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -17,8 +11,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Brush
@@ -36,6 +34,7 @@ import com.illiamelnyk.studio.core.ui.components.StudioIconButton
 import com.illiamelnyk.studio.core.ui.components.StudioIconButtonSize
 import com.illiamelnyk.studio.core.ui.components.StudioIconButtonStyle
 import com.illiamelnyk.studio.core.ui.components.StudioSegmentedControl
+import com.illiamelnyk.studio.core.ui.components.StudioSpinner
 import com.illiamelnyk.studio.core.ui.components.StudioTextArea
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.icons.StudioIcons
@@ -71,28 +70,42 @@ fun ComposerBar(
     val dimens = StudioTheme.dimens
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
-    val expanded = focused || composer.prompt.isNotEmpty() || composer.lyricsMode == LyricsMode.Custom ||
-        composer.referenceLabel != null || composer.remixSources.isNotEmpty()
+    var attachmentOpened by remember { mutableStateOf(false) }
+    LaunchedEffect(focused) { if (focused) attachmentOpened = false }
+    val expanded =
+        attachmentOpened || focused || composer.prompt.isNotEmpty() || composer.lyricsMode == LyricsMode.Custom ||
+            composer.referenceLabel != null || composer.remixSources.isNotEmpty()
     Column(
         modifier = modifier
             .fillMaxWidth()
             .fadeBehind(StudioTheme.colors.background, dimens.spacing.m)
-            .padding(start = dimens.layout.screenPadding, end = dimens.layout.screenPadding, top = dimens.spacing.m)
+            .padding(top = dimens.spacing.m)
             .padding(bottom = dimens.spacing.xs),
         verticalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
     ) {
         composer.notice?.let { notice ->
-            StudioText(
-                text = notice.asString(),
-                style = StudioTheme.typography.bodySmall,
-                modifier = Modifier.clickable(onClick = onNoticeClick).padding(horizontal = dimens.spacing.xs),
-                color = StudioTheme.colors.content.secondary,
-            )
+            Row(
+                modifier = Modifier
+                    .then(if (composer.canGenerate) Modifier.clickable(onClick = onNoticeClick) else Modifier)
+                    .padding(horizontal = dimens.layout.screenPadding + dimens.spacing.xs),
+                horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (composer.connecting && notice == composer.optionsNotice) {
+                    StudioSpinner(color = StudioTheme.colors.content.secondary)
+                }
+                StudioText(
+                    text = notice.asString(),
+                    style = StudioTheme.typography.bodySmall,
+                    color = StudioTheme.colors.content.secondary,
+                )
+            }
         }
         if (composer.prompt.length >= Prompt.MAX_LENGTH - 100) {
             StudioText(
                 stringResource(R.string.ui_character_count, composer.prompt.length, Prompt.MAX_LENGTH),
                 StudioTheme.typography.bodySmall,
+                modifier = Modifier.padding(horizontal = dimens.layout.screenPadding),
                 color = if (composer.prompt.length >
                     Prompt.MAX_LENGTH
                 ) {
@@ -102,17 +115,20 @@ fun ComposerBar(
                 },
             )
         }
+        // The full-width options and inset editor share Composer's single size animation.
+        // Separate visibility/width animations make the controls trail behind the text field.
         Composer(
             value = composer.prompt,
             onValueChange = onPromptChange,
             onSend = onSendClick,
             expanded = expanded,
             placeholder = stringResource(R.string.create_composer_placeholder),
-            sendEnabled = composer.canSend,
-            showSend = expanded,
+            editorModifier = Modifier.padding(horizontal = dimens.layout.screenPadding),
+            options = options,
+            sendEnabled = composer.canGenerate && composer.canSend,
+            showSend = expanded && composer.canGenerate,
             characterLimit = null,
             interactionSource = interactionSource,
-            options = options,
             additionalEditor = if (composer.lyricsMode == LyricsMode.Custom) {
                 {
                     StudioTextArea(
@@ -130,8 +146,12 @@ fun ComposerBar(
                 ComposerAction(
                     StudioIcons.Add,
                     R.string.create_composer_upload,
-                    onAttachClick,
+                    {
+                        attachmentOpened = true
+                        onAttachClick()
+                    },
                     StudioIconButtonStyle.Surface,
+                    enabled = composer.optionsReady && composer.audioReferencesSupported,
                 )
                 if (expanded) {
                     StudioSegmentedControl(
@@ -144,11 +164,7 @@ fun ComposerBar(
                 }
             },
             trailingActions = {
-                AnimatedVisibility(
-                    visible = expanded,
-                    enter = fadeIn(tween(StudioTheme.motion.duration.medium)) + expandHorizontally(),
-                    exit = fadeOut(tween(StudioTheme.motion.duration.short)) + shrinkHorizontally(),
-                ) {
+                if (expanded) {
                     Row(horizontalArrangement = Arrangement.Start) {
                         ComposerAction(
                             StudioIcons.AutoAwesome,
@@ -179,6 +195,7 @@ private fun ComposerAction(
     onClick: () -> Unit,
     style: StudioIconButtonStyle = StudioIconButtonStyle.Muted,
     comingSoon: Boolean = false,
+    enabled: Boolean = true,
 ) {
     StudioIconButton(
         icon = icon,
@@ -186,7 +203,8 @@ private fun ComposerAction(
         onClick = onClick,
         style = style,
         comingSoon = comingSoon,
-        size = if (style == StudioIconButtonStyle.Surface) StudioIconButtonSize.Medium else StudioIconButtonSize.Small,
+        enabled = enabled,
+        size = StudioIconButtonSize.Small,
     )
 }
 

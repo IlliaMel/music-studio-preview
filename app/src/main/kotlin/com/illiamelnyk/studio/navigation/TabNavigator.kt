@@ -20,17 +20,15 @@ import androidx.navigation3.runtime.rememberNavBackStack
  * another tab goes to [TopLevelTab.Start], and back on the start tab's first screen leaves.
  * Switching tabs keeps each tab's stack as it was.
  *
- * There is a stack for every [TopLevelTab], whichever of them the shell shows as [tabs]; see
- * [useTabs] for what happens to the screens when that changes.
+ * Create and Listen are the selectable tabs. The legacy Library stack is kept only to restore
+ * saved navigation from older app versions; it is folded into Listen before screens are shown.
  *
- * @param backStacks a stack for every tab, each starting with the tab's root.
- * @param tabs the tabs of the current [ShellVariant]; the start tab comes first.
+ * @param backStacks a saved stack for every enum value, including the legacy Library slot.
  */
 @Stable
 class TabNavigator(
     private val backStacks: Map<TopLevelTab, MutableList<NavKey>>,
     selectedTab: MutableState<TopLevelTab>,
-    tabs: List<TopLevelTab>,
 ) {
     init {
         require(backStacks.keys == TopLevelTab.entries.toSet()) { "Every tab needs a back stack" }
@@ -42,13 +40,8 @@ class TabNavigator(
     var selectedTab: TopLevelTab by selectedTab
         private set
 
-    /** The tabs the shell shows. */
-    var tabs: List<TopLevelTab> by mutableStateOf(emptyList())
-        private set
-
     init {
-        // Restored state may come from another variant, so it is fitted to these tabs right away.
-        useTabs(tabs)
+        restoreLegacyLibraryStack()
     }
 
     /** The tabs whose screens are shown, bottom to top: the start tab, then the selected one. */
@@ -61,25 +54,9 @@ class TabNavigator(
     /** Whether the selected tab shows its first screen, which the shell's bars belong to. */
     val isAtTabRoot: Boolean get() = backStacks.getValue(selectedTab).size == 1
 
-    /**
-     * Changes the tabs the shell shows, when the shell variant changes, keeping the screens:
-     * - Library loses its tab: its screens go on top of Listen, and if Library was shown, Listen is.
-     * - Library gets its tab: Library and the screens above it move from Listen to that tab, and if
-     *   Listen was shown, Library is.
-     *
-     * Either way no screen ends up in two stacks that are shown together.
-     */
-    fun useTabs(tabs: List<TopLevelTab>) {
-        require(tabs.firstOrNull() == TopLevelTab.Start) { "The start tab must come first: $tabs" }
-        if (tabs == this.tabs) return
-        if (TopLevelTab.Library in tabs) liftLibraryOffListen() else putLibraryOnListen()
-        this.tabs = tabs
-        if (selectedTab !in tabs) selectedTab = TopLevelTab.Start
-    }
-
     /** Shows [tab] as it was left. Selecting the tab that is already shown goes back to its root. */
     fun select(tab: TopLevelTab) {
-        require(tab in tabs) { "$tab is not a tab of $tabs" }
+        require(tab in TopLevelTab.primaryTabs) { "$tab is not a selectable tab" }
         if (tab == selectedTab) {
             backStacks.getValue(tab).popToRoot()
         } else {
@@ -97,7 +74,7 @@ class TabNavigator(
      * selected tab. A destination is in one stack at a time, so opening it from another tab moves it.
      */
     fun navigate(destination: NavKey) {
-        val tab = tabs.firstOrNull { it.root == destination }
+        val tab = TopLevelTab.primaryTabs.firstOrNull { it.root == destination }
         if (tab != null) {
             selectedTab = tab
             return
@@ -123,7 +100,7 @@ class TabNavigator(
     /** The back stack of [tab], to turn into screens. */
     fun backStack(tab: TopLevelTab): List<NavKey> = backStacks.getValue(tab)
 
-    private fun putLibraryOnListen() {
+    private fun restoreLegacyLibraryStack() {
         val library = backStacks.getValue(TopLevelTab.Library)
         val listen = backStacks.getValue(TopLevelTab.Listen)
         val wasShown = selectedTab == TopLevelTab.Library
@@ -132,18 +109,6 @@ class TabNavigator(
         listen.addAll(library)
         library.popToRoot()
         if (wasShown) selectedTab = TopLevelTab.Listen
-    }
-
-    private fun liftLibraryOffListen() {
-        val listen = backStacks.getValue(TopLevelTab.Listen)
-        val start = listen.indexOf(TopLevelTab.Library.root)
-        if (start <= 0) return
-        val moved = listen.subList(start, listen.size).toList()
-        listen.popTo(size = start)
-        val library = backStacks.getValue(TopLevelTab.Library)
-        library.clear()
-        library.addAll(moved)
-        if (selectedTab == TopLevelTab.Listen) selectedTab = TopLevelTab.Library
     }
 
     private fun MutableList<NavKey>.popToRoot() = popTo(size = 1)
@@ -160,15 +125,12 @@ class TabNavigator(
 
 /**
  * A [TabNavigator] whose stacks and selection survive configuration changes and process death.
- * When [tabs] change, the same navigator moves its screens to fit them; see [TabNavigator.useTabs].
+ * The unused legacy Library saveable slot remains registered for backwards-compatible restoration.
  */
 @Composable
-fun rememberTabNavigator(tabs: List<TopLevelTab>): TabNavigator {
+fun rememberTabNavigator(): TabNavigator {
     val selectedTab = rememberSaveable { mutableStateOf(TopLevelTab.Start) }
     // Each tab's stack is a separate saveable, keyed by tab so each one is restored under its own key.
     val backStacks = TopLevelTab.entries.associateWith { tab -> key(tab) { rememberNavBackStack(tab.root) } }
-    val navigator = remember { TabNavigator(backStacks, selectedTab, tabs) }
-    // Before anything below reads the stacks, so no frame shows them in the old arrangement.
-    navigator.useTabs(tabs)
-    return navigator
+    return remember { TabNavigator(backStacks, selectedTab) }
 }

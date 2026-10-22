@@ -9,6 +9,15 @@ import org.junit.Test
 class ComposerRulesTest {
 
     @Test
+    fun `invitation takes precedence over credits and prompt validity`() {
+        listOf(null, 0, 8).forEach { credits ->
+            val composer = ComposerUi(prompt = "Warm piano with strings", canGenerate = false).checked(credits)
+            assertEquals(false, composer.canSend)
+            assertEquals(UiText.Resource(R.string.error_generation_not_allowed), composer.notice)
+        }
+    }
+
+    @Test
     fun `a prompt can be sent when a credit is left`() {
         val composer = ComposerUi(prompt = "Lo-fi beat").checked(creditsLeft = 1)
 

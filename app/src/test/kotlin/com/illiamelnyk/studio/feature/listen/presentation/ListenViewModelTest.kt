@@ -1,7 +1,7 @@
 package com.illiamelnyk.studio.feature.listen.presentation
 
 import app.cash.turbine.test
-import com.illiamelnyk.studio.core.data.fake.FakeCatalog
+import com.illiamelnyk.studio.core.data.demo.DemoCatalog
 import com.illiamelnyk.studio.core.data.fake.FakePlaybackController
 import com.illiamelnyk.studio.core.domain.CoverSeed
 import com.illiamelnyk.studio.feature.listen.domain.CatalogCollection
@@ -85,9 +85,28 @@ class ListenViewModelTest {
             assertEquals(ListenEffect.OpenPlayer, awaitItem())
             assertEquals("Stations", playback.state.value.stationName)
             assertTrue(playback.state.value.shuffle)
-            assertEquals(FakeCatalog.tracks.take(2), playback.state.value.queue)
+            assertEquals(DemoCatalog.tracks.take(2), playback.state.value.queue)
             vm.onIntent(ListenIntent.CollectionClicked("new"))
             assertEquals(ListenEffect.OpenCollection("new"), awaitItem())
+        }
+    }
+
+    @Test fun refreshingOrRemovedStationCannotStartPlaybackFromAStaleClick() = runTest(main.testDispatcher) {
+        val catalog = SectionCatalog()
+        val playback = FakePlaybackController(backgroundScope)
+        val vm = ListenViewModel(catalog, playback)
+        runCurrent()
+        catalog.hidden = CatalogSectionKind.Stations
+        vm.effects.test {
+            vm.onIntent(ListenIntent.RetrySection(CatalogSectionKind.Stations))
+            vm.onIntent(ListenIntent.CollectionClicked("stations"))
+            expectNoEvents()
+            assertTrue(playback.state.value.queue.isEmpty())
+            runCurrent()
+            assertTrue(vm.state.value.sections.first().collections.isEmpty())
+            vm.onIntent(ListenIntent.CollectionClicked("stations"))
+            expectNoEvents()
+            assertTrue(playback.state.value.queue.isEmpty())
         }
     }
 }
@@ -96,6 +115,8 @@ private class SectionCatalog : CatalogRepository {
     var stalled: CatalogSectionKind? = null
     var failed = false
     var delayMillis = 0L
+    var hidden: CatalogSectionKind? = null
+    override suspend fun refresh() = Unit
     override fun observeCollections(): Flow<List<CatalogCollection>> = flowOf(emptyList())
     override fun observeCollection(id: String): Flow<CatalogCollection?> = flowOf(null)
     override fun observeSection(kind: CatalogSectionKind): Flow<CatalogSection> = flow {
@@ -105,15 +126,19 @@ private class SectionCatalog : CatalogRepository {
         emit(
             CatalogSection(
                 kind,
-                listOf(
-                    CatalogCollection(
-                        kind.name.lowercase(),
-                        kind.name,
-                        CoverSeed(kind.name),
-                        FakeCatalog.tracks.take(2),
-                        kind == CatalogSectionKind.Stations,
-                    ),
-                ),
+                if (kind == hidden) {
+                    emptyList()
+                } else {
+                    listOf(
+                        CatalogCollection(
+                            kind.name.lowercase(),
+                            kind.name,
+                            CoverSeed(kind.name),
+                            DemoCatalog.tracks.take(2),
+                            kind == CatalogSectionKind.Stations,
+                        ),
+                    )
+                },
             ),
         )
     }

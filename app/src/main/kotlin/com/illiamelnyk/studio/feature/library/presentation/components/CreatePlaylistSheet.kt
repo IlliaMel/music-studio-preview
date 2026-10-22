@@ -6,7 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.illiamelnyk.studio.R
-import com.illiamelnyk.studio.core.ui.components.StudioBottomSheet
+import com.illiamelnyk.studio.core.ui.components.OverlaySheet
 import com.illiamelnyk.studio.core.ui.components.StudioButton
 import com.illiamelnyk.studio.core.ui.components.StudioTextField
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
@@ -24,7 +24,7 @@ fun CreatePlaylistSheet(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    StudioBottomSheet(visible, onDismissRequest = onDismiss, modifier = modifier) {
+    OverlaySheet(visible, onDismissRequest = onDismiss, modifier = modifier) {
         Column(Modifier.imePadding()) {
             StudioText(stringResource(R.string.library_create_playlist), StudioTheme.typography.titleMedium)
             StudioTextField(

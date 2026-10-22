@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 class ListenViewModel(private val catalog: CatalogRepository, private val playback: PlaybackController) :
     MviViewModel<ListenState, ListenIntent, ListenEffect>(ListenState()) {
     private val jobs = mutableMapOf<CatalogSectionKind, Job>()
-    private val collections = mutableMapOf<String, CatalogCollection>()
+    private val collections = mutableMapOf<CatalogSectionKind, List<CatalogCollection>>()
 
     init {
         CatalogSectionKind.entries.forEach { load(it) }
@@ -30,17 +30,19 @@ class ListenViewModel(private val catalog: CatalogRepository, private val playba
 
     private fun load(kind: CatalogSectionKind, forceRefresh: Boolean = false) {
         jobs.remove(kind)?.cancel()
+        collections.remove(kind)
         updateSection(CatalogSectionUi(kind))
         jobs[kind] = viewModelScope.launch {
             val watchdog = launch {
                 delay(8_000)
+                collections.remove(kind)
                 updateSection(CatalogSectionUi(kind, isLoading = false, failed = true))
             }
             try {
                 if (forceRefresh) catalog.refresh()
                 catalog.observeSection(kind).collect { section ->
                     watchdog.cancel()
-                    section.collections.forEach { collections[it.id] = it }
+                    collections[kind] = section.collections
                     updateSection(
                         CatalogSectionUi(
                             kind,
@@ -52,6 +54,7 @@ class ListenViewModel(private val catalog: CatalogRepository, private val playba
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
+                collections.remove(kind)
                 updateSection(CatalogSectionUi(kind, isLoading = false, failed = true))
             } finally {
                 watchdog.cancel()
@@ -64,7 +67,7 @@ class ListenViewModel(private val catalog: CatalogRepository, private val playba
     }
 
     private fun open(id: String) {
-        val collection = collections[id] ?: return
+        val collection = collections.values.asSequence().flatten().firstOrNull { it.id == id } ?: return
         if (collection.isStation && collection.tracks.isNotEmpty()) {
             playback.setShuffle(true)
             playback.playStation(collection.title, collection.tracks)

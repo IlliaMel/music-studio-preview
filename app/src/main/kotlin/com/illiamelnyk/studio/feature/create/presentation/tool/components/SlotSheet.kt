@@ -11,10 +11,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
+import com.illiamelnyk.studio.core.ui.components.OverlaySheet
 import com.illiamelnyk.studio.core.ui.components.StudioFilterChip
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
-import com.illiamelnyk.studio.feature.create.presentation.common.OverlaySheet
 import com.illiamelnyk.studio.feature.create.presentation.common.rememberLatest
 import com.illiamelnyk.studio.feature.create.presentation.tool.SlotSheetUi
 import kotlinx.collections.immutable.persistentListOf

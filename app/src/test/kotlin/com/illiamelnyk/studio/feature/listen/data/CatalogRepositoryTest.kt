@@ -2,13 +2,15 @@ package com.illiamelnyk.studio.feature.listen.data
 
 import android.content.Context
 import app.cash.turbine.test
-import com.illiamelnyk.studio.core.data.fake.PUBLIC_CATALOG_FIXTURE
+import com.illiamelnyk.studio.core.data.demo.DEMO_PUBLIC_CATALOG_DOCUMENT
 import com.illiamelnyk.studio.core.data.local.ApiAuthMode
 import com.illiamelnyk.studio.core.data.local.ApiConfiguration
 import com.illiamelnyk.studio.core.data.local.ApiFailure
 import com.illiamelnyk.studio.core.data.local.DurableStudioRepository
+import com.illiamelnyk.studio.core.data.local.JsonFixtureStudioApi
 import com.illiamelnyk.studio.core.data.local.StudioApi
 import com.illiamelnyk.studio.core.data.local.StudioStore
+import com.illiamelnyk.studio.core.data.local.read
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.feature.listen.domain.CatalogSectionKind
@@ -36,6 +38,7 @@ class CatalogRepositoryTest {
     @Before
     fun clean() {
         context = RuntimeEnvironment.getApplication()
+        com.illiamelnyk.studio.core.data.local.StudioStore.clearForTests(context)
         context.filesDir.listFiles()?.filter {
             it.name.startsWith("studio-state-v1.json") || it.name.startsWith("public-catalog-v1-")
         }?.forEach { it.delete() }
@@ -44,8 +47,8 @@ class CatalogRepositoryTest {
     @Test
     fun packagedFixtureMatchesCanonicalFallbackAndHasTwentyDistinctRankedSongs() {
         val asset = context.assets.open("catalog/catalog-v1.json").bufferedReader().use { it.readText() }
-        assertEquals(asset.trim(), PUBLIC_CATALOG_FIXTURE.trim())
-        val snapshot = CatalogDocument.parse(JSONObject(asset))
+        assertEquals(asset.trim(), DEMO_PUBLIC_CATALOG_DOCUMENT.trim())
+        val snapshot = CatalogDocument.parse(CatalogDocument.decode(asset))
         val chart = snapshot.collection("top-0")!!
         assertEquals(20, chart.tracks.size)
         assertEquals(20, chart.tracks.map { it.id }.toSet().size)
@@ -62,7 +65,7 @@ class CatalogRepositoryTest {
         val api = MemoryCatalogApi(context)
         val data = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
         data.signInServer()
-        val catalog = CachedCatalogRepository(data, api, context)
+        val catalog = CachedCatalogRepository(data, data, data.catalog, api, context)
         CatalogSectionKind.entries.map { kind -> async { catalog.observeSection(kind).first() } }.awaitAll()
         assertEquals(1, api.catalogReads)
         val initial = catalog.observeCollection("top-0").first()!!
@@ -93,12 +96,12 @@ class CatalogRepositoryTest {
         val api = MemoryCatalogApi(context)
         val data = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
         data.signInServer()
-        val catalog = CachedCatalogRepository(data, api, context)
+        val catalog = CachedCatalogRepository(data, data, data.catalog, api, context)
         val glass = catalog.observeCollections().first().flatMap { it.tracks }.first { it.id.value == "glass-harbor" }
         assertTrue(data.setLiked(glass.id, true) is Outcome.Success)
         assertTrue(data.observeLiked().first().single().isLiked)
         api.failure = AppError.Network
-        val restarted = CachedCatalogRepository(data, api, context)
+        val restarted = CachedCatalogRepository(data, data, data.catalog, api, context)
         val cached = restarted.observeCollections().first()
         assertTrue(cached.flatMap { it.tracks }.filter { it.id == glass.id }.all { it.isLiked })
         val cacheText = context.filesDir.listFiles()!!.first { it.name.startsWith("public-catalog-v1-") }.readText()
@@ -115,7 +118,7 @@ class CatalogRepositoryTest {
         val api = MemoryCatalogApi(context)
         val data = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
         data.signInServer()
-        val catalog = CachedCatalogRepository(data, api, context)
+        val catalog = CachedCatalogRepository(data, data, data.catalog, api, context)
         val glass = catalog.observeCollections().first().flatMap { it.tracks }.first { it.id.value == "glass-harbor" }
         data.setLiked(glass.id, true)
         api.document.getJSONArray("tracks").getJSONObject(0).put("title", "Updated public name")
@@ -142,7 +145,11 @@ class CatalogRepositoryTest {
         corruptions.forEach { corrupt ->
             val document = serverDocument()
             corrupt(document)
-            assertTrue(runCatching { CatalogDocument.parse(document, ORIGIN) }.isFailure)
+            assertTrue(
+                runCatching {
+                    CatalogDocument.parse(CatalogDocument.decode(document.toString()), ORIGIN)
+                }.isFailure,
+            )
         }
     }
 
@@ -152,7 +159,7 @@ class CatalogRepositoryTest {
         val data = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
         data.signInServer()
         var now = 0L
-        val catalog = CachedCatalogRepository(data, api, context, nowMillis = { now })
+        val catalog = CachedCatalogRepository(data, data, data.catalog, api, context, nowMillis = { now })
         val initial = catalog.observeCollection("top-0").first()!!
         now = 60_001L
         val gate = CompletableDeferred<Unit>()
@@ -171,12 +178,12 @@ class CatalogRepositoryTest {
     @Test
     fun cacheIsScopedToApiOriginAndMalformedRefreshCannotReplaceGoodMetadata() {
         val cache = CatalogPublicCache(context, ORIGIN)
-        cache.write(serverDocument())
-        assertEquals("2026-10-16.fixture.1", cache.read()!!.getString("catalogVersion"))
+        cache.write(CatalogDocument.decode(serverDocument().toString()))
+        assertEquals("2026-10-23.fixture.2", cache.read()!!.catalogVersion)
         assertEquals(null, CatalogPublicCache(context, "https://different.test").read())
         val malformed = serverDocument().put("catalogVersion", "bad").put("likes", JSONArray(listOf("private")))
-        assertTrue(runCatching { cache.write(malformed) }.isFailure)
-        assertEquals("2026-10-16.fixture.1", cache.read()!!.getString("catalogVersion"))
+        assertTrue(runCatching { cache.write(CatalogDocument.decode(malformed.toString())) }.isFailure)
+        assertEquals("2026-10-23.fixture.2", cache.read()!!.catalogVersion)
     }
 
     @Test
@@ -185,7 +192,7 @@ class CatalogRepositoryTest {
         val data = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
         data.signInFirebase("firebase-user")
         api.failure = AppError.Network
-        val catalog = CachedCatalogRepository(data, api, context)
+        val catalog = CachedCatalogRepository(data, data, data.catalog, api, context)
         val error = try {
             catalog.observeCollections().first()
             null
@@ -197,12 +204,12 @@ class CatalogRepositoryTest {
 
     @Test
     fun releaseAlsoFailsClosedWhenOnlyAnOlderPublicCacheIsAvailable() = runTest {
-        CatalogPublicCache(context, ORIGIN).write(serverDocument())
+        CatalogPublicCache(context, ORIGIN).write(CatalogDocument.decode(serverDocument().toString()))
         val api = MemoryCatalogApi(context, ApiConfiguration(ORIGIN, ApiAuthMode.Firebase, false))
         val data = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
         data.signInFirebase("firebase-user")
         api.failure = AppError.Network
-        val catalog = CachedCatalogRepository(data, api, context)
+        val catalog = CachedCatalogRepository(data, data, data.catalog, api, context)
         val error = try {
             catalog.observeCollections().first()
             null
@@ -217,7 +224,7 @@ class CatalogRepositoryTest {
         val api = MemoryCatalogApi(context)
         val data = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
         data.signInServer()
-        val catalog = CachedCatalogRepository(data, api, context)
+        val catalog = CachedCatalogRepository(data, data, data.catalog, api, context)
         catalog.observeCollection("featured-0").test {
             val before = awaitItem()!!
             val track = before.tracks.first()
@@ -240,7 +247,7 @@ class CatalogRepositoryTest {
         val api = MemoryCatalogApi(context)
         val data = DurableStudioRepository(context, StudioStore(context), api, backgroundScope)
         data.signInServer()
-        val catalog = CachedCatalogRepository(data, api, context)
+        val catalog = CachedCatalogRepository(data, data, data.catalog, api, context)
         val track = catalog.observeCollection("top-0").first()!!.tracks.first()
         data.setLiked(track.id, true)
         val priorOwnerTrack = data.observeLiked().first().single()
@@ -255,13 +262,13 @@ class CatalogRepositoryTest {
     private class MemoryCatalogApi(
         context: Context,
         config: ApiConfiguration = ApiConfiguration(ORIGIN, ApiAuthMode.Development, true),
-    ) : StudioApi(context, config) {
+    ) : JsonFixtureStudioApi(context, config) {
         var document = serverDocument()
         var failure: AppError? = null
         var catalogReads = 0
         var catalogGate: CompletableDeferred<Unit>? = null
         private val likes = mutableSetOf<String>()
-        override suspend fun request(
+        override suspend fun requestFixture(
             method: String,
             path: String,
             token: String,
@@ -289,7 +296,7 @@ class CatalogRepositoryTest {
 
     companion object {
         private const val ORIGIN = "https://api.studio.test"
-        private fun serverDocument(): JSONObject = JSONObject(PUBLIC_CATALOG_FIXTURE).also { doc ->
+        private fun serverDocument(): JSONObject = JSONObject(DEMO_PUBLIC_CATALOG_DOCUMENT).also { doc ->
             doc.getJSONArray("tracks").objects().forEach {
                 it.put("audioUrl", ORIGIN + "/v1/catalog/tracks/" + it.getString("id") + "/audio")
             }

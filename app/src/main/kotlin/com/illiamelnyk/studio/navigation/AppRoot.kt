@@ -8,8 +8,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import androidx.lifecycle.viewmodel.compose.rememberViewModelStoreOwner
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
 /**
@@ -46,7 +49,6 @@ fun AppRoot(state: AppState, modifier: Modifier = Modifier) {
 
             RootContent.Tabs -> OwnerScopedTabs(state.ownerId) {
                 TabsShell(
-                    variant = state.shellVariant,
                     avatarSeed = state.avatarSeed,
                     creditsLeft = state.creditsLeft,
                     hasPlayback = state.hasPlayback,
@@ -58,7 +60,13 @@ fun AppRoot(state: AppState, modifier: Modifier = Modifier) {
 
 @Composable
 internal fun OwnerScopedTabs(ownerId: String?, content: @Composable () -> Unit) {
-    key(ownerId) { content() }
+    key(ownerId) {
+        // Unlike a composition key alone, this also isolates non-navigation ViewModels (the
+        // full/mini player and their sheets). Lifecycle retains the store through rotation and
+        // clears it when this owner's shell permanently leaves the composition.
+        val owner = rememberViewModelStoreOwner()
+        CompositionLocalProvider(LocalViewModelStoreOwner provides owner) { content() }
+    }
 }
 
 private sealed interface RootContent {

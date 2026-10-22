@@ -98,7 +98,16 @@ fun SeekBar(
                         drawCircle(
                             color = colors.overlay.onMediaPrimary,
                             radius = dimens.size.component.seekThumb.toPx() / 2,
-                            center = Offset(thumbX, size.height / 2),
+                            center = Offset(
+                                thumbX.coerceIn(
+                                    dimens.size.component.seekThumb.toPx() / 2,
+                                    maxOf(
+                                        dimens.size.component.seekThumb.toPx() / 2,
+                                        size.width - dimens.size.component.seekThumb.toPx() / 2,
+                                    ),
+                                ),
+                                size.height / 2,
+                            ),
                         )
                     }
                 },

@@ -114,8 +114,10 @@ class GenerateTracksTest {
         assertEquals(true, result is Outcome.Success)
         assertEquals("A new day\nA new song", captured?.customLyrics)
         assertEquals("file:///reference.m4a", captured?.referenceAudioUri)
-        assertEquals(emptyList<String>(), captured?.remixSourceIds)
+        assertEquals(emptyList<String>(), captured?.remixTrackIds)
         assertEquals(false, captured?.instrumental)
+        // Keep the original wire request for safe replay of pre-upgrade pending attempts.
+        assertEquals(null, captured?.duration)
         assertEquals(7, credits.credits.first().remaining)
     }
 
@@ -143,7 +145,7 @@ class GenerateTracksTest {
         )
         assertEquals(true, result is Outcome.Success)
         assertEquals(sources, captured?.remixTrackIds)
-        assertEquals("source-second", captured?.remixTrackId)
+        assertEquals("source-second", captured?.remixTrackIds?.firstOrNull())
         assertEquals(null, captured?.referenceAudioUri)
         assertEquals("A new day\nA new song", captured?.customLyrics)
         assertEquals(7, credits.credits.first().remaining)

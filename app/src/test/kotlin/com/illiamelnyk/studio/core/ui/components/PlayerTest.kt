@@ -4,9 +4,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -115,31 +113,6 @@ class PlayerTest {
     }
 
     @Test
-    fun `mini player progress ticks without recomposing its caller`() {
-        var progress by mutableFloatStateOf(0f)
-        var compositions = 0
-        setThemedContent {
-            SideEffect { compositions++ }
-            MiniPlayer(
-                title = "Night Drive",
-                subtitle = "Studio",
-                coverSeed = "Night Drive",
-                isPlaying = true,
-                progress = { progress },
-                onClick = {},
-                onPlayPause = {},
-            )
-        }
-
-        repeat(TICKS) { tick ->
-            progress = tick / TICKS.toFloat()
-            composeRule.waitForIdle()
-        }
-
-        assertEquals(1, compositions)
-    }
-
-    @Test
     fun `next stays disabled at the end and becomes actionable when another track arrives`() {
         var enabled by androidx.compose.runtime.mutableStateOf(false)
         var skips = 0
@@ -172,7 +145,6 @@ class PlayerTest {
                 subtitle = "Studio",
                 coverSeed = "last",
                 isPlaying = true,
-                progress = { 0f },
                 onClick = {},
                 onPlayPause = {},
                 onNext = { skips++ },
@@ -213,7 +185,6 @@ class PlayerTest {
 
     private companion object {
         const val LINE_GAP_MS = 4_000L
-        const val TICKS = 10
         const val LYRICS = "lyrics"
         const val SETTLE_MS = 1_000L
         const val FOLLOW_ALONG = "Follow along"

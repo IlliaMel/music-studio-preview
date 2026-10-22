@@ -1,0 +1,1092 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "7cfe85985bc834cd20e536c2cdf7c22c",
+    "entities": [
+      {
+        "tableName": "store_metadata",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `value` TEXT NOT NULL, PRIMARY KEY(`key`))",
+        "fields": [
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "key"
+          ]
+        }
+      },
+      {
+        "tableName": "studio_accounts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ownerId` TEXT NOT NULL, `email` TEXT, `emailVerified` INTEGER NOT NULL, `signInMethod` TEXT NOT NULL, `displayName` TEXT, `ageConfirmed` INTEGER NOT NULL, `acceptedTermsVersion` TEXT, `marketingOptIn` INTEGER NOT NULL, `missingOnboarding` TEXT NOT NULL, `currentTermsVersion` TEXT NOT NULL, `suggestedDisplayName` TEXT, `dataMode` TEXT NOT NULL, `tokenReference` TEXT, `remainingCredits` INTEGER NOT NULL, `dailyLimit` INTEGER NOT NULL, `creditDay` TEXT NOT NULL, `requiresAuthentication` INTEGER NOT NULL, PRIMARY KEY(`ownerId`))",
+        "fields": [
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "email",
+            "columnName": "email",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "emailVerified",
+            "columnName": "emailVerified",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "signInMethod",
+            "columnName": "signInMethod",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayName",
+            "columnName": "displayName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "ageConfirmed",
+            "columnName": "ageConfirmed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "acceptedTermsVersion",
+            "columnName": "acceptedTermsVersion",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "marketingOptIn",
+            "columnName": "marketingOptIn",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "missingOnboarding",
+            "columnName": "missingOnboarding",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentTermsVersion",
+            "columnName": "currentTermsVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "suggestedDisplayName",
+            "columnName": "suggestedDisplayName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "dataMode",
+            "columnName": "dataMode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tokenReference",
+            "columnName": "tokenReference",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "remainingCredits",
+            "columnName": "remainingCredits",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dailyLimit",
+            "columnName": "dailyLimit",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "creditDay",
+            "columnName": "creditDay",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requiresAuthentication",
+            "columnName": "requiresAuthentication",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ownerId"
+          ]
+        }
+      },
+      {
+        "tableName": "studio_active_owner",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `ownerId` TEXT, `revision` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "studio_tracks",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ownerId` TEXT NOT NULL, `trackId` TEXT NOT NULL, `position` INTEGER NOT NULL, `title` TEXT NOT NULL, `artist` TEXT NOT NULL, `prompt` TEXT NOT NULL, `style` TEXT, `durationMs` INTEGER NOT NULL, `model` TEXT NOT NULL, `instrumental` INTEGER NOT NULL, `cover` TEXT NOT NULL, `status` TEXT NOT NULL, `progress` REAL NOT NULL, `error` TEXT, `suggestion` TEXT, `createdAt` TEXT NOT NULL, `isLiked` INTEGER NOT NULL, `genres` TEXT NOT NULL, `audioUri` TEXT, `customLyrics` TEXT, `words` TEXT NOT NULL, `generationId` TEXT, `variantIndex` INTEGER NOT NULL, `variants` INTEGER NOT NULL, `referenceUploadId` TEXT, `quality` TEXT NOT NULL, `remixTrackIds` TEXT NOT NULL, PRIMARY KEY(`ownerId`, `trackId`), FOREIGN KEY(`ownerId`) REFERENCES `studio_accounts`(`ownerId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trackId",
+            "columnName": "trackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.artist",
+            "columnName": "artist",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.prompt",
+            "columnName": "prompt",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.style",
+            "columnName": "style",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.model",
+            "columnName": "model",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.instrumental",
+            "columnName": "instrumental",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.cover",
+            "columnName": "cover",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.progress",
+            "columnName": "progress",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.error",
+            "columnName": "error",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.suggestion",
+            "columnName": "suggestion",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.createdAt",
+            "columnName": "createdAt",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.isLiked",
+            "columnName": "isLiked",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.genres",
+            "columnName": "genres",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.audioUri",
+            "columnName": "audioUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.customLyrics",
+            "columnName": "customLyrics",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.words",
+            "columnName": "words",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.generationId",
+            "columnName": "generationId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.variantIndex",
+            "columnName": "variantIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.variants",
+            "columnName": "variants",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.referenceUploadId",
+            "columnName": "referenceUploadId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.quality",
+            "columnName": "quality",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.remixTrackIds",
+            "columnName": "remixTrackIds",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ownerId",
+            "trackId"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "studio_accounts",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "ownerId"
+            ],
+            "referencedColumns": [
+              "ownerId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "studio_playlists",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ownerId` TEXT NOT NULL, `playlistId` TEXT NOT NULL, `name` TEXT NOT NULL, `position` INTEGER NOT NULL, PRIMARY KEY(`ownerId`, `playlistId`), FOREIGN KEY(`ownerId`) REFERENCES `studio_accounts`(`ownerId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playlistId",
+            "columnName": "playlistId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ownerId",
+            "playlistId"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "studio_accounts",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "ownerId"
+            ],
+            "referencedColumns": [
+              "ownerId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "studio_playlist_tracks",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ownerId` TEXT NOT NULL, `playlistId` TEXT NOT NULL, `position` INTEGER NOT NULL, `trackId` TEXT NOT NULL, `title` TEXT NOT NULL, `artist` TEXT NOT NULL, `prompt` TEXT NOT NULL, `style` TEXT, `durationMs` INTEGER NOT NULL, `model` TEXT NOT NULL, `instrumental` INTEGER NOT NULL, `cover` TEXT NOT NULL, `status` TEXT NOT NULL, `progress` REAL NOT NULL, `error` TEXT, `suggestion` TEXT, `createdAt` TEXT NOT NULL, `isLiked` INTEGER NOT NULL, `genres` TEXT NOT NULL, `audioUri` TEXT, `customLyrics` TEXT, `words` TEXT NOT NULL, `generationId` TEXT, `variantIndex` INTEGER NOT NULL, `variants` INTEGER NOT NULL, `referenceUploadId` TEXT, `quality` TEXT NOT NULL, `remixTrackIds` TEXT NOT NULL, PRIMARY KEY(`ownerId`, `playlistId`, `position`), FOREIGN KEY(`ownerId`, `playlistId`) REFERENCES `studio_playlists`(`ownerId`, `playlistId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playlistId",
+            "columnName": "playlistId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trackId",
+            "columnName": "trackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.artist",
+            "columnName": "artist",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.prompt",
+            "columnName": "prompt",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.style",
+            "columnName": "style",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.model",
+            "columnName": "model",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.instrumental",
+            "columnName": "instrumental",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.cover",
+            "columnName": "cover",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.progress",
+            "columnName": "progress",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.error",
+            "columnName": "error",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.suggestion",
+            "columnName": "suggestion",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.createdAt",
+            "columnName": "createdAt",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.isLiked",
+            "columnName": "isLiked",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.genres",
+            "columnName": "genres",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.audioUri",
+            "columnName": "audioUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.customLyrics",
+            "columnName": "customLyrics",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.words",
+            "columnName": "words",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.generationId",
+            "columnName": "generationId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.variantIndex",
+            "columnName": "variantIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.variants",
+            "columnName": "variants",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.referenceUploadId",
+            "columnName": "referenceUploadId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.quality",
+            "columnName": "quality",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.remixTrackIds",
+            "columnName": "remixTrackIds",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ownerId",
+            "playlistId",
+            "position"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "studio_playlists",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "ownerId",
+              "playlistId"
+            ],
+            "referencedColumns": [
+              "ownerId",
+              "playlistId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "studio_likes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ownerId` TEXT NOT NULL, `trackId` TEXT NOT NULL, `position` INTEGER NOT NULL, PRIMARY KEY(`ownerId`, `trackId`), FOREIGN KEY(`ownerId`) REFERENCES `studio_accounts`(`ownerId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trackId",
+            "columnName": "trackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ownerId",
+            "trackId"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "studio_accounts",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "ownerId"
+            ],
+            "referencedColumns": [
+              "ownerId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "studio_generation_attempts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ownerId` TEXT NOT NULL, `attemptKey` TEXT NOT NULL, `variants` INTEGER NOT NULL, `blocked` INTEGER NOT NULL, `prompt` TEXT NOT NULL, `durationMs` INTEGER, `model` TEXT NOT NULL, `quality` TEXT NOT NULL, `instrumental` INTEGER NOT NULL, `style` TEXT, `customLyrics` TEXT, `referenceUploadId` TEXT, `referenceAudioUri` TEXT, `remixTrackIds` TEXT NOT NULL, PRIMARY KEY(`ownerId`))",
+        "fields": [
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attemptKey",
+            "columnName": "attemptKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "variants",
+            "columnName": "variants",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "blocked",
+            "columnName": "blocked",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.prompt",
+            "columnName": "prompt",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "fields.model",
+            "columnName": "model",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.quality",
+            "columnName": "quality",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.instrumental",
+            "columnName": "instrumental",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.style",
+            "columnName": "style",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.customLyrics",
+            "columnName": "customLyrics",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.referenceUploadId",
+            "columnName": "referenceUploadId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.referenceAudioUri",
+            "columnName": "referenceAudioUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.remixTrackIds",
+            "columnName": "remixTrackIds",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ownerId"
+          ]
+        }
+      },
+      {
+        "tableName": "studio_generation_requests",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`trackId` TEXT NOT NULL, `ownerId` TEXT NOT NULL, `prompt` TEXT NOT NULL, `durationMs` INTEGER, `model` TEXT NOT NULL, `quality` TEXT NOT NULL, `instrumental` INTEGER NOT NULL, `style` TEXT, `customLyrics` TEXT, `referenceUploadId` TEXT, `referenceAudioUri` TEXT, `remixTrackIds` TEXT NOT NULL, PRIMARY KEY(`ownerId`, `trackId`))",
+        "fields": [
+          {
+            "fieldPath": "trackId",
+            "columnName": "trackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.prompt",
+            "columnName": "prompt",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "fields.model",
+            "columnName": "model",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.quality",
+            "columnName": "quality",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.instrumental",
+            "columnName": "instrumental",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fields.style",
+            "columnName": "style",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.customLyrics",
+            "columnName": "customLyrics",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.referenceUploadId",
+            "columnName": "referenceUploadId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.referenceAudioUri",
+            "columnName": "referenceAudioUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fields.remixTrackIds",
+            "columnName": "remixTrackIds",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ownerId",
+            "trackId"
+          ]
+        }
+      },
+      {
+        "tableName": "studio_retry_links",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`originalId` TEXT NOT NULL, `ownerId` TEXT NOT NULL, `replacementId` TEXT NOT NULL, PRIMARY KEY(`ownerId`, `originalId`))",
+        "fields": [
+          {
+            "fieldPath": "originalId",
+            "columnName": "originalId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "replacementId",
+            "columnName": "replacementId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ownerId",
+            "originalId"
+          ]
+        }
+      },
+      {
+        "tableName": "studio_reference_uploads",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ownerId` TEXT NOT NULL, `sourceHash` TEXT NOT NULL, `uploadId` TEXT NOT NULL, PRIMARY KEY(`ownerId`, `sourceHash`))",
+        "fields": [
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceHash",
+            "columnName": "sourceHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "uploadId",
+            "columnName": "uploadId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ownerId",
+            "sourceHash"
+          ]
+        }
+      },
+      {
+        "tableName": "studio_track_details",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`trackId` TEXT NOT NULL, `ownerId` TEXT NOT NULL, `customLyrics` TEXT, `words` TEXT NOT NULL, PRIMARY KEY(`ownerId`, `trackId`))",
+        "fields": [
+          {
+            "fieldPath": "trackId",
+            "columnName": "trackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "customLyrics",
+            "columnName": "customLyrics",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "words",
+            "columnName": "words",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ownerId",
+            "trackId"
+          ]
+        }
+      },
+      {
+        "tableName": "studio_deletions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ownerId` TEXT NOT NULL, `token` TEXT, `audio` TEXT NOT NULL, `references` TEXT NOT NULL, `remoteConfirmed` INTEGER NOT NULL, `localPurged` INTEGER NOT NULL, `remoteCompletionUnverified` INTEGER NOT NULL, `requiresReauthentication` INTEGER NOT NULL, PRIMARY KEY(`ownerId`))",
+        "fields": [
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "token",
+            "columnName": "token",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "audio",
+            "columnName": "audio",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "references",
+            "columnName": "references",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "remoteConfirmed",
+            "columnName": "remoteConfirmed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localPurged",
+            "columnName": "localPurged",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "remoteCompletionUnverified",
+            "columnName": "remoteCompletionUnverified",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requiresReauthentication",
+            "columnName": "requiresReauthentication",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ownerId"
+          ]
+        }
+      },
+      {
+        "tableName": "studio_recording_drafts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `ownerId` TEXT, `ownerHash` TEXT NOT NULL, `localId` TEXT NOT NULL, `uri` TEXT NOT NULL, `title` TEXT NOT NULL, `durationMs` INTEGER NOT NULL, `confirmed` INTEGER NOT NULL, PRIMARY KEY(`key`))",
+        "fields": [
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "ownerHash",
+            "columnName": "ownerHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localId",
+            "columnName": "localId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "uri",
+            "columnName": "uri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "confirmed",
+            "columnName": "confirmed",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "key"
+          ]
+        }
+      },
+      {
+        "tableName": "studio_recording_receipts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `ownerId` TEXT, `ownerHash` TEXT NOT NULL, `trackId` TEXT NOT NULL, PRIMARY KEY(`key`))",
+        "fields": [
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "ownerHash",
+            "columnName": "ownerHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trackId",
+            "columnName": "trackId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "key"
+          ]
+        }
+      },
+      {
+        "tableName": "studio_notification_outbox",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ownerId` TEXT NOT NULL, `observedIds` TEXT NOT NULL, `dirty` INTEGER NOT NULL, PRIMARY KEY(`ownerId`))",
+        "fields": [
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "observedIds",
+            "columnName": "observedIds",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dirty",
+            "columnName": "dirty",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ownerId"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7cfe85985bc834cd20e536c2cdf7c22c')"
+    ]
+  }
+}

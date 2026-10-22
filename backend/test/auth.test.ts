@@ -65,6 +65,7 @@ describe('authenticate', () => {
       firebaseUid: 'dev-alice',
       onboarded: false,
       deleting: false,
+      canGenerate: true,
     })
     expect(second.id).toBe(first.id)
   })

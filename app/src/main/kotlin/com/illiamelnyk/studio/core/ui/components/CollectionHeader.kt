@@ -4,8 +4,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -16,6 +19,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.Dp
@@ -40,14 +44,17 @@ fun CollectionHeader(
     modifier: Modifier = Modifier,
     artworkSize: Dp = StudioTheme.dimens.size.cover.l,
     fadeColor: Color = StudioTheme.colors.surface.level1,
+    contentPadding: PaddingValues = PaddingValues(),
     actions: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val colors = StudioTheme.colors
     val dimens = StudioTheme.dimens
+    val direction = LocalLayoutDirection.current
+    val topInset = contentPadding.calculateTopPadding()
     val backdrop = rememberGlassBackdrop()
     val lightSurface = colors.surface.level1.luminance() > 0.5f
     val fadeEnd = if (lightSurface) {
-        with(LocalDensity.current) { (artworkSize + dimens.spacing.xl + dimens.spacing.xs).toPx() }
+        with(LocalDensity.current) { (topInset + artworkSize + dimens.spacing.xl + dimens.spacing.xs).toPx() }
     } else {
         Float.POSITIVE_INFINITY
     }
@@ -57,6 +64,7 @@ fun CollectionHeader(
             Modifier
                 .matchParentSize()
                 .coverBackdrop(coverSeed)
+                .background(if (lightSurface) fadeColor.copy(alpha = 0.88f) else Color.Transparent)
                 .background(
                     Brush.verticalGradient(
                         0f to Color.Transparent,
@@ -71,10 +79,10 @@ fun CollectionHeader(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(
-                    top = dimens.spacing.xl,
-                    start = dimens.spacing.m,
-                    end = dimens.spacing.m,
-                    bottom = dimens.spacing.m,
+                    top = dimens.spacing.xl + topInset,
+                    start = dimens.spacing.m + contentPadding.calculateStartPadding(direction),
+                    end = dimens.spacing.m + contentPadding.calculateEndPadding(direction),
+                    bottom = dimens.spacing.m + contentPadding.calculateBottomPadding(),
                 ),
             verticalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
             horizontalAlignment = Alignment.CenterHorizontally,

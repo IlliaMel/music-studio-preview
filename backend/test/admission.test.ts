@@ -48,6 +48,7 @@ describe('HTTP admission', () => {
           id: c.req.header('Owner') ?? 'alice',
           firebaseUid: 'test',
           onboarded: true,
+          canGenerate: true,
         })
         await next()
       })
@@ -71,6 +72,7 @@ describe('HTTP admission', () => {
           id: c.req.header('Owner') ?? 'alice',
           firebaseUid: 'test',
           onboarded: true,
+          canGenerate: true,
         })
         await next()
       })
@@ -105,6 +107,7 @@ describe('HTTP admission', () => {
           id: c.req.header('Owner') ?? 'alice',
           firebaseUid: 'test',
           onboarded: true,
+          canGenerate: true,
         })
         await next()
       })
@@ -139,7 +142,7 @@ it('keeps upload concurrency reserved across rate-window expiry', async () => {
   const finish = deferred()
   const app = new Hono<AppEnv>()
     .use(async (c, next) => {
-      c.set('user', { id: 'alice', firebaseUid: 'test', onboarded: true })
+      c.set('user', { id: 'alice', firebaseUid: 'test', onboarded: true, canGenerate: true })
       await next()
     })
     .use(limits.owner)

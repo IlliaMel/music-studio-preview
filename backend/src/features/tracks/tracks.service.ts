@@ -25,6 +25,8 @@ export type Quota = { limit: number; used: number; remaining: number; resetsAt: 
 export type TracksOptions = {
   /** Generations per user per day (UTC), to protect the ElevenLabs credits. */
   dailyLimit: number
+  /** Service-wide paid variant reservations per UTC day; absent preserves legacy admission. */
+  dailyPaidRequestsTotal?: number
   defaultModel: ModelId
 }
 
@@ -111,7 +113,7 @@ export class TracksService {
         throw new ApiError(
           422,
           'UNSUPPORTED_MODE',
-          'Live remix requires a live original stored with enterprise references enabled',
+          'Live remix requires a live original stored while references were enabled',
         )
     }
     try {
@@ -129,6 +131,7 @@ export class TracksService {
       { userId: user.id, idempotencyKey, ...request, providerName: this.provider?.name ?? 'mock' },
       { since: startOfDay(now), max: this.options.dailyLimit },
       now,
+      this.provider?.paid === true ? { max: this.options.dailyPaidRequestsTotal } : undefined,
     )
     switch (outcome.kind) {
       case 'invalid-remix-source':
@@ -148,6 +151,16 @@ export class TracksService {
           409,
           'ACCOUNT_DELETING',
           'Retry account deletion to finish removing this account',
+        )
+      case 'service-limit-reached':
+        throw new ApiError(
+          429,
+          'SERVICE_DAILY_LIMIT',
+          'The service daily paid generation budget is exhausted',
+          {
+            limit: this.options.dailyPaidRequestsTotal,
+            resetsAt: startOfNextDay(now).toISOString(),
+          },
         )
       case 'limit-reached':
         throw new ApiError(429, 'DAILY_LIMIT', 'No generations left today', {

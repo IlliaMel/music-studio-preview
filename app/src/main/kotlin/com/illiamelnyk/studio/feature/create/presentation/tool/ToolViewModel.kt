@@ -4,6 +4,8 @@ import androidx.lifecycle.viewModelScope
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.credits.CreditsRepository
+import com.illiamelnyk.studio.core.domain.track.GenerationOptions
+import com.illiamelnyk.studio.core.domain.track.GenerationOptionsRepository
 import com.illiamelnyk.studio.core.presentation.MviViewModel
 import com.illiamelnyk.studio.core.presentation.UiText
 import com.illiamelnyk.studio.core.presentation.toUiText
@@ -18,22 +20,29 @@ import kotlinx.coroutines.launch
 
 class ToolViewModel(
     private val tool: Tool,
-    private val generate: GenerateTracks? = null,
-    credits: CreditsRepository? = null,
+    private val generate: GenerateTracks,
+    credits: CreditsRepository,
+    private val generationOptions: GenerationOptionsRepository,
 ) : MviViewModel<ToolState, ToolIntent, ToolEffect>(ToolState(tool)) {
 
     private var values: Map<String, String> = emptyMap()
     private var available = 0
+    private var options: GenerationOptions? = null
+    private var optionsLoading = false
+    private var optionsFailed = false
 
     init {
-        credits?.credits?.onEach {
+        loadOptions()
+        credits.credits.onEach {
             available = it.remaining
             refresh()
-        }?.launchIn(viewModelScope)
+        }.launchIn(viewModelScope)
     }
 
     override fun onIntent(intent: ToolIntent) {
         when (intent) {
+            ToolIntent.GenerationOptionsRefresh -> loadOptions()
+
             ToolIntent.BackClicked -> sendEffect(ToolEffect.Close)
 
             is ToolIntent.SlotClicked -> openSlot(intent.slotId)
@@ -44,12 +53,21 @@ class ToolViewModel(
                 if (intent.duration in durations) copy(duration = intent.duration) else this
             }
 
-            ToolIntent.AddRecordingClicked -> setState { copy(recordingOpen = true) }
+            ToolIntent.AddRecordingClicked -> if (options?.audioReferences == true) {
+                setState { copy(recordingOpen = true) }
+            } else if (optionsFailed) {
+                loadOptions()
+            }
 
             is ToolIntent.RecordingSelected -> {
+                // Only a known "no" turns the recording away: while the options reload or failed to,
+                // it is kept, and Use stays disabled until they say references work.
+                if (options?.audioReferences == false) return
                 setState { copy(referenceAudio = intent.audio, recordingOpen = false) }
-                refresh()
+                if (optionsFailed) loadOptions() else refresh()
             }
+
+            ToolIntent.HintClicked -> if (optionsFailed) loadOptions()
 
             ToolIntent.RecordingDismissed -> setState { copy(recordingOpen = false) }
 
@@ -58,6 +76,29 @@ class ToolViewModel(
             ToolIntent.SheetDismissed -> setState { copy(slotSheet = null, comingSoon = null) }
 
             ToolIntent.UseToolClicked -> submit()
+        }
+    }
+
+    private fun loadOptions() {
+        if (optionsLoading) return
+        optionsLoading = true
+        optionsFailed = false
+        options = null
+        refresh()
+        viewModelScope.launch {
+            try {
+                when (val result = generationOptions.load()) {
+                    is Outcome.Success -> {
+                        options = result.value
+                        if (!result.value.audioReferences) setState { copy(recordingOpen = false) }
+                    }
+
+                    is Outcome.Failure -> optionsFailed = true
+                }
+            } finally {
+                optionsLoading = false
+                refresh()
+            }
         }
     }
 
@@ -88,14 +129,13 @@ class ToolViewModel(
         val current = state.value
         if (!current.canUse || current.isSubmitting) return
         val prompt = tool.template.fill(values) ?: return
-        val generator = generate ?: return
         setState { copy(isSubmitting = true, canUse = false) }
         viewModelScope.launch {
             val settings = GenerationSettings(
                 duration = current.duration.duration,
                 referenceAudioUri = current.referenceAudio?.uri,
             )
-            val result = generator(prompt, settings)
+            val result = generate(prompt, settings)
             setState { copy(isSubmitting = false) }
             when (result) {
                 is Outcome.Success -> sendEffect(ToolEffect.Close)
@@ -115,9 +155,13 @@ class ToolViewModel(
         setState {
             copy(
                 template = template,
-                canUse = filled &&
+                recording = this@ToolViewModel.tool.recording?.toUi().takeIf { options?.audioReferences != false },
+                canUse = options?.audioReferences == true && filled &&
                     referenceAudio != null && available > 0 && !isSubmitting,
                 hint = when {
+                    optionsFailed -> UiText.Resource(R.string.create_options_failed)
+                    options == null -> UiText.Resource(R.string.create_options_loading)
+                    options?.audioReferences != true -> UiText.Resource(R.string.create_options_reference_unsupported)
                     referenceAudio == null -> UiText.Resource(R.string.tool_needs_recording)
                     !filled -> UiText.Resource(R.string.tool_fill_options)
                     available <= 0 -> UiText.Resource(R.string.error_quota_exceeded)

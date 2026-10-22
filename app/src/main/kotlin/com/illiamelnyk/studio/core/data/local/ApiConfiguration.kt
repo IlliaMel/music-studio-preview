@@ -43,15 +43,16 @@ data class ApiConfiguration(
             authMode: String,
             debug: Boolean,
             allowLanDevelopment: Boolean = false,
+            environment: String = "dev",
         ): ApiConfiguration = ApiConfiguration(
             baseUrl.trimEnd('/'),
             when (authMode) {
-                "development" -> ApiAuthMode.Development
+                "development" -> if (environment == "dev" && debug) ApiAuthMode.Development else ApiAuthMode.Disabled
                 "firebase" -> ApiAuthMode.Firebase
                 else -> ApiAuthMode.Disabled
             },
             debug,
-            allowLanDevelopment,
+            allowLanDevelopment && environment == "dev" && debug,
         )
     }
 }

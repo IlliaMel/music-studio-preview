@@ -8,13 +8,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.illiamelnyk.studio.R
+import com.illiamelnyk.studio.core.ui.components.OverlaySheet
 import com.illiamelnyk.studio.core.ui.components.StudioButton
 import com.illiamelnyk.studio.core.ui.components.StudioButtonStyle
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.create.presentation.CreateIntent
 import com.illiamelnyk.studio.feature.create.presentation.CreateSheet
-import com.illiamelnyk.studio.feature.create.presentation.common.OverlaySheet
 import com.illiamelnyk.studio.feature.create.presentation.common.rememberLatest
 
 @Suppress("ktlint:compose:modifier-missing-check")

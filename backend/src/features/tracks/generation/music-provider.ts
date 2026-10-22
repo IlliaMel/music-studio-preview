@@ -44,6 +44,7 @@ export interface MusicProvider {
 
 /** Stable codes the app maps to its own messages. */
 export type GenerationErrorCode =
+  | 'SERVICE_DAILY_LIMIT'
   | 'INVALID_PROMPT'
   | 'QUOTA_EXCEEDED'
   | 'RATE_LIMITED'
@@ -56,6 +57,20 @@ export type GenerationErrorCode =
   | 'INVALID_REFERENCE'
   | 'PROVIDER_OUTCOME_UNKNOWN'
 
+/**
+ * What the provider answered, for the logs: never its message, which can quote the prompt.
+ *
+ * @param providerStatus its machine status, such as `bad_prompt`.
+ * @param field for a rejected request body, the path of the first invalid field, such as
+ *   `body.composition_plan.chunks.0.positive_styles.0`, and why, such as `string_too_long`.
+ */
+export type ProviderDiagnostic = {
+  step: 'upload' | 'compose'
+  httpStatus: number
+  providerStatus?: string
+  field?: string
+}
+
 /** A failure already translated from the provider's terms into ours. */
 export class ProviderError extends Error {
   constructor(
@@ -65,6 +80,7 @@ export class ProviderError extends Error {
     readonly retryable: boolean,
     /** A rewritten prompt the provider would accept, when it rejected ours. */
     readonly promptSuggestion?: string,
+    readonly diagnostic?: ProviderDiagnostic,
   ) {
     super(message)
     this.name = 'ProviderError'

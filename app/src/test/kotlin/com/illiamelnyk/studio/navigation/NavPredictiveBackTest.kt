@@ -85,6 +85,18 @@ class NavPredictiveBackTest {
         assertEquals(1, backs)
     }
 
+    @Test fun backFinishesWithoutWaitingForTheLongForwardTransition() {
+        showCollection()
+        composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        pumpFrames(4)
+        composeRule.mainClock.advanceTimeBy(280)
+        pumpFrames(1)
+
+        assertEquals(1, backs)
+        composeRule.onNodeWithTag(COLLECTION).assertDoesNotExist()
+        composeRule.onNodeWithTag(LISTEN).assertIsDisplayed()
+    }
+
     private fun showCollection() {
         val transitions = ShellTransitions(StudioMotion(), LayoutDirection.Ltr)
         composeRule.setContent {

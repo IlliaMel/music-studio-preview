@@ -38,32 +38,30 @@ interface PlaybackController {
 
     fun setRepeat(mode: RepeatMode)
 
-    fun setAutoplay(enabled: Boolean) = Unit
+    fun setAutoplay(enabled: Boolean)
 
-    fun appendAutoplay(expected: PlaybackState, track: Track) = Unit
+    fun appendAutoplay(expected: PlaybackState, track: Track)
 
-    fun moveQueueItem(fromIndex: Int, toIndex: Int) = Unit
+    fun moveQueueItem(fromIndex: Int, toIndex: Int)
 
-    fun removeTrack(id: TrackId) = Unit
+    fun removeTrack(id: TrackId)
 
-    fun refreshMetadata(snapshot: PlaybackMetadataSnapshot) = Unit
+    fun refreshMetadata(snapshot: PlaybackMetadataSnapshot)
 
     /** Keeps the current track playing and drops the rest of the queue. */
     fun clearUpNext()
 
-    fun systemSnapshot(): PlaybackResumption? = state.value.takeIf { it.current != null }?.let {
-        PlaybackResumption(requireNotNull(it.current).id.value, it)
-    }
+    /** Current owner-authorized snapshot with an opaque identity; null after account or queue invalidation. */
+    fun systemSnapshot(): PlaybackResumption?
 
-    fun releaseForServiceShutdown() {
-        if (state.value.isPlaying) togglePlayPause()
-    }
+    /** Releases native resources while preserving the paused, owner-scoped resumption queue. */
+    fun releaseForServiceShutdown()
 
     /** Stops and clears the queue: nothing is loaded afterwards. */
     fun stop()
 
     /** Stops native playback and awaits checked persistence without blocking the UI thread. */
-    suspend fun stopDurably() = stop()
+    suspend fun stopDurably()
 }
 
 data class PlaybackResumption(val mediaId: String, val state: PlaybackState)

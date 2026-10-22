@@ -3,6 +3,7 @@ package com.illiamelnyk.studio.feature.create.presentation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.illiamelnyk.studio.core.ui.components.StudioChip
@@ -24,37 +25,40 @@ fun CreateComposer(composer: ComposerUi, onIntent: (CreateIntent) -> Unit, modif
         onLyricsClick = { onIntent(CreateIntent.LyricsClicked) },
         onMuseClick = { onIntent(CreateIntent.ComingSoonClicked(ComingSoonFeature.Muse)) },
         onSettingsClick = { onIntent(CreateIntent.SettingsClicked) },
-        onNoticeClick = { onIntent(CreateIntent.QuotaClicked) },
+        onNoticeClick = { onIntent(CreateIntent.ComposerNoticeClicked) },
         modifier = modifier,
     ) {
         Column {
-            if (composer.remixSources.isNotEmpty()) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.xs)) {
-                    composer.remixSources.forEach { source ->
-                        StudioChip(source.title, onClick = {
-                            onIntent(CreateIntent.RemixSourceClicked(source.id))
-                        }, onRemove = { onIntent(CreateIntent.RemixSourceRemoved(source.id)) })
+            Column(Modifier.padding(horizontal = StudioTheme.dimens.layout.screenPadding)) {
+                if (composer.remixSources.isNotEmpty()) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.xs)) {
+                        composer.remixSources.forEach { source ->
+                            StudioChip(source.title, onClick = {
+                                onIntent(CreateIntent.RemixSourceClicked(source.id))
+                            }, onRemove = { onIntent(CreateIntent.RemixSourceRemoved(source.id)) })
+                        }
+                    }
+                } else {
+                    composer.referenceLabel?.let { title ->
+                        StudioChip(title, onClick = {
+                            onIntent(CreateIntent.ReferenceClicked)
+                        }, onRemove = { onIntent(CreateIntent.ReferenceRemoved) })
                     }
                 }
-            } else {
-                composer.referenceLabel?.let { title ->
-                    StudioChip(title, onClick = {
-                        onIntent(CreateIntent.ReferenceClicked)
-                    }, onRemove = { onIntent(CreateIntent.ReferenceRemoved) })
+                if (composer.lyricsMode == com.illiamelnyk.studio.feature.create.domain.LyricsMode.Custom) {
+                    StudioChip(
+                        androidx.compose.ui.res.stringResource(
+                            com.illiamelnyk.studio.R.string.create_lyrics_custom,
+                        ),
+                        onClick = {
+                            onIntent(CreateIntent.CustomLyricsClicked)
+                        },
+                    )
                 }
-            }
-            if (composer.lyricsMode == com.illiamelnyk.studio.feature.create.domain.LyricsMode.Custom) {
-                StudioChip(
-                    androidx.compose.ui.res.stringResource(
-                        com.illiamelnyk.studio.R.string.create_lyrics_custom,
-                    ),
-                    onClick = {
-                        onIntent(CreateIntent.CustomLyricsClicked)
-                    },
-                )
             }
             ComposerOptions(
                 quality = composer.quality,
+                qualityOptions = composer.qualityOptions,
                 lyricsMode = composer.lyricsMode,
                 duration = composer.duration,
                 variants = composer.variants,

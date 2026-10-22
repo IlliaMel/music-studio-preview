@@ -20,7 +20,7 @@ import com.illiamelnyk.studio.feature.create.presentation.components.SettingsShe
 @Composable
 fun CreateOverlays(state: CreateState, onIntent: (CreateIntent) -> Unit) {
     val dismiss = { onIntent(CreateIntent.SheetDismissed) }
-    ComposerSheets(state.sheet, state.composer.lyricsMode, onIntent)
+    ComposerSheets(state.sheet, state.composer.lyricsMode, onIntent, state.composer.customLyricsSupported)
     GenerationSheets(state.sheet, onIntent)
     SettingsSheet(
         draft = (state.sheet as? CreateSheet.Settings)?.draft,

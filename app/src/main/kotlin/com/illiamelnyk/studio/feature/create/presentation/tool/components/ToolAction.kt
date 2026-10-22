@@ -1,5 +1,6 @@
 package com.illiamelnyk.studio.feature.create.presentation.tool.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,7 +20,11 @@ import com.illiamelnyk.studio.core.ui.components.StudioButtonSize
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
-/** "Use tool" at the bottom of the screen; while it can't be used, [hint] above it says why. */
+/**
+ * "Use tool" at the bottom of the screen; while it can't be used, [hint] above it says why.
+ *
+ * @param onHintClick a tap on the hint, which retries when it says the options failed to load.
+ */
 @Composable
 fun ToolAction(
     canUse: Boolean,
@@ -27,6 +32,7 @@ fun ToolAction(
     isSubmitting: Boolean,
     onUseClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onHintClick: () -> Unit = {},
 ) {
     val dimens = StudioTheme.dimens
     Column(
@@ -40,6 +46,7 @@ fun ToolAction(
             StudioText(
                 text = hint.asString(),
                 style = StudioTheme.typography.bodySmall,
+                modifier = Modifier.clickable(onClick = onHintClick),
                 color = StudioTheme.colors.content.secondary,
                 textAlign = TextAlign.Center,
             )

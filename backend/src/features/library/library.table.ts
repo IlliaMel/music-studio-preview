@@ -41,6 +41,8 @@ export const uploads = pgTable('uploads', {
   data: text('data').notNull(),
   providerSongId: text('provider_song_id'),
   providerAttempted: boolean('provider_attempted').notNull().default(false),
+  providerAttemptId: uuid('provider_attempt_id'),
+  paidReservationDay: text('paid_reservation_day'),
   durationMs: integer('duration_ms'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })

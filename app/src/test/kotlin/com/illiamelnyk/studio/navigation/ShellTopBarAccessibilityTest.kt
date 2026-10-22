@@ -34,9 +34,9 @@ class ShellTopBarAccessibilityTest {
 
     @Test fun narrowHeaderKeepsSearchAndLibraryVisibleAtLargeFont() = verify(2f, 360)
 
-    @Test fun bottomNavigationHeaderKeepsSearchVisibleAtLargeFont() = verify(2f, 360, ShellVariant.BottomBar)
+    @Test fun extraNarrowHeaderKeepsSearchAndLibraryVisibleAtLargeFont() = verify(2f, 320)
 
-    private fun verify(scale: Float, width: Int, variant: ShellVariant = ShellVariant.TopSwitch) {
+    private fun verify(scale: Float, width: Int) {
         var libraryClicks = 0
         var searchClicks = 0
         rule.setContent {
@@ -44,7 +44,6 @@ class ShellTopBarAccessibilityTest {
             CompositionLocalProvider(LocalDensity provides Density(density.density, scale)) {
                 StudioTheme {
                     ShellTopBar(
-                        variant = variant,
                         selectedTab = TopLevelTab.Listen,
                         avatarSeed = "qa",
                         creditsLeft = 25,
@@ -65,7 +64,7 @@ class ShellTopBarAccessibilityTest {
         assertTrue("Search stays inside header", searchBounds.left >= header.left && searchBounds.right <= header.right)
         search.performClick()
         assertEquals(1, searchClicks)
-        if (TopLevelTab.Library !in variant.tabs) {
+        run {
             val library = rule.onNodeWithContentDescription("Library").assertIsDisplayed()
             val bounds = library.fetchSemanticsNode().boundsInRoot
             assertTrue("Library stays inside header", bounds.left >= header.left && bounds.right <= header.right)

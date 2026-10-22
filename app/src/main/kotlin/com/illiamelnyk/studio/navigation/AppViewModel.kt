@@ -8,6 +8,7 @@ import com.illiamelnyk.studio.core.domain.credits.CreditsRepository
 import com.illiamelnyk.studio.core.domain.playback.PlaybackController
 import com.illiamelnyk.studio.core.domain.session.Session
 import com.illiamelnyk.studio.core.domain.session.SessionRepository
+import com.illiamelnyk.studio.core.domain.session.SignOut
 import com.illiamelnyk.studio.core.domain.settings.ThemePreference
 import com.illiamelnyk.studio.core.domain.settings.ThemePreferenceRepository
 import com.illiamelnyk.studio.core.presentation.ToastController
@@ -34,14 +35,17 @@ enum class SessionGate {
     SignedIn,
 }
 
-/** The gate a [Session] opens; signing in opens Create; server onboarding metadata never adds a UI gate. */
+/**
+ * The gate a [Session] opens; signing in opens Create; server onboarding metadata never adds a UI
+ * gate. An account outside the invite list stays at the welcome screen while it is signed out.
+ */
 fun Session?.toGate(): SessionGate = when {
-    this == null -> SessionGate.SignedOut
+    this == null || !user.canGenerate -> SessionGate.SignedOut
     else -> SessionGate.SignedIn
 }
 
 /**
- * What the app around the screens needs: the gate, the theme, the shell variant and the shell's
+ * What the app around the screens needs: the gate, the theme and the shell's
  * own bars (avatar, credits, whether the mini player shows).
  *
  * @param theme `null` until the stored choice is read.
@@ -50,7 +54,6 @@ fun Session?.toGate(): SessionGate = when {
 data class AppState(
     val gate: SessionGate = SessionGate.Loading,
     val theme: ThemePreference? = null,
-    val shellVariant: ShellVariant = ShellVariant.Default,
     val avatarSeed: String = "",
     val creditsLeft: Int = 0,
     val hasPlayback: Boolean = false,
@@ -68,12 +71,26 @@ class AppViewModel(
     sessions: SessionRepository,
     credits: CreditsRepository,
     themes: ThemePreferenceRepository,
-    shellVariants: ShellVariantSource,
     playback: PlaybackController,
     feedback: ToastController,
+    signOut: SignOut,
 ) : ViewModel() {
 
     init {
+        // The server keeps generation to invited emails; anyone else is told so and signed out.
+        sessions.session.map { session -> session?.user?.takeUnless { it.canGenerate }?.id }
+            .distinctUntilChanged()
+            .onEach { excluded ->
+                if (excluded != null) {
+                    feedback.show(
+                        UiText.Resource(R.string.auth_not_invited_title),
+                        UiText.Resource(R.string.auth_not_invited_text),
+                        isError = true,
+                    )
+                    signOut()
+                }
+            }.launchIn(viewModelScope)
+
         playback.state.map { state -> state.failure?.let { it to state.isStation } }
             .distinctUntilChanged().onEach { failed ->
                 if (failed != null) {
@@ -94,20 +111,16 @@ class AppViewModel(
 
     private val themePreference = themes.preference.map<ThemePreference, ThemePreference?> { it }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
-    private val shellVariant = shellVariants.variant
-        .stateIn(viewModelScope, SharingStarted.Eagerly, ShellVariant.Default)
 
     val state: StateFlow<AppState> = combine(
         sessions.session,
         themePreference,
-        shellVariant,
         credits.credits,
         playback.state.map { it.current != null }.distinctUntilChanged(),
-    ) { session, theme, variant, credits, hasPlayback ->
+    ) { session, theme, credits, hasPlayback ->
         AppState(
             gate = session.toGate(),
             theme = theme,
-            shellVariant = variant,
             avatarSeed = session?.user?.avatarSeed?.value.orEmpty(),
             creditsLeft = credits.remaining,
             hasPlayback = hasPlayback,

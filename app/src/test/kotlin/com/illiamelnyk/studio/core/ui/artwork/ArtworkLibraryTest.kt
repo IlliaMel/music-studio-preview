@@ -1,11 +1,14 @@
 package com.illiamelnyk.studio.core.ui.artwork
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import java.security.MessageDigest
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -16,6 +19,19 @@ import org.robolectric.RuntimeEnvironment
 @RunWith(RobolectricTestRunner::class)
 class ArtworkLibraryTest {
     private val assets get() = RuntimeEnvironment.getApplication().assets
+
+    @Test
+    fun preparedPreviewsAndPlayerDetailShareExactlyTheSameSourceAndCrop() = runTest {
+        val library = requireNotNull(ArtworkLibraryLoader().load(assets))
+        library.tiles.filter { it.detail != null }.forEach { tile ->
+            val source = requireNotNull(tile.detail)
+            assertEquals(source.side / 2, tile.size.width)
+            assertEquals(source.left / 2, tile.offset.x)
+            assertEquals(source.top / 2, tile.offset.y)
+            assertEquals(source.width / 2, tile.image.width)
+            assertEquals(source.height / 2, tile.image.height)
+        }
+    }
 
     @Test
     fun bundledTilesStayInsideTheirAtlasAndHeroCoversHavePlayerResolution() {
@@ -62,19 +78,109 @@ class ArtworkLibraryTest {
         val first = requireNotNull(firstLoad.await())
         val second = requireNotNull(secondLoad.await())
         assertSame(first, second)
-        assertSame(first.resolve("Glass Harbor").image, second.resolve("Paper Moons").image)
+        assertSame(first.resolve("Cold Brew Mornings").image, second.resolve("Signal Fire").image)
     }
 
     @Test
     fun bundledAtlasBytesMatchPublishedManifestHashes() {
         val manifest = assets.open("artwork/manifest-v1.json").bufferedReader().use { JSONObject(it.readText()) }
-        val atlases = manifest.getJSONArray("atlases")
-        for (index in 0 until atlases.length()) {
-            val atlas = atlases.getJSONObject(index)
-            val hash = assets.open("artwork/" + atlas.getString("file")).use {
-                MessageDigest.getInstance("SHA-256").digest(it.readBytes())
-            }.joinToString("") { "%02x".format(it.toInt() and 255) }
-            assertEquals(atlas.getString("file"), atlas.getString("sha256"), hash)
+        for (section in listOf("atlases", "detailAtlases")) {
+            val atlases = manifest.getJSONArray(section)
+            for (index in 0 until atlases.length()) {
+                val atlas = atlases.getJSONObject(index)
+                val hash = assets.open("artwork/" + atlas.getString("file")).use {
+                    MessageDigest.getInstance("SHA-256").digest(it.readBytes())
+                }.joinToString("") { "%02x".format(it.toInt() and 255) }
+                assertEquals(atlas.getString("file"), atlas.getString("sha256"), hash)
+            }
         }
+    }
+
+    @Test
+    fun allMusicAndFallbackIdentitiesHaveLargeDetailSourcesWithoutEagerDecode() {
+        val library = ArtworkLibrary.read(assets)
+        val detailed = library.tiles.filter { it.detail != null }
+        assertEquals(15, detailed.size)
+        detailed.forEach { tile ->
+            val source = requireNotNull(tile.detail)
+            assertTrue(source.side >= 885)
+            assertTrue(source.side > tile.size.width)
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            assets.open("artwork/${source.file}").use { BitmapFactory.decodeStream(it, null, options) }
+            assertEquals(source.width, options.outWidth)
+            assertEquals(source.height, options.outHeight)
+            assertTrue(source.left >= 0 && source.top >= 0)
+            assertTrue(source.left + source.side <= source.width)
+            assertTrue(source.top + source.side <= source.height)
+        }
+        assertNull(library.resolve("VoiceToSong").detail)
+    }
+
+    @Test
+    fun detailedCoversReusePairDecodeAndEvictLeastRecentlyUsedPairWithinBudget() = runTest {
+        val library = ArtworkLibrary.read(assets)
+        val manager = assets
+        var decodes = 0
+        val pairBytes = 1774 * 887 * 4
+        val loader = ArtworkDetailLoader(maxBytes = pairBytes * 2) { _, file ->
+            decodes++
+            val source = requireNotNull(library.tiles.first { it.detail?.file == file }.detail)
+            Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        }
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        suspend fun load(seed: String) = requireNotNull(loader.load(manager, library.resolve(seed), dispatcher))
+        val coffee = load("Cold Brew Mornings")
+        val fire = load("Signal Fire")
+        assertEquals(1, decodes)
+        assertEquals("cold-brew", coffee.id)
+        assertEquals("signal-fire", fire.id)
+        assertEquals(885, coffee.size.width)
+        assertTrue(coffee.offset.x < fire.offset.x)
+        load("Copper Sky")
+        load("Static Bloom")
+        assertEquals(3, decodes)
+        assertTrue(loader.cachedBytes <= pairBytes * 2)
+        load("Cold Brew Mornings")
+        assertEquals(4, decodes)
+        assertNull(loader.load(manager, library.resolve("VoiceToSong"), dispatcher))
+        assertEquals(4, decodes)
+    }
+
+    @Test
+    fun defaultDetailBudgetKeepsTheLiveSessionsAndThePlayerCoverDecoded() = runTest {
+        val library = ArtworkLibrary.read(assets)
+        val manager = assets
+        var decodes = 0
+        val loader = ArtworkDetailLoader { _, file ->
+            decodes++
+            val source = requireNotNull(library.tiles.first { it.detail?.file == file }.detail)
+            Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        }
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        suspend fun load(seed: String) = requireNotNull(loader.load(manager, library.resolve(seed), dispatcher))
+        val stations = listOf("Late Night Lo-fi", "Ambient Spaces", "Piano Room")
+        assertEquals(3, stations.map { library.resolve(it).detail?.file }.distinct().size)
+        stations.forEach { load(it) }
+        load("Cold Brew Mornings")
+        assertEquals(4, decodes)
+        stations.forEach { load(it) }
+        assertEquals(4, decodes)
+    }
+
+    @Test
+    fun failedDetailDecodeKeepsThumbnailAvailableAndCanRetry() = runTest {
+        val thumbnail = ArtworkLibrary.read(assets).resolve("Signal Fire")
+        val manager = assets
+        var attempts = 0
+        val loader = ArtworkDetailLoader { _, _ ->
+            attempts++
+            if (attempts == 1) error("Temporary decode failure")
+            val source = requireNotNull(thumbnail.detail)
+            Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        }
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        assertNull(loader.load(manager, thumbnail, dispatcher))
+        assertEquals(278, thumbnail.size.width)
+        assertEquals(thumbnail.id, requireNotNull(loader.load(manager, thumbnail, dispatcher)).id)
     }
 }

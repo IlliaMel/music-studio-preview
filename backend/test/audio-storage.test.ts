@@ -4,6 +4,22 @@ import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { LocalAudioStorage } from '../src/core/storage/audio-storage.js'
 
+it('checks at startup that it can write, and leaves nothing behind', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'storage-writable-'))
+  try {
+    const audio = join(directory, 'audio')
+    await new LocalAudioStorage(audio).ensureWritable()
+    expect(await readdir(audio)).toEqual([])
+
+    await writeFile(join(directory, 'not-a-folder'), 'bytes')
+    await expect(
+      new LocalAudioStorage(join(directory, 'not-a-folder', 'audio')).ensureWritable(),
+    ).rejects.toThrow()
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
 it('removes the temporary file when the final rename fails', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'storage-failure-'))
   try {

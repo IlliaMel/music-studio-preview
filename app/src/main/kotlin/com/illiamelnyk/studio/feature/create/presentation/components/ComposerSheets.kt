@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.ui.components.ContextMenuItem
+import com.illiamelnyk.studio.core.ui.components.OverlaySheet
 import com.illiamelnyk.studio.core.ui.components.StudioButton
 import com.illiamelnyk.studio.core.ui.components.StudioTextField
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
@@ -16,13 +17,17 @@ import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.create.domain.LyricsMode
 import com.illiamelnyk.studio.feature.create.presentation.CreateIntent
 import com.illiamelnyk.studio.feature.create.presentation.CreateSheet
-import com.illiamelnyk.studio.feature.create.presentation.common.OverlaySheet
 import com.illiamelnyk.studio.feature.create.presentation.common.rememberLatest
 
 /** Composer choices and track naming are separate modal windows above the app shell. */
 @Suppress("ktlint:compose:modifier-missing-check")
 @Composable
-fun ComposerSheets(sheet: CreateSheet?, lyricsMode: LyricsMode, onIntent: (CreateIntent) -> Unit) {
+fun ComposerSheets(
+    sheet: CreateSheet?,
+    lyricsMode: LyricsMode,
+    onIntent: (CreateIntent) -> Unit,
+    customLyricsSupported: Boolean = true,
+) {
     val dismiss = { onIntent(CreateIntent.SheetDismissed) }
     OverlaySheet(visible = sheet == CreateSheet.Lyrics, onDismissRequest = dismiss) {
         Column {
@@ -32,11 +37,13 @@ fun ComposerSheets(sheet: CreateSheet?, lyricsMode: LyricsMode, onIntent: (Creat
                 { onIntent(CreateIntent.LyricsSelected(true)) },
                 icon = if (lyricsMode == LyricsMode.Instrumental) StudioIcons.CheckCircleFilled else null,
             )
-            ContextMenuItem(
-                stringResource(R.string.create_lyrics_custom),
-                { onIntent(CreateIntent.CustomLyricsClicked) },
-                icon = if (lyricsMode == LyricsMode.Custom) StudioIcons.CheckCircleFilled else null,
-            )
+            if (customLyricsSupported) {
+                ContextMenuItem(
+                    stringResource(R.string.create_lyrics_custom),
+                    { onIntent(CreateIntent.CustomLyricsClicked) },
+                    icon = if (lyricsMode == LyricsMode.Custom) StudioIcons.CheckCircleFilled else null,
+                )
+            }
             ContextMenuItem(
                 stringResource(R.string.create_quality_auto),
                 { onIntent(CreateIntent.LyricsSelected(false)) },

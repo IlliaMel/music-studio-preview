@@ -13,6 +13,12 @@ fun AppError.toUiText(): UiText = when (this) {
 
     AppError.QuotaExceeded -> UiText.Resource(R.string.error_quota_exceeded)
 
+    AppError.ProviderUnavailable -> UiText.Resource(R.string.error_provider_unavailable)
+
+    AppError.GenerationNotAllowed -> UiText.Resource(R.string.error_generation_not_allowed)
+
+    AppError.ServiceDailyLimit -> UiText.Resource(R.string.error_service_daily_limit)
+
     AppError.RateLimited -> UiText.Resource(R.string.error_rate_limited)
 
     AppError.Unauthorized -> UiText.Resource(R.string.error_unauthorized)

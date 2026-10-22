@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import com.illiamelnyk.studio.core.ui.foundation.StudioText
@@ -26,6 +27,10 @@ fun StationCard(title: String, byline: String, coverSeed: String, onClick: () ->
     val dimens = StudioTheme.dimens
     val colors = StudioTheme.colors
     val shape = StudioTheme.shapes.l
+    // Known before layout, so the first frame already asks for the sharp cover, not the list preview.
+    val sidePx = with(LocalDensity.current) {
+        maxOf(dimens.size.component.stationWidth, dimens.size.component.stationHeight).roundToPx()
+    }
     Row(
         modifier = modifier
             .clickable(
@@ -36,7 +41,7 @@ fun StationCard(title: String, byline: String, coverSeed: String, onClick: () ->
             )
             .size(width = dimens.size.component.stationWidth, height = dimens.size.component.stationHeight)
             .clip(shape)
-            .coverArt(coverSeed)
+            .coverArt(coverSeed, sidePx = sidePx)
             .padding(dimens.spacing.s),
         horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
         verticalAlignment = Alignment.Bottom,

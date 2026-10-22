@@ -1,27 +1,25 @@
 # Android Google / Firebase authentication
 
-This adapter uses the Credential Manager Google button flow, exchanges the Google ID token with Firebase Authentication, and sends Firebase ID tokens to the Studio backend. The app session JSON stores only `firebase:<uid>` references. Firebase owns its private SDK session storage; Google ID tokens, Firebase ID tokens and refresh tokens are never written to Studio JSON or application logs.
+This adapter uses the Credential Manager Google button flow, exchanges the Google ID token with Firebase Authentication, and sends Firebase ID tokens to the Studio backend. The app's own storage keeps only `firebase:<uid>` references. Firebase owns its private SDK session storage; Google ID tokens, Firebase ID tokens and refresh tokens are never written to Studio storage or application logs.
 
-The SDK app is named `studio-auth` and initializes lazily. `FirebaseInitProvider` is removed from the merged manifest. The default debug local-server build keeps the development adapter and never initializes Firebase. There is no product offline/demo CTA.
+The SDK app is named `studio-auth` and initializes lazily. `FirebaseInitProvider` is removed from the merged manifest. A `devDebug` build without a development API URL keeps the development adapter and never initializes Firebase.
 
 ## Configuration
 
-Register Android package `com.illiamelnyk.studio` in the same Firebase project used by the backend. Enable the Google sign-in provider and register the SHA-1 / SHA-256 fingerprints for each signing certificate, including the Play app-signing certificate for Play distribution. Create/use the OAuth **Web application** client ID, not the Android client ID.
+Register two Android apps in the Firebase project the backend uses: `com.illiamelnyk.studio` for the `prod` flavor and `com.illiamelnyk.studio.dev` for `dev`. Enable the Google sign-in provider and register the SHA-1 / SHA-256 fingerprints of every signing certificate on both apps: the debug key, the release key and, for Play distribution, the Play app-signing certificate. Use the OAuth **Web application** client ID, not the Android client ID.
 
-Supply these public Android configuration values through Gradle properties (for example a local, untracked Gradle user properties file or CI properties):
+The Gradle properties are listed under [Build environments](../../README.md#build-environments) in the README. They map to `google-services.json` like this:
 
-```properties
-studio.apiBaseUrl=https://your-studio-api.example
-studio.authMode=firebase
-studio.firebaseAppId=1:PROJECT_NUMBER:android:ANDROID_APP_IDENTIFIER
-studio.firebaseApiKey=YOUR_FIREBASE_ANDROID_API_KEY
-studio.firebaseProjectId=YOUR_FIREBASE_PROJECT_ID
-studio.googleWebClientId=YOUR_WEB_OAUTH_CLIENT_ID.apps.googleusercontent.com
-```
+| Gradle property | `google-services.json` field |
+| --- | --- |
+| `studio.dev.firebaseAppId`, `studio.prod.firebaseAppId` | `mobilesdk_app_id` of that flavor's app |
+| `studio.firebaseApiKey` | `current_key` (shared by both apps) |
+| `studio.firebaseProjectId` | `project_id` |
+| `studio.googleWebClientId` | the OAuth client with `client_type: 3` |
 
-The first three Firebase values correspond to `mobilesdk_app_id`, `current_key`, and `project_id` in the registered Android app's `google-services.json`. The Web client ID is its OAuth client with `client_type: 3`. No Google services Gradle plugin or JSON file is required by this implementation: these values build explicit `FirebaseOptions`. Do not put an Admin service account, private key, client secret or backend provider key in the Android app. Configure the backend Admin SDK separately with the same Firebase project.
+No Google services Gradle plugin or JSON file is required by this implementation: these values build explicit `FirebaseOptions`. Do not put an Admin service account, private key, client secret or backend provider key in the Android app. Configure the backend Admin SDK separately with the same Firebase project.
 
-Missing/blank Firebase values or a disabled/unavailable API fail closed. Release never uses development authentication. The existing release signing setup still needs a production signing configuration before publication; supplying Firebase values does not make the APK ready for release.
+Missing/blank Firebase values or a disabled/unavailable API fail closed. Release never uses development authentication. Release builds are signed only when all `studio.release.*` signing properties are set, as the README describes.
 
 ## Lifecycle and credentials
 
@@ -49,10 +47,8 @@ Unverified receipts retain UID references and deletion evidence. Usual lost-resp
 
 If reauthentication of A succeeds but its deletion retry then fails through the network, the adapter durably resets the reauthentication flag and retains A's newly recovered SDK refresh source. It blocks replacement by B until that retry succeeds or an explicit terminal/reauthentication condition is established. Receipt classification never skips incomplete local private-data cleanup after a crash.
 
-## Validation and merge gates
+## Dependencies
 
-Source and fake SDK/journal tests do not establish real provider acceptance. Before release, run a merged debug/release compile, lint, DI verification and unit suite; inspect the merged manifest for absence of Firebase auto-initialization. Verify default local-server startup performance still uses no Firebase SDK work. With a configured test project and Google Play-capable device, verify chooser cancel/rotation, sign-in, UID-matched token refresh, sign-out, deletion and cross-owner isolation. No real account login or paid provider call was performed while implementing this adapter.
-
-Dependencies were selected from official documentation checked on 2026-10-16: Firebase BoM 35.0.0 (Auth 25.0.0), Credential Manager stable 1.6.0, Google ID 1.2.1.
+Firebase BoM 35.0.0 (Auth 25.0.0), Credential Manager 1.6.0, Google ID 1.2.1.
 
 Official sources: [Firebase Google authentication](https://firebase.google.com/docs/auth/android/google-signin), [Firebase Android setup and libraries](https://firebase.google.com/docs/android/setup), [Credential Manager implementation](https://developer.android.com/identity/sign-in/credential-manager-siwg-implementation), [Credentials releases](https://developer.android.com/jetpack/androidx/releases/credentials), [Google ID releases](https://developers.google.com/identity/android-credential-manager/releases), [Firebase token expiry API](https://firebase.google.com/docs/reference/android/com/google/firebase/auth/GetTokenResult).

@@ -12,6 +12,15 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
+internal data class ArtworkDetailSource(
+    val file: String,
+    val width: Int,
+    val height: Int,
+    val left: Int,
+    val top: Int,
+    val side: Int,
+)
+
 internal data class ArtworkAtlasTile(
     val id: String,
     val image: Bitmap,
@@ -19,6 +28,7 @@ internal data class ArtworkAtlasTile(
     val top: Int,
     val side: Int,
     val palette: List<Int>,
+    val detail: ArtworkDetailSource? = null,
 )
 
 internal class ArtworkAtlas(
@@ -44,6 +54,12 @@ internal class ArtworkAtlas(
                 atlas.getString("id") to (atlas to bitmap)
             }
             val aliases = mutableMapOf<String, ArtworkAtlasTile>()
+            // Detail atlases are metadata only here: lists and notifications never decode them.
+            val details = manifest.optJSONArray("detailAtlases")
+            val detailAtlases = (0 until (details?.length() ?: 0)).associate { index ->
+                val atlas = requireNotNull(details).getJSONObject(index)
+                atlas.getString("id") to atlas
+            }
             val entries = manifest.getJSONArray("tiles")
             val tiles = (0 until entries.length()).map { index ->
                 val entry = entries.getJSONObject(index)
@@ -67,6 +83,32 @@ internal class ArtworkAtlas(
                     top + (bottom - top - side) / 2,
                     side,
                     (0 until palette.length()).map { android.graphics.Color.parseColor(palette.getString(it)) },
+                    if (entry.has("detailAtlas")) {
+                        val source = detailAtlases.getValue(entry.getString("detailAtlas"))
+                        val detailColumns = source.getInt("columns")
+                        val detailRows = source.getInt("rows")
+                        val detailCell = entry.getInt("detailIndex")
+                        val width = source.getInt("width")
+                        val height = source.getInt("height")
+                        val detailInset = source.getInt("insetPx")
+                        require(detailColumns > 0 && detailRows > 0 && detailCell in 0 until detailColumns * detailRows)
+                        val x = detailCell % detailColumns * width / detailColumns + detailInset
+                        val y = detailCell / detailColumns * height / detailRows + detailInset
+                        val w = (detailCell % detailColumns + 1) * width / detailColumns - detailInset - x
+                        val h = (detailCell / detailColumns + 1) * height / detailRows - detailInset - y
+                        val detailSide = minOf(w, h)
+                        require(detailSide > side)
+                        ArtworkDetailSource(
+                            source.getString("file"),
+                            width,
+                            height,
+                            x + (w - detailSide) / 2,
+                            y + (h - detailSide) / 2,
+                            detailSide,
+                        )
+                    } else {
+                        null
+                    },
                 )
                 require(tile.palette.size == 3)
                 val names = entry.getJSONArray("aliases")

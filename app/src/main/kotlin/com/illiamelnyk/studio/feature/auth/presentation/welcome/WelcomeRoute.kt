@@ -6,13 +6,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.credentials.exceptions.GetCredentialCancellationException
-import androidx.credentials.exceptions.GetCredentialException
-import androidx.credentials.exceptions.NoCredentialException
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.presentation.ObserveEffects
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -37,24 +32,16 @@ fun WelcomeRoute(
             is WelcomeEffect.RequestGoogleCredential -> scope.launch {
                 val host = activity
                 if (host == null) {
-                    viewModel.onIntent(WelcomeIntent.GoogleCredentialFailed(effect.requestId, AppError.UnsupportedMode))
+                    viewModel.onIntent(
+                        WelcomeIntent.GoogleCredentialFailed(effect.requestId, GoogleCredentialFailure.Unavailable),
+                    )
                     return@launch
                 }
-                try {
-                    val token = credentials.request(host)
-                    viewModel.onIntent(WelcomeIntent.GoogleCredentialReceived(effect.requestId, token))
-                } catch (_: GetCredentialCancellationException) {
-                    viewModel.onIntent(WelcomeIntent.GoogleCredentialCancelled(effect.requestId))
-                } catch (cancelled: CancellationException) {
-                    viewModel.onIntent(WelcomeIntent.GoogleCredentialCancelled(effect.requestId))
-                    throw cancelled
-                } catch (_: NoCredentialException) {
-                    viewModel.onIntent(WelcomeIntent.GoogleCredentialFailed(effect.requestId, AppError.Unauthorized))
-                } catch (_: GetCredentialException) {
-                    viewModel.onIntent(WelcomeIntent.GoogleCredentialFailed(effect.requestId, AppError.Unauthorized))
-                } catch (_: Exception) {
-                    viewModel.onIntent(WelcomeIntent.GoogleCredentialFailed(effect.requestId, AppError.Unauthorized))
-                }
+                requestGoogleCredential(
+                    requestId = effect.requestId,
+                    request = { credentials.request(host) },
+                    dispatch = viewModel::onIntent,
+                )
             }
         }
     }

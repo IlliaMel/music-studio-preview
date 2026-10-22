@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.illiamelnyk.studio.core.presentation.ObserveEffects
 import com.illiamelnyk.studio.core.presentation.ToastController
@@ -29,6 +31,7 @@ fun ToolRoute(
     viewModel: ToolViewModel = koinViewModel { parametersOf(tool) },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onIntent(ToolIntent.GenerationOptionsRefresh) }
     val feedback: ToastController = koinInject()
     ObserveEffects(viewModel.effects) { effect ->
         when (effect) {

@@ -18,9 +18,16 @@ loadEnvFileIfPresent()
 const config = loadConfigOrExit()
 const log = createLogger(config.log)
 
-const database = await openDatabase(config.database)
+const database = await openDatabase(config.database, log)
 await database.migrate()
 log.info({ database: config.database.kind }, 'database is ready')
+
+// A volume the process cannot write must stop the deploy here, not fail after a paid generation.
+const storage = new LocalAudioStorage(config.storage.audioDir)
+await storage.ensureWritable().catch((error: unknown) => {
+  log.error({ err: error, audioDir: config.storage.audioDir }, 'audio directory is not writable')
+  process.exit(1)
+})
 
 const auth: AuthProvider =
   config.auth.mode === 'firebase'
@@ -36,16 +43,19 @@ const { app, features, worker, accountDeletionWorker, purgeExpiredUploads } = co
   http: config.http,
   log,
   auth,
-  storage: new LocalAudioStorage(config.storage.audioDir),
+  generationAllowedEmails: generation.allowedEmails,
+  firebaseDeleteUsers: config.firebaseDeleteUsers,
+  storage,
   provider:
     generation.provider === 'elevenlabs' && generation.elevenlabs
       ? new ElevenLabsMusicProvider({
           ...generation.elevenlabs,
-          access: referenceAccess(database.db),
+          access: referenceAccess(database.db, generation.dailyPaidRequestsTotal),
         })
       : new MockMusicProvider(generation.mockDelayMs),
   tracks: {
     dailyLimit: generation.dailyLimit,
+    dailyPaidRequestsTotal: generation.dailyPaidRequestsTotal,
     defaultModel: 'music_v2_5',
     publicBaseUrl: config.server.publicBaseUrl,
     worker: {

@@ -12,6 +12,7 @@ import com.illiamelnyk.studio.feature.player.fake.track
 import com.illiamelnyk.studio.testing.MainDispatcherRule
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.json.JSONArray
 import org.json.JSONObject
@@ -37,7 +38,7 @@ class PlaybackSnapshotCacheTest {
         playbackScopes.close()
     }
 
-    @Test fun subsecondTicksReuseSerializationAndNextSecondUpdatesPosition() = runTest {
+    @Test fun subsecondTicksReuseSerializationAndNextSecondUpdatesPosition() = runPlaybackTest {
         val controller = controller("snapshot-clock", backgroundScope) { "snapshot-clock" }
         val state = controller.state.value
         val first = requireNotNull(snapshot(controller, state.copy(positionMs = 4000)))
@@ -50,7 +51,7 @@ class PlaybackSnapshotCacheTest {
         assertEquals(5000L, JSONObject(next.second).getLong("position"))
     }
 
-    @Test fun metadataAndSerializedControlsInvalidateCache() = runTest {
+    @Test fun metadataAndSerializedControlsInvalidateCache() = runPlaybackTest {
         val owner = "snapshot-controls"
         val controller = controller(owner, backgroundScope) { owner }
         val before = requireNotNull(snapshot(controller, controller.state.value))
@@ -89,7 +90,7 @@ class PlaybackSnapshotCacheTest {
         assertEquals("b", JSONObject(secondOrder.second).getJSONArray("autoplayHistory").getString(0))
     }
 
-    @Test fun cachedSnapshotNeverBypassesOwnerOrGenerationValidation() = runTest {
+    @Test fun cachedSnapshotNeverBypassesOwnerOrGenerationValidation() = runPlaybackTest {
         val savedOwner = "snapshot-owner"
         var owner: String? = savedOwner
         val controller = controller(savedOwner, backgroundScope) { owner }
@@ -120,7 +121,7 @@ class PlaybackSnapshotCacheTest {
             context.getSharedPreferences("playback", Context.MODE_PRIVATE).edit()
                 .putString(playbackPreferenceKey(savedOwner), saved.toString()).commit(),
         )
-        return AndroidPlaybackController(context, playbackScopes.wrap(scope), owner)
+        return testPlaybackController(context, playbackScopes.wrap(scope), owner)
     }
 
     private fun snapshot(controller: AndroidPlaybackController, state: PlaybackState): Pair<String, String>? =
@@ -129,4 +130,11 @@ class PlaybackSnapshotCacheTest {
             "snapshot",
             ClassParameter.from(PlaybackState::class.java, state),
         )
+    private fun runPlaybackTest(test: suspend TestScope.() -> Unit) = runTest {
+        try {
+            test()
+        } finally {
+            playbackScopes.closeSuspending()
+        }
+    }
 }

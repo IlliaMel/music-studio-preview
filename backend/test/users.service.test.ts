@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { VerifiedIdentity } from '../src/core/auth/auth-provider.js'
 import { DevAuthProvider } from '../src/core/auth/dev-auth-provider.js'
 import type { DatabaseHandle } from '../src/core/db/database.js'
@@ -93,4 +93,18 @@ describe('updateProfile', () => {
 
     expect(user.termsAcceptedAt).toEqual(firstAcceptance)
   })
+})
+
+it('recovers application-only deletion without removing the shared Firebase identity', async () => {
+  const auth = new DevAuthProvider()
+  const deleteFirebase = vi.spyOn(auth, 'deleteAccount')
+  const cleanup = vi.fn(async (_userId: string) => {})
+  service = new UsersService(repository, auth, cleanup, () => now, { firebaseDeleteUsers: false })
+  const user = await service.resolve(alice)
+  await repository.requestDeletion(user.id, now)
+  expect(await service.recoverDeletion(user.id)).toBe(true)
+  expect(cleanup).toHaveBeenCalledWith(user.id)
+  expect(deleteFirebase).not.toHaveBeenCalled()
+  expect(await repository.findById(user.id)).toBeUndefined()
+  expect(await service.recoverDeletion(user.id)).toBe(false)
 })

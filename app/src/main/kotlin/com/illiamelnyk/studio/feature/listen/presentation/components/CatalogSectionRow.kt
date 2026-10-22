@@ -30,11 +30,7 @@ fun CatalogSectionRow(
     Column(modifier, verticalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.s)) {
         SectionHeader(
             stringResource(section.kind.titleResource()),
-            modifier = if (section.kind == CatalogSectionKind.Stations) {
-                padding
-            } else {
-                padding.heightIn(min = StudioTheme.dimens.size.touchTarget)
-            },
+            modifier = padding.heightIn(min = StudioTheme.dimens.size.touchTarget),
             onTitleClick = if (!section.isLoading &&
                 !section.failed &&
                 section.kind != CatalogSectionKind.Stations &&

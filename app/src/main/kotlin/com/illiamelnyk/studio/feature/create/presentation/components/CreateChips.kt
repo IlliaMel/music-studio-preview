@@ -17,7 +17,7 @@ import com.illiamelnyk.studio.core.ui.icons.StudioIcons
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
 /**
- * The shortcuts at the top of Create: Muse, Styles, Sounds and Record. It scrolls sideways when
+ * The shortcuts at the top of Create: Record, Muse, Styles and Sounds. It scrolls sideways when
  * the chips don't fit, such as with a large font.
  */
 @Composable
@@ -35,6 +35,7 @@ fun CreateChips(
             .padding(PaddingValues(horizontal = dimens.layout.screenPadding, vertical = dimens.spacing.xxs)),
         horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
     ) {
+        StudioChip(stringResource(R.string.create_chip_record), onRecordClick, leadingIcon = StudioIcons.Mic)
         StudioChip(
             stringResource(R.string.create_soon_muse),
             onMuseClick,
@@ -53,7 +54,6 @@ fun CreateChips(
             leadingIcon = StudioIcons.Waveform,
             comingSoon = true,
         )
-        StudioChip(stringResource(R.string.create_chip_record), onRecordClick, leadingIcon = StudioIcons.Mic)
     }
 }
 

@@ -23,6 +23,7 @@ import androidx.compose.ui.tooling.preview.PreviewLightDark
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.domain.track.Quality
 import com.illiamelnyk.studio.core.presentation.preview.PreviewScreen
+import com.illiamelnyk.studio.core.ui.components.OverlaySheet
 import com.illiamelnyk.studio.core.ui.components.StudioButton
 import com.illiamelnyk.studio.core.ui.components.StudioButtonStyle
 import com.illiamelnyk.studio.core.ui.components.StudioIconButton
@@ -35,7 +36,6 @@ import com.illiamelnyk.studio.feature.create.domain.LyricsMode
 import com.illiamelnyk.studio.feature.create.presentation.CreatePreviewData
 import com.illiamelnyk.studio.feature.create.presentation.SettingsUi
 import com.illiamelnyk.studio.feature.create.presentation.common.ComingSoonFeature
-import com.illiamelnyk.studio.feature.create.presentation.common.OverlaySheet
 import com.illiamelnyk.studio.feature.create.presentation.common.rememberLatest
 import com.illiamelnyk.studio.feature.create.presentation.label
 import kotlin.time.Duration
@@ -55,7 +55,8 @@ class SettingsCallbacks(
 
 /**
  * The composer's settings, open while [draft] isn't `null`: vocals or not, the length
- * and the writing engine. Choices apply to the composer only with Apply; Reset brings back the defaults.
+ * and the writing engine when there is more than one. Choices apply to the composer only with Apply;
+ * Reset brings back the defaults.
  */
 @Composable
 fun SettingsSheet(
@@ -95,17 +96,28 @@ private fun SettingsContent(
             ComposerDurationMenu(draft.duration, callbacks.onDurationSelect)
         }
         SettingsInlineGroup(R.string.create_settings_variations) {
-            StudioSegmentedControl(listOf(1, 2), draft.variants, callbacks.onVariantsSelect, compact = true) {
-                stringResource(R.string.create_variants, it)
+            if (draft.variantOptions.isNotEmpty()) {
+                StudioSegmentedControl(
+                    draft.variantOptions,
+                    draft.variants,
+                    callbacks.onVariantsSelect,
+                    compact = true,
+                ) {
+                    stringResource(R.string.create_variants, it)
+                }
             }
         }
         SettingsGroup(R.string.create_composer_lyrics) {
             StudioSegmentedControl(
-                options = listOf(
-                    R.string.create_quality_auto,
-                    R.string.create_lyrics_custom,
-                    R.string.create_settings_instrumental,
-                ),
+                options = buildList {
+                    add(R.string.create_quality_auto)
+                    if (draft.customLyricsSupported ||
+                        draft.lyricsMode == LyricsMode.Custom
+                    ) {
+                        add(R.string.create_lyrics_custom)
+                    }
+                    add(R.string.create_settings_instrumental)
+                },
                 selected = when (draft.lyricsMode) {
                     LyricsMode.Instrumental -> R.string.create_settings_instrumental
                     LyricsMode.Custom -> R.string.create_lyrics_custom
@@ -121,9 +133,15 @@ private fun SettingsContent(
                 compact = true,
             ) { stringResource(it) }
         }
-        SettingsGroup(R.string.create_settings_engine) {
-            StudioSegmentedControl(Quality.entries, draft.quality, callbacks.onQualitySelect) {
-                stringResource(it.label)
+        if (draft.lyricsMode == LyricsMode.Custom && !draft.customLyricsSupported) {
+            StudioText(stringResource(R.string.create_options_lyrics_unsupported), StudioTheme.typography.bodyMedium)
+        }
+        // Shown only with a choice: production's live API offers Auto alone.
+        if (draft.qualityOptions.size > 1) {
+            SettingsGroup(R.string.create_settings_engine) {
+                StudioSegmentedControl(draft.qualityOptions, draft.quality, callbacks.onQualitySelect) {
+                    stringResource(it.label)
+                }
             }
         }
         SettingsInlineGroup(
@@ -147,6 +165,7 @@ private fun SettingsContent(
             StudioButton(
                 text = stringResource(R.string.create_settings_apply),
                 onClick = callbacks.onApply,
+                enabled = draft.optionsReady && (draft.lyricsMode != LyricsMode.Custom || draft.customLyricsSupported),
                 modifier = Modifier.weight(1f),
             )
         }

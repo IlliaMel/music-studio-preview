@@ -100,7 +100,6 @@ class InteractiveTouchTargetTest {
                 subtitle = "Studio",
                 coverSeed = "Night Drive",
                 isPlaying = true,
-                progress = { 0.4f },
                 onClick = {},
                 onPlayPause = {},
                 onNext = {},

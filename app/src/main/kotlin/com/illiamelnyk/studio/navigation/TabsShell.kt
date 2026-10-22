@@ -2,10 +2,8 @@ package com.illiamelnyk.studio.navigation
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -20,6 +18,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -39,45 +38,34 @@ import com.illiamelnyk.studio.core.ui.foundation.ProvideGlassBackdrop
 import com.illiamelnyk.studio.core.ui.foundation.glassBackdrop
 import com.illiamelnyk.studio.core.ui.foundation.rememberGlassBackdrop
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
-import com.illiamelnyk.studio.debug.debugSettings
 import com.illiamelnyk.studio.feature.player.presentation.host.PlayerHost
 import com.illiamelnyk.studio.feature.player.presentation.host.PlayerHostScope
 import com.illiamelnyk.studio.feature.player.presentation.mini.MiniPlayerHost
 import com.illiamelnyk.studio.feature.profile.presentation.ProfileOverlay
-import kotlinx.collections.immutable.toImmutableList
 import org.koin.compose.koinInject
 
 /**
- * The signed-in app: the screens of the selected tab with the shell's bars around them, laid out
- * as [variant] says. Each tab keeps its own back stack, saved state and ViewModels while another
- * tab is shown. Switching the variant keeps the screens; signing out drops all of them.
+ * The signed-in app: Create and Listen with a fixed top switch. Each tab keeps its own back stack,
+ * saved state and ViewModels while another tab is shown. Signing out drops all of them.
  *
  * Like a scaffold, the shell measures its bars along the bottom first and gives the screens that
- * height as their bottom padding, so lists scroll behind the bars and the mini player sits right
- * above the bottom bar. The screens are the backdrop the glass mini player blurs.
+ * height as their bottom padding, so lists scroll behind the mini player and system navigation
+ * inset. The screens are the backdrop the glass mini player blurs.
  *
  * The full player opens over all of it, from the mini player: see [PlayerHost].
  */
 @Composable
-fun TabsShell(
-    variant: ShellVariant,
-    avatarSeed: String,
-    creditsLeft: Int,
-    hasPlayback: Boolean,
-    modifier: Modifier = Modifier,
-) {
+fun TabsShell(avatarSeed: String, creditsLeft: Int, hasPlayback: Boolean, modifier: Modifier = Modifier) {
     var profileOpen by rememberSaveable { mutableStateOf(false) }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
-    val navigator = rememberTabNavigator(variant.tabs)
+    val navigator = rememberTabNavigator()
     val notificationTargets: GenerationNotificationTargets = koinInject()
     val openNotification: OpenGenerationNotification = koinInject()
     val notificationTarget by notificationTargets.pending.collectAsStateWithLifecycle()
     DisposableEffect(notificationTargets) { onDispose { notificationTargets.clear() } }
     val drafts: ComposerDraftStore = koinInject()
     val draftRevision by drafts.revision.collectAsStateWithLifecycle()
-    LaunchedEffect(draftRevision) {
-        if (draftRevision > 0) navigator.select(TopLevelTab.Create)
-    }
+    ObserveRemixNavigation(draftRevision, navigator)
     val atTabRoot = navigator.isAtTabRoot
     val bottomChrome = remember { BottomChrome() }
     val topChrome = remember { TopChrome() }
@@ -140,7 +128,6 @@ fun TabsShell(
                         exit = fadeOut(tween(motion.duration.short)),
                     ) {
                         ShellTopBar(
-                            variant = variant,
                             selectedTab = navigator.selectedTab,
                             avatarSeed = avatarSeed,
                             creditsLeft = creditsLeft,
@@ -152,13 +139,10 @@ fun TabsShell(
                     }
                 },
                 {
-                    // The bottom bar stays on every screen, so a tab can be left mid-way and found as
-                    // it was; the top bar belongs to a tab's first screen only.
+                    // The mini player stays above the system navigation inset on every screen.
                     ProvideGlassBackdrop(backdrop) {
                         ShellBottomChrome(
-                            navigator = navigator,
                             player = player,
-                            showsBottomBar = variant == ShellVariant.BottomBar,
                             showsMiniPlayer = hasPlayback,
                         )
                     }
@@ -183,45 +167,33 @@ fun TabsShell(
         }
     }
     ShellSearchSheet(visible = searchOpen, onDismiss = { searchOpen = false })
-    if (profileOpen) ProfileOverlay(onClose = { profileOpen = false }, debugSettings = debugSettings)
+    if (profileOpen) ProfileOverlay(onClose = { profileOpen = false })
 }
 
-/**
- * Along the bottom edge: the mini player, then the bottom bar of [ShellVariant.BottomBar], which
- * draws behind the system navigation bar. Without the bar, the space of the system navigation bar.
- * The bar and that space swap with the same animation, so the mini player glides instead of
- * jumping.
- */
+/** A draft revision is a navigation request once, including after saved-state recreation. */
 @Composable
-private fun ShellBottomChrome(
-    navigator: TabNavigator,
-    player: PlayerHostScope,
-    showsBottomBar: Boolean,
-    showsMiniPlayer: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    val motion = StudioTheme.motion
+internal fun ObserveRemixNavigation(revision: Int, navigator: TabNavigator) {
+    var handledRevision by rememberSaveable { mutableIntStateOf(0) }
+    LaunchedEffect(revision) {
+        if (revision > 0 && revision != handledRevision) navigator.select(TopLevelTab.Create)
+        // Clearing the draft resets the counter; a later first remix must be handled again.
+        handledRevision = revision
+    }
+}
+
+/** The mini player and the persistent system-navigation inset, shared by every destination. */
+@Composable
+private fun ShellBottomChrome(player: PlayerHostScope, showsMiniPlayer: Boolean, modifier: Modifier = Modifier) {
     val dimens = StudioTheme.dimens
-    val expand = expandVertically(tween(motion.duration.medium, easing = motion.easing.standard))
-    val shrink = shrinkVertically(tween(motion.duration.medium, easing = motion.easing.standard))
-    Column(modifier.fillMaxWidth().background(StudioTheme.colors.background)) {
+    Column(modifier.fillMaxWidth()) {
         MiniPlayerHost(
             host = player,
             visible = showsMiniPlayer,
             modifier = Modifier.padding(horizontal = dimens.layout.screenPadding, vertical = dimens.spacing.xs),
         )
-        AnimatedVisibility(visible = showsBottomBar, enter = expand, exit = shrink) {
-            ShellNavigationBar(
-                tabs = remember(navigator.tabs) { navigator.tabs.toImmutableList() },
-                selectedTab = navigator.selectedTab,
-                onTabSelect = navigator::select,
-            )
-        }
-        AnimatedVisibility(visible = !showsBottomBar, enter = expand, exit = shrink) {
-            Spacer(
-                Modifier.fillMaxWidth().background(StudioTheme.colors.background)
-                    .windowInsetsBottomHeight(WindowInsets.navigationBars),
-            )
-        }
+        Spacer(
+            Modifier.fillMaxWidth()
+                .windowInsetsBottomHeight(WindowInsets.navigationBars),
+        )
     }
 }

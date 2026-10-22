@@ -13,6 +13,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.json.JSONArray
 import org.json.JSONObject
@@ -39,7 +40,7 @@ class PlaybackRestoreConcurrencyTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun restoreDoesNotWaitForTheDiskCommitSerializationLock() = runTest {
+    fun restoreDoesNotWaitForTheDiskCommitSerializationLock() = runPlaybackTest {
         val owner = "restore-independent-io-lock"
         savedQueue(owner)
         val held = CountDownLatch(1)
@@ -56,7 +57,7 @@ class PlaybackRestoreConcurrencyTest {
             }
             assertTrue(held.await(2, TimeUnit.SECONDS))
             val restored = caller.submit<AndroidPlaybackController> {
-                AndroidPlaybackController(context, scope, ownerId = { owner })
+                testPlaybackController(context, scope, ownerId = { owner })
             }.get(2, TimeUnit.SECONDS)
             assertEquals("restore-track", restored.state.value.current?.id?.value)
             assertNotNull(restored.systemSnapshot())
@@ -68,7 +69,7 @@ class PlaybackRestoreConcurrencyTest {
     }
 
     @Test
-    fun failedPurgeCannotRestoreOldBytesUntilSuccessfulRetryAllowsFreshClaim() = runTest {
+    fun failedPurgeCannotRestoreOldBytesUntilSuccessfulRetryAllowsFreshClaim() = runPlaybackTest {
         val owner = "failed-purge-blocked-owner"
         val preferences = savedQueue(owner)
         val failing = preferencesContext(object : SharedPreferences by preferences {
@@ -85,7 +86,7 @@ class PlaybackRestoreConcurrencyTest {
         })
         assertTrue(runCatching { clearPlaybackState(failing, owner) }.exceptionOrNull() is IOException)
         assertTrue(preferences.contains(playbackPreferenceKey(owner)))
-        val blocked = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
+        val blocked = testPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         assertNull(blocked.state.value.current)
         blocked.play(listOf(track("blocked-new-play", 20.seconds)))
         assertNull(blocked.state.value.current)
@@ -94,13 +95,13 @@ class PlaybackRestoreConcurrencyTest {
         assertFalse(preferences.contains(playbackPreferenceKey(owner)))
         assertNotNull(playbackRestoreGeneration(owner))
         savedQueue(owner)
-        val fresh = AndroidPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
+        val fresh = testPlaybackController(context, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         assertEquals("restore-track", fresh.state.value.current?.id?.value)
         assertNotNull(fresh.systemSnapshot())
     }
 
     @Test
-    fun purgeBetweenReadAndPublicationRejectsTheCapturedOldSnapshot() = runTest {
+    fun purgeBetweenReadAndPublicationRejectsTheCapturedOldSnapshot() = runPlaybackTest {
         val owner = "purge-during-restore-read"
         val preferences = savedQueue(owner)
         val intercepted = AtomicBoolean()
@@ -113,14 +114,14 @@ class PlaybackRestoreConcurrencyTest {
                 return value
             }
         })
-        val restored = AndroidPlaybackController(wrapped, playbackScopes.wrap(backgroundScope), ownerId = { owner })
+        val restored = testPlaybackController(wrapped, playbackScopes.wrap(backgroundScope), ownerId = { owner })
         assertTrue(intercepted.get())
         assertNull(restored.state.value.current)
         assertNull(restored.systemSnapshot())
     }
 
     @Test
-    fun restoreRetriesChangedAcceptedSnapshotAndTransfersTheLatestOverlayAtomically() = runTest {
+    fun restoreRetriesChangedAcceptedSnapshotAndTransfersTheLatestOverlayAtomically() = runPlaybackTest {
         val owner = "restore-latest-accepted-snapshot"
         val preferences = savedQueue(owner)
         val key = playbackPreferenceKey(owner)
@@ -153,7 +154,7 @@ class PlaybackRestoreConcurrencyTest {
             }
             assertTrue(held.await(2, TimeUnit.SECONDS))
             val restored = caller.submit<AndroidPlaybackController> {
-                AndroidPlaybackController(preferencesContext(shared), scope, ownerId = { owner })
+                testPlaybackController(preferencesContext(shared), scope, ownerId = { owner })
             }.get(2, TimeUnit.SECONDS)
             assertTrue(intercepted.get())
             assertEquals(12000L, restored.state.value.positionMs)
@@ -184,5 +185,12 @@ class PlaybackRestoreConcurrencyTest {
     private fun preferencesContext(preferences: SharedPreferences): Context = object : ContextWrapper(context) {
         override fun getSharedPreferences(name: String, mode: Int): SharedPreferences =
             if (name == "playback") preferences else super.getSharedPreferences(name, mode)
+    }
+    private fun runPlaybackTest(test: suspend TestScope.() -> Unit) = runTest {
+        try {
+            test()
+        } finally {
+            playbackScopes.closeSuspending()
+        }
     }
 }

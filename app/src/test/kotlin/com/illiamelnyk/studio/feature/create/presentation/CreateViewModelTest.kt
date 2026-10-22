@@ -2,20 +2,28 @@ package com.illiamelnyk.studio.feature.create.presentation
 
 import app.cash.turbine.test
 import com.illiamelnyk.studio.R
+import com.illiamelnyk.studio.core.data.demo.DemoCatalog
 import com.illiamelnyk.studio.core.data.fake.FakeCreditsRepository
 import com.illiamelnyk.studio.core.data.fake.FakePlaybackController
 import com.illiamelnyk.studio.core.data.fake.FakeSessionRepository
 import com.illiamelnyk.studio.core.data.fake.FakeTrackRepository
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.Outcome
+import com.illiamelnyk.studio.core.domain.session.Session
+import com.illiamelnyk.studio.core.domain.session.SessionRepository
+import com.illiamelnyk.studio.core.domain.session.SignInMethod
 import com.illiamelnyk.studio.core.domain.track.ComposerDraftStore
+import com.illiamelnyk.studio.core.domain.track.GenerationOptions
+import com.illiamelnyk.studio.core.domain.track.GenerationOptionsRepository
 import com.illiamelnyk.studio.core.domain.track.GenerationRequest
 import com.illiamelnyk.studio.core.domain.track.MusicModel
 import com.illiamelnyk.studio.core.domain.track.Quality
 import com.illiamelnyk.studio.core.domain.track.Track
 import com.illiamelnyk.studio.core.domain.track.TrackId
 import com.illiamelnyk.studio.core.domain.track.TrackRepository
+import com.illiamelnyk.studio.core.domain.track.TrackStatus
 import com.illiamelnyk.studio.core.presentation.UiText
+import com.illiamelnyk.studio.core.presentation.toUiText
 import com.illiamelnyk.studio.core.presentation.track.TrackUi
 import com.illiamelnyk.studio.core.ui.components.StudioToastKind
 import com.illiamelnyk.studio.feature.create.domain.GenerateTracks
@@ -23,7 +31,6 @@ import com.illiamelnyk.studio.feature.create.domain.LyricsMode
 import com.illiamelnyk.studio.feature.create.domain.NotificationChoice
 import com.illiamelnyk.studio.feature.create.domain.PlayNext
 import com.illiamelnyk.studio.feature.create.domain.Prompt
-import com.illiamelnyk.studio.feature.create.domain.TrackRenames
 import com.illiamelnyk.studio.feature.create.presentation.common.ComingSoonFeature
 import com.illiamelnyk.studio.feature.create.presentation.common.ToastUi
 import com.illiamelnyk.studio.feature.create.presentation.common.toOptionUi
@@ -35,6 +42,8 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.TestScope
@@ -44,6 +53,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -75,8 +85,38 @@ class CreateViewModelTest {
     private lateinit var tracks: FailingTrackRepository
     private lateinit var playback: FakePlaybackController
     private var submittedRequest: GenerationRequest? = null
+    private lateinit var sessionState: MutableStateFlow<Session?>
+    private var retryCalls = 0
     private var renameGate: CompletableDeferred<Outcome<Unit>>? = null
     private var renameCalls = 0
+
+    @Test
+    fun `opening the currently playing generated song preserves position and pause state`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val viewModel = viewModel()
+            viewModel.onIntent(CreateIntent.TrackClicked(TrackId("seed-2")))
+            playback.seekTo(12_345)
+            val current = playback.state.value
+            viewModel.onIntent(CreateIntent.TrackClicked(TrackId("seed-2")))
+            assertEquals(current, playback.state.value)
+            playback.togglePlayPause()
+            val paused = playback.state.value
+            viewModel.onIntent(CreateIntent.TrackClicked(TrackId("seed-2")))
+            assertEquals(paused, playback.state.value)
+        }
+
+    @Test
+    fun `an empty library keeps loading until the server's answer, then offers ideas`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val synced = MutableStateFlow(false)
+            val viewModel = viewModel(source = MutableStateFlow(emptyList()), synced = synced)
+
+            assertEquals(true, viewModel.state.value.isLoading)
+            synced.value = true
+            runCurrent()
+            assertEquals(false, viewModel.state.value.isLoading)
+            assertTrue(viewModel.state.value.tracks.isEmpty())
+        }
 
     @Test
     fun `the user's tracks load newest first, with a fix where the prompt was refused and a retry where it failed`() =
@@ -126,13 +166,13 @@ class CreateViewModelTest {
                 val state = viewModel.state.value
                 assertEquals("Lo-fi beat for studying", state.tracks.first().row.title)
                 assertEquals(TrackUi.Status.Generating, state.tracks.first().row.status)
-                assertEquals(0f, state.tracks.first().progress)
+                assertNull(state.tracks.first().progress)
                 assertEquals(ComposerUi(), state.composer)
                 assertEquals(7, credits.credits.first().remaining)
 
                 // The fake composes in eight steps, one a second.
                 advanceTimeBy(1.seconds)
-                assertEquals(0.125f, viewModel.state.value.tracks.first().progress)
+                assertNull(viewModel.state.value.tracks.first().progress)
             }
         }
 
@@ -464,6 +504,32 @@ class CreateViewModelTest {
         assertEquals("Cinematic folk with violin and choir", viewModel.state.value.composer.prompt)
     }
 
+    @Test fun repositoryTitlesRemainAuthoritativeAfterRenameAndOwnerSnapshotChanges() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val original = DemoCatalog.tracks.first().copy(id = TrackId("seed-2"), title = "Owner A original")
+            val source = MutableStateFlow(listOf(original))
+            val vm = viewModel(source = source)
+            vm.onIntent(CreateIntent.MoreClicked(original.id))
+            vm.onIntent(CreateIntent.MenuActionClicked(TrackMenuAction.Rename))
+            vm.onIntent(CreateIntent.RenameChanged("Requested title"))
+            vm.onIntent(CreateIntent.RenameConfirmed)
+            runCurrent()
+            // A success closes the editor; only the authoritative repository emission changes tracks.
+            assertNull(vm.state.value.sheet)
+            assertEquals("Owner A original", vm.state.value.track("seed-2").row.title)
+            source.value = listOf(original.copy(title = "Updated on another device"))
+            runCurrent()
+            assertEquals("Updated on another device", vm.state.value.track("seed-2").row.title)
+            vm.onIntent(CreateIntent.TrackClicked(original.id))
+            assertEquals("Updated on another device", playback.state.value.current?.title)
+            source.value = emptyList()
+            runCurrent()
+            assertEquals(emptyList<CreateTrackUi>(), vm.state.value.tracks)
+            source.value = listOf(original.copy(title = "Owner B original"))
+            runCurrent()
+            assertEquals("Owner B original", vm.state.value.track("seed-2").row.title)
+        }
+
     @Test
     fun `the notification answer is remembered and permission is requested only for Notify me`() =
         runTest(mainDispatcherRule.testDispatcher) {
@@ -710,7 +776,7 @@ class CreateViewModelTest {
 
         val request = requireNotNull(submittedRequest)
         assertEquals(uri, request.referenceAudioUri)
-        assertNull(request.remixTrackId)
+        assertNull(request.remixTrackIds.firstOrNull())
         assertEquals(7, credits.credits.first().remaining)
     }
 
@@ -730,7 +796,7 @@ class CreateViewModelTest {
         }
 
         val request = requireNotNull(submittedRequest)
-        assertEquals(original.id.value, request.remixTrackId)
+        assertEquals(original.id.value, request.remixTrackIds.firstOrNull())
         assertNull(request.referenceAudioUri)
         assertEquals(7, credits.credits.first().remaining)
     }
@@ -868,15 +934,245 @@ class CreateViewModelTest {
         }
     }
 
-    private fun TestScope.viewModel(
+    @Test
+    fun deniedProfileKeepsDraftAndRejectsSendAndRetryWithoutSpendingCredits() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val vm = viewModel(canGenerate = false)
+            val remaining = credits.credits.first().remaining
+            vm.onIntent(CreateIntent.PromptChanged("Warm piano with gentle strings"))
+            assertEquals(false, vm.state.value.composer.canGenerate)
+            assertEquals(false, vm.state.value.composer.canSend)
+            assertEquals(UiText.Resource(R.string.error_generation_not_allowed), vm.state.value.composer.notice)
+            vm.effects.test {
+                vm.onIntent(CreateIntent.SendClicked)
+                assertEquals(
+                    AppError.GenerationNotAllowed.toUiText(),
+                    (awaitItem() as CreateEffect.ShowToast).toast.message,
+                )
+                vm.onIntent(CreateIntent.RetryClicked(TrackId("seed-5")))
+                assertEquals(
+                    AppError.GenerationNotAllowed.toUiText(),
+                    (awaitItem() as CreateEffect.ShowToast).toast.message,
+                )
+                runCurrent()
+                expectNoEvents()
+            }
+            assertNull(submittedRequest)
+            assertEquals(0, retryCalls)
+            assertEquals(remaining, credits.credits.first().remaining)
+            assertEquals("Warm piano with gentle strings", vm.state.value.composer.prompt)
+        }
+
+    @Test
+    fun profileCapabilityChangesImmediatelyRecheckTheExistingDraft() = runTest(mainDispatcherRule.testDispatcher) {
+        val vm = viewModel()
+        vm.onIntent(CreateIntent.PromptChanged("Warm piano with gentle strings"))
+        assertEquals(true, vm.state.value.composer.canSend)
+        val allowed = checkNotNull(sessionState.value)
+        sessionState.value = allowed.copy(user = allowed.user.copy(canGenerate = false))
+        runCurrent()
+        assertEquals(false, vm.state.value.composer.canSend)
+        assertEquals(UiText.Resource(R.string.error_generation_not_allowed), vm.state.value.composer.notice)
+        sessionState.value = allowed
+        runCurrent()
+        assertEquals(true, vm.state.value.composer.canSend)
+        assertNull(vm.state.value.composer.notice)
+        vm.onIntent(CreateIntent.SendClicked)
+        advanceTimeBy(NETWORK)
+        runCurrent()
+        assertEquals("Warm piano with gentle strings", submittedRequest?.prompt)
+    }
+
+    @Test
+    fun accessRevokedBeforeQueuedSendStartsDoesNotReachGeneration() = runTest(mainDispatcherRule.testDispatcher) {
+        val vm = viewModel()
+        vm.onIntent(CreateIntent.PromptChanged("Warm piano with gentle strings"))
+        val allowed = checkNotNull(sessionState.value)
+        sessionState.value = allowed.copy(user = allowed.user.copy(canGenerate = false))
+        vm.onIntent(CreateIntent.SendClicked)
+        runCurrent()
+        assertNull(submittedRequest)
+        assertEquals(false, vm.state.value.composer.isSending)
+        assertEquals(false, vm.state.value.composer.canSend)
+        assertEquals("Warm piano with gentle strings", vm.state.value.composer.prompt)
+    }
+
+    @Test
+    fun missingSessionNeverDefaultsToGenerationAccess() = runTest(mainDispatcherRule.testDispatcher) {
+        val vm = viewModel(hasSession = false)
+        vm.onIntent(CreateIntent.PromptChanged("Warm piano with gentle strings"))
+        assertEquals(false, vm.state.value.composer.canGenerate)
+        assertEquals(false, vm.state.value.composer.canSend)
+    }
+
+    @Test
+    fun serverInvitationAndSharedBudgetFailuresUseSpecificToastsAndKeepTheDraft() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val vm = viewModel()
+            vm.effects.test {
+                listOf(AppError.GenerationNotAllowed, AppError.ServiceDailyLimit).forEach { error ->
+                    tracks.failWith = error
+                    send(vm, "Keep this invitation-only idea")
+                    assertEquals(error.toUiText(), (awaitItem() as CreateEffect.ShowToast).toast.message)
+                    assertNull(vm.state.value.sheet)
+                    assertEquals("Keep this invitation-only idea", vm.state.value.composer.prompt)
+                }
+                expectNoEvents()
+            }
+        }
+
+    @Test
+    fun pendingCapabilitiesCannotSubmitOrSelectUnsupportedOptions() = runTest(mainDispatcherRule.testDispatcher) {
+        val pending = CompletableDeferred<Outcome<GenerationOptions>>()
+        val vm = viewModel(
+            generationOptions = object : GenerationOptionsRepository {
+                override suspend fun load() = pending.await()
+            },
+        )
+        vm.onIntent(CreateIntent.PromptChanged("Warm piano with gentle strings"))
+        vm.onIntent(CreateIntent.QualitySelected(Quality.Deep))
+        vm.onIntent(CreateIntent.SendClicked)
+        assertFalse(vm.state.value.composer.canSend)
+        assertNull(submittedRequest)
+        pending.complete(Outcome.Success(GenerationOptions(setOf(Quality.Auto), setOf(1), false, false, false, 0)))
+        runCurrent()
+        assertEquals(true, vm.state.value.composer.canSend)
+        assertEquals(listOf(Quality.Auto), vm.state.value.composer.qualityOptions)
+    }
+
+    @Test
+    fun capabilityRefreshNormalizesQualityAndCountInComposerAndOpenSettings() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val options = TestGenerationOptionsRepository()
+            val vm = viewModel(generationOptions = options)
+            vm.onIntent(CreateIntent.QualitySelected(Quality.Deep))
+            vm.onIntent(CreateIntent.VariantsClicked)
+            vm.onIntent(CreateIntent.SettingsClicked)
+            options.result = Outcome.Success(GenerationOptions(setOf(Quality.Auto), setOf(1), false, false, false, 0))
+            vm.onIntent(CreateIntent.GenerationOptionsRefresh)
+            runCurrent()
+            assertEquals(Quality.Auto, vm.state.value.composer.quality)
+            assertEquals(1, vm.state.value.composer.variants)
+            val draft = (vm.state.value.sheet as CreateSheet.Settings).draft
+            assertEquals(Quality.Auto, draft.quality)
+            assertEquals(1, draft.variants)
+            vm.onIntent(CreateIntent.SettingsQualitySelected(Quality.Fast))
+            vm.onIntent(CreateIntent.SettingsVariantsSelected(2))
+            vm.onIntent(CreateIntent.SettingsApplied)
+            send(vm, "Warm piano with gentle strings")
+            assertEquals(Quality.Auto, submittedRequest?.quality)
+        }
+
+    @Test
+    fun failedCapabilitiesAreClosedAndNoticeRetriesWithoutOpeningQuota() = runTest(mainDispatcherRule.testDispatcher) {
+        val options = TestGenerationOptionsRepository(Outcome.Failure(AppError.Unknown))
+        val vm = viewModel(generationOptions = options)
+        vm.onIntent(CreateIntent.PromptChanged("Warm piano with gentle strings"))
+        assertFalse(vm.state.value.composer.canSend)
+        assertEquals(UiText.Resource(R.string.create_options_failed), vm.state.value.composer.notice)
+        options.result = TestGenerationOptionsRepository().result
+        vm.onIntent(CreateIntent.ComposerNoticeClicked)
+        runCurrent()
+        assertEquals(true, vm.state.value.composer.canSend)
+        assertNull(vm.state.value.sheet)
+    }
+
+    @Test
+    fun capabilityChangePreservesCustomLyricsAndReferencesUntilExplicitlyRemoved() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val options = TestGenerationOptionsRepository()
+            val vm = viewModel(generationOptions = options)
+            vm.onIntent(CreateIntent.PromptChanged("Warm piano with gentle strings"))
+            vm.onIntent(CreateIntent.CustomLyricsClicked)
+            vm.onIntent(CreateIntent.CustomLyricsChanged("Keep my handwritten verse"))
+            vm.onIntent(CreateIntent.ReferenceSelected("content://recording/test", "My recording"))
+            options.result = Outcome.Success(GenerationOptions(setOf(Quality.Auto), setOf(1), false, false, false, 0))
+            vm.onIntent(CreateIntent.GenerationOptionsRefresh)
+            runCurrent()
+            assertEquals("Keep my handwritten verse", vm.state.value.composer.customLyrics)
+            assertEquals(LyricsMode.Custom, vm.state.value.composer.lyricsMode)
+            assertEquals("My recording", vm.state.value.composer.referenceLabel)
+            assertFalse(vm.state.value.composer.canSend)
+            vm.onIntent(CreateIntent.LyricsSelected(true))
+            assertFalse(vm.state.value.composer.canSend)
+            vm.onIntent(CreateIntent.ReferenceRemoved)
+            assertEquals(true, vm.state.value.composer.canSend)
+            assertEquals("Keep my handwritten verse", vm.state.value.composer.customLyrics)
+        }
+
+    @Test
+    fun savedRemixCannotSubmitWhenAudioReferencesAreDisabledEvenWithANonzeroSourceLimit() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val drafts = ComposerDraftStore { "test-owner" }
+            val options = TestGenerationOptionsRepository()
+            val vm = viewModel(drafts = drafts, generationOptions = options)
+            val source = tracks.observeMine().first().first()
+            drafts.remix(source)
+            runCurrent()
+            vm.onIntent(CreateIntent.PromptChanged("Keep my remix draft through the refresh"))
+            options.result = Outcome.Success(GenerationOptions(setOf(Quality.Auto), setOf(1), false, false, false, 4))
+            vm.onIntent(CreateIntent.GenerationOptionsRefresh)
+            runCurrent()
+            assertEquals(listOf(source.id), vm.state.value.composer.remixSources.map { it.id })
+            assertEquals("Keep my remix draft through the refresh", vm.state.value.composer.prompt)
+            assertEquals(UiText.Resource(R.string.create_options_remix_unsupported), vm.state.value.composer.notice)
+            assertFalse(vm.state.value.composer.canSend)
+            vm.onIntent(CreateIntent.SendClicked)
+            assertNull(submittedRequest)
+            vm.onIntent(CreateIntent.RemixSourceRemoved(source.id))
+            runCurrent()
+            assertEquals(true, vm.state.value.composer.canSend)
+        }
+
+    @Test
+    fun unsupportedSavedRecordingReferenceActionExplainsWhyInsteadOfSilentlyIgnoringTheTap() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val recording = DemoCatalog.tracks.first().copy(
+                id = TrackId("recording-saved-idea"),
+                status = TrackStatus.Ready,
+                audioUri = "content://recording/saved-idea",
+            )
+            val options = TestGenerationOptionsRepository(
+                Outcome.Success(GenerationOptions(setOf(Quality.Auto), setOf(1), false, false, false, 4)),
+            )
+            val vm = viewModel(source = MutableStateFlow(listOf(recording)), generationOptions = options)
+            vm.effects.test {
+                vm.onIntent(CreateIntent.MoreClicked(recording.id))
+                vm.onIntent(CreateIntent.MenuActionClicked(TrackMenuAction.UseAsReference))
+                assertEquals(AppError.UnsupportedMode.toUiText(), (awaitItem() as CreateEffect.ShowToast).toast.message)
+                assertNull(vm.state.value.composer.referenceLabel)
+                assertNull(submittedRequest)
+                expectNoEvents()
+            }
+        }
+
+    private suspend fun TestScope.viewModel(
         drafts: ComposerDraftStore = ComposerDraftStore { "test-owner" },
         blankPromptIds: Set<TrackId> = emptySet(),
+        source: Flow<List<Track>>? = null,
+        synced: Flow<Boolean>? = null,
+        canGenerate: Boolean = true,
+        hasSession: Boolean = true,
+        generationOptions: GenerationOptionsRepository = TestGenerationOptionsRepository(),
     ): CreateViewModel {
-        val fake = FakeTrackRepository(credits, FakeSessionRepository(), backgroundScope, clock)
+        val account = FakeSessionRepository().apply {
+            signIn("test-owner", SignInMethod.Google, "Test listener", useProviderProfile = true)
+        }
+        sessionState = MutableStateFlow(
+            account.session.first()?.takeIf {
+                hasSession
+            }?.let { it.copy(user = it.user.copy(canGenerate = canGenerate)) },
+        )
+        val sessions = object : SessionRepository by account {
+            override val session = sessionState
+        }
+        val fake = FakeTrackRepository(credits, sessions, backgroundScope, clock)
         val capturing = object : TrackRepository by fake {
-            override fun observeMine() = fake.observeMine().map { list ->
+            override fun observeMine() = (source ?: fake.observeMine()).map { list ->
                 list.map { if (it.id in blankPromptIds) it.copy(prompt = "") else it }
             }
+
+            override fun observeLibrarySynced() = synced ?: fake.observeLibrarySynced()
 
             override suspend fun rename(id: TrackId, title: String): Outcome<Unit> {
                 renameCalls++
@@ -884,9 +1180,14 @@ class CreateViewModelTest {
                 return if (result is Outcome.Success) fake.rename(id, title) else result
             }
 
+            override suspend fun retry(id: TrackId): Outcome<Track> {
+                retryCalls++
+                return fake.retry(id)
+            }
+
             override suspend fun create(request: GenerationRequest, variants: Int): Outcome<List<Track>> {
                 submittedRequest = request
-                if (request.referenceAudioUri != null && request.remixTrackId != null) {
+                if (request.referenceAudioUri != null && request.remixTrackIds.isNotEmpty()) {
                     return Outcome.Failure(AppError.InvalidReference)
                 }
                 return fake.create(request, variants)
@@ -899,10 +1200,11 @@ class CreateViewModelTest {
             credits = credits,
             clock = clock,
             notificationChoice = notificationChoice,
-            renames = TrackRenames(),
+            sessions = sessions,
             playback = playback,
             generateTracks = GenerateTracks(tracks, credits),
             playNext = PlayNext(playback),
+            generationOptions = generationOptions,
             drafts = drafts,
         )
         runCurrent()

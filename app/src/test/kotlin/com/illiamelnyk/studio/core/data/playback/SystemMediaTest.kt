@@ -6,7 +6,8 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.Signature
 import android.graphics.Bitmap
-import android.media.MediaMetadata
+import androidx.media3.common.C
+import androidx.media3.common.Player
 import androidx.test.core.app.ApplicationProvider
 import com.illiamelnyk.studio.core.artwork.ArtworkAtlasCache
 import com.illiamelnyk.studio.core.domain.playback.PlaybackResumption
@@ -55,39 +56,25 @@ class SystemMediaTest {
 
     @Test
     fun systemMetadataContainsCoverAndNeverAudioUriOrCredentials() {
-        val song = track("private-song", 20.seconds).copy(
-            audioUri = "https://private.example/audio",
-            audioHeaders = mapOf("Authorization" to "Bearer fixture-secret"),
-        )
+        val song = track("private-song", 20.seconds).copy(audioUri = "https://private.example/audio")
         val state = PlaybackState(queue = listOf(song), currentIndex = 0, positionMs = 4_000)
         val cover = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
         val metadata = mediaMetadata(state, cover)
-        assertEquals(song.title, metadata.getString(MediaMetadata.METADATA_KEY_TITLE))
-        assertEquals(20_000L, metadata.getLong(MediaMetadata.METADATA_KEY_DURATION))
-        assertSame(cover, metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART))
+        assertEquals(song.title, metadata.title.toString())
+        val artwork = requireNotNull(metadata.artworkData)
+        assertTrue(android.graphics.BitmapFactory.decodeByteArray(artwork, 0, artwork.size).sameAs(cover))
         val recent = recentMediaItem(PlaybackResumption("opaque-id", state), cover)
         assertEquals("opaque-id", recent.mediaId)
-        assertTrue(recent.isPlayable)
-        assertFalse(recent.isBrowsable)
-        assertSame(cover, recent.description.iconBitmap)
-        assertNull(recent.description.mediaUri)
-        assertNull(recent.description.extras)
-        assertNull(recent.description.iconUri)
-        assertEquals(
-            setOf(
-                MediaMetadata.METADATA_KEY_TITLE,
-                MediaMetadata.METADATA_KEY_ARTIST,
-                MediaMetadata.METADATA_KEY_DURATION,
-                MediaMetadata.METADATA_KEY_ALBUM_ART,
-                MediaMetadata.METADATA_KEY_DISPLAY_ICON,
-            ),
-            metadata.keySet(),
-        )
-        assertEquals(
-            -1L,
-            mediaMetadata(state.copy(stationName = "Live"), cover)
-                .getLong(MediaMetadata.METADATA_KEY_DURATION),
-        )
+        assertTrue(recent.mediaMetadata.isPlayable == true)
+        assertFalse(recent.mediaMetadata.isBrowsable == true)
+        assertNull(recent.localConfiguration)
+        assertNull(recent.requestMetadata.mediaUri)
+        assertNull(recent.requestMetadata.extras)
+        assertNull(recent.mediaMetadata.artworkUri)
+        assertNull(recent.mediaMetadata.extras)
+        val root = recentRoot(PlaybackResumption("opaque-id", state))
+        assertEquals("recent:opaque-id", root.mediaId)
+        assertTrue(root.mediaMetadata.isBrowsable == true)
     }
 
     @Test

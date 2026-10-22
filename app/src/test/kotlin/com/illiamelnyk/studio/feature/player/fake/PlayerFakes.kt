@@ -40,6 +40,19 @@ class InMemoryTrackRepository(mine: List<Track> = emptyList()) : TrackRepository
         tracks.update { list -> list.map { if (it.id == track.id) track else it } }
     }
 
+    override suspend fun saveRecording(
+        localUri: String,
+        title: String,
+        duration: kotlin.time.Duration,
+    ): Outcome<Track> = Outcome.Failure(AppError.UnsupportedMode)
+    override suspend fun prepareRecordingReference(
+        id: TrackId,
+    ): Outcome<com.illiamelnyk.studio.core.domain.track.RecordingReference> = Outcome.Failure(AppError.InvalidReference)
+    override fun isRecordingReferenceCurrent(
+        reference: com.illiamelnyk.studio.core.domain.track.RecordingReference,
+    ): Boolean = false
+    override suspend fun rename(id: TrackId, title: String): Outcome<Unit> = Outcome.Failure(AppError.UnsupportedMode)
+
     override fun observeMine(): Flow<List<Track>> = tracks
 
     override fun observeById(id: TrackId): Flow<Track?> = tracks.map { list ->

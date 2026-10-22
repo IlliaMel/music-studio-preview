@@ -41,7 +41,6 @@ class MiniPlayerTypographyTest {
                             "Test artist",
                             "test",
                             false,
-                            { 0.25f },
                             {},
                             {},
                             modifier = Modifier.testTag("pill"),
@@ -61,7 +60,7 @@ class MiniPlayerTypographyTest {
         ).assertIsDisplayed().fetchSemanticsNode().boundsInRoot
         assertTrue("Title must remain inside the pill", title.top >= pill.top)
         assertTrue(
-            "Artist $artist must remain above the pill progress edge $pill; title=$title",
+            "Artist $artist must remain above the pill's bottom edge $pill; title=$title",
             artist.bottom < pill.bottom,
         )
         assertTrue("Text lines must not overlap", title.bottom <= artist.top)

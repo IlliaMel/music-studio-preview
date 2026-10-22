@@ -20,7 +20,9 @@ import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 
 /** Outlines of track rows while the list loads, as items of the screen's list. */
 fun LazyListScope.trackSkeletons() {
-    items(count = SKELETON_ROWS, key = { "skeleton$it" }, contentType = { "skeleton" }) { TrackRowSkeleton() }
+    items(count = SKELETON_ROWS, key = { "skeleton$it" }, contentType = { "skeleton" }) {
+        TrackRowSkeleton(Modifier.animateItem())
+    }
 }
 
 /** The outline of a track row: the cover, the title and the subtitle. */

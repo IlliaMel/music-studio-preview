@@ -1,5 +1,6 @@
 package com.illiamelnyk.studio.core.data.fake
 
+import com.illiamelnyk.studio.core.data.demo.DemoCatalog
 import com.illiamelnyk.studio.core.domain.Outcome
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -12,7 +13,7 @@ class FakePlaylistRepositoryTest {
     fun `account cleanup clears playlists and their membership`() = runTest {
         val repository = FakePlaylistRepository()
         val playlist = (repository.create("Road trip") as Outcome.Success).value
-        repository.addTrack(playlist.id, FakeCatalog.tracks.first())
+        repository.addTrack(playlist.id, DemoCatalog.tracks.first())
         repository.clear()
         assertTrue(repository.observeAll().first().isEmpty())
     }
@@ -30,8 +31,8 @@ class FakePlaylistRepositoryTest {
     fun `add is idempotent and remove leaves other tracks in order`() = runTest {
         val repository = FakePlaylistRepository()
         val playlist = (repository.create("Road trip") as Outcome.Success).value
-        val first = FakeCatalog.tracks[0]
-        val second = FakeCatalog.tracks[1]
+        val first = DemoCatalog.tracks[0]
+        val second = DemoCatalog.tracks[1]
         repository.addTrack(playlist.id, first)
         repository.addTrack(playlist.id, first)
         repository.addTrack(playlist.id, second)
@@ -43,7 +44,7 @@ class FakePlaylistRepositoryTest {
     @Test
     fun `unknown playlist fails without silently creating one`() = runTest {
         val repository = FakePlaylistRepository()
-        assertTrue(repository.addTrack("missing", FakeCatalog.tracks.first()) is Outcome.Failure)
+        assertTrue(repository.addTrack("missing", DemoCatalog.tracks.first()) is Outcome.Failure)
         assertTrue(repository.observeAll().first().isEmpty())
     }
 }

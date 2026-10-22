@@ -1,6 +1,12 @@
 import type { ByteRange, StoredFile } from '../../../core/storage/audio-storage.js'
+import { arrangementSample, type DemoArrangement } from './demo-arrangements.js'
 
-export function demoAudio(durationMs: number, seed = 0, range?: ByteRange): Uint8Array {
+export function demoAudio(
+  durationMs: number,
+  seed = 0,
+  range?: ByteRange,
+  arrangement?: DemoArrangement,
+): Uint8Array {
   const sampleRate = 22050
   const samples = Math.floor((durationMs * sampleRate) / 1000)
   const size = 44 + samples * 2
@@ -29,13 +35,21 @@ export function demoAudio(durationMs: number, seed = 0, range?: ByteRange): Uint
     index++
   ) {
     const time = index / sampleRate
-    const beat = time % 0.5
-    const frequency = notes[(Math.floor(time * 2) + seed) % notes.length] ?? 261.63
-    const envelope = Math.min(1, beat * 30) * Math.exp(-beat * 5)
     const fade = Math.min(1, time * 5, (durationMs / 1000 - time) * 5)
-    const melody = Math.sin(2 * Math.PI * frequency * time) * 0.19 * envelope
-    const bass = Math.sin(2 * Math.PI * 130.815 * time) * 0.08
-    sampleBytes.writeInt16LE(Math.round((melody + bass) * Math.max(0, fade) * 32767))
+    let sample: number
+    if (arrangement === undefined) {
+      const beat = time % 0.5
+      const frequency = notes[(Math.floor(time * 2) + seed) % notes.length] ?? 261.63
+      const envelope = Math.min(1, beat * 30) * Math.exp(-beat * 5)
+      const melody = Math.sin(2 * Math.PI * frequency * time) * 0.19 * envelope
+      const bass = Math.sin(2 * Math.PI * 130.815 * time) * 0.08
+      sample = melody + bass
+    } else {
+      sample = arrangementSample(arrangement, index, sampleRate, seed)
+    }
+    sampleBytes.writeInt16LE(
+      Math.round(Math.max(-0.95, Math.min(0.95, sample)) * Math.max(0, fade) * 32767),
+    )
     const position = 44 + index * 2
     for (let byte = 0; byte < 2; byte++)
       if (position + byte >= start && position + byte <= end)
@@ -44,7 +58,11 @@ export function demoAudio(durationMs: number, seed = 0, range?: ByteRange): Uint
   return audio
 }
 
-export function demoAudioFile(durationMs: number, seed = 0): StoredFile {
+export function demoAudioFile(
+  durationMs: number,
+  seed = 0,
+  arrangement?: DemoArrangement,
+): StoredFile {
   const size = 44 + Math.floor((durationMs * 22050) / 1000) * 2
   return {
     size,
@@ -59,7 +77,7 @@ export function demoAudioFile(durationMs: number, seed = 0): StoredFile {
             return
           }
           const next = Math.min(end, offset + 65535)
-          controller.enqueue(demoAudio(durationMs, seed, { start: offset, end: next }))
+          controller.enqueue(demoAudio(durationMs, seed, { start: offset, end: next }, arrangement))
           offset = next + 1
         },
       })

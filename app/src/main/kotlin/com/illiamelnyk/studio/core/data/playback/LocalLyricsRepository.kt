@@ -1,6 +1,6 @@
 package com.illiamelnyk.studio.core.data.playback
 
-import com.illiamelnyk.studio.core.data.fake.FakeLyricsRepository
+import com.illiamelnyk.studio.core.data.demo.DemoLyricsRepository
 import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.playback.LyricLine
 import com.illiamelnyk.studio.core.domain.playback.LyricWord
@@ -22,7 +22,7 @@ class LocalLyricsRepository(private val tracks: TrackRepository) : LyricsReposit
         }
         if (track?.audioUri != null) return Outcome.Success(emptyList())
         val lines = track?.customLyrics?.lines()?.filter { it.isNotBlank() }.orEmpty()
-        if (lines.isEmpty()) return FakeLyricsRepository().lyrics(id)
+        if (lines.isEmpty()) return DemoLyricsRepository().lyrics(id)
         val lineLength = (track!!.duration.inWholeMilliseconds / lines.size).coerceAtLeast(1)
         return Outcome.Success(
             lines.mapIndexed { index, line ->

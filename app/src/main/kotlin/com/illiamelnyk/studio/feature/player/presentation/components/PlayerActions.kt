@@ -27,8 +27,8 @@ import com.illiamelnyk.studio.feature.player.presentation.PlayerPreviewSurface
 
 /**
  * The glass pills under the controls: Remix, Add To and Like. Liking fills the heart and pops the
- * pill; the pop is read while drawing, so it doesn't recompose the row. The label stays "Like", so
- * the row doesn't shift; TalkBack hears the pill as selected.
+ * pill; the pop is read while drawing, so it doesn't recompose the row. A liked track offers
+ * "Unlike", and TalkBack hears the pill as selected.
  */
 @Composable
 fun PlayerActions(
@@ -75,7 +75,7 @@ fun PlayerActions(
             icon = StudioIcons.Add,
         )
         StudioButton(
-            text = stringResource(R.string.player_like),
+            text = stringResource(if (isLiked) R.string.player_unlike else R.string.player_like),
             onClick = onLikeClick,
             size = StudioButtonSize.Large,
             modifier = Modifier

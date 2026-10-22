@@ -1,11 +1,14 @@
 package com.illiamelnyk.studio.core.data.local
 
 import android.content.Context
-import com.illiamelnyk.studio.core.data.fake.FakeCatalog
+import com.illiamelnyk.studio.R
+import com.illiamelnyk.studio.core.data.demo.DemoCatalog
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.track.GenerationRequest
 import com.illiamelnyk.studio.core.domain.track.TrackStatus
+import com.illiamelnyk.studio.core.presentation.UiText
+import com.illiamelnyk.studio.core.presentation.toUiText
 import com.illiamelnyk.studio.feature.create.presentation.toCreateUi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -25,7 +28,7 @@ class LiveProviderErrorTest {
     @Before
     fun cleanStore() {
         context = RuntimeEnvironment.getApplication()
-        context.filesDir.listFiles()?.filter { it.name.startsWith("studio-state-v1.json") }?.forEach { it.delete() }
+        com.illiamelnyk.studio.core.data.local.StudioStore.clearForTests(context)
     }
 
     @Test
@@ -37,11 +40,37 @@ class LiveProviderErrorTest {
         )
         errors.forEach { (code, expected) ->
             assertEquals(expected, apiError(code))
-            val track = FakeCatalog.glassHarbor.copy(status = TrackStatus.Failed(expected))
+            val track = DemoCatalog.glassHarbor.copy(status = TrackStatus.Failed(expected))
             val restored = JSONObject(track.toJson().toString()).toTrack()
             assertEquals(TrackStatus.Failed(expected), restored.status)
             assertFalse(restored.toCreateUi().canRetry)
         }
+    }
+
+    @Test
+    fun providerRejectionIsDistinctFromDailyLimitAcrossJsonAndRoomRestart() = runTest {
+        assertEquals(AppError.QuotaExceeded, apiError("DAILY_LIMIT"))
+        assertEquals(UiText.Resource(R.string.error_quota_exceeded), apiError("DAILY_LIMIT").toUiText())
+        val dailyLimit = DemoCatalog.glassHarbor.copy(status = TrackStatus.Failed(AppError.QuotaExceeded))
+        assertEquals(dailyLimit.status, JSONObject(dailyLimit.toJson().toString()).toTrack().status)
+        for (code in listOf("QUOTA_EXCEEDED", "PROVIDER_AUTH", "PROVIDER_UNAVAILABLE")) {
+            val error = apiError(code)
+            assertEquals(AppError.ProviderUnavailable, error)
+            assertEquals(UiText.Resource(R.string.error_provider_unavailable), error.toUiText())
+            val failed = DemoCatalog.glassHarbor.copy(status = TrackStatus.Failed(error))
+            assertEquals(failed.status, JSONObject(failed.toJson().toString()).toTrack().status)
+        }
+        val store = StudioStore(context)
+        val repo = DurableStudioRepository(context, store, StudioApi(context), backgroundScope)
+        repo.signInDemo()
+        repo.create(GenerationRequest("Ambient strings and gentle piano"), 1)
+        store.change { root ->
+            root.getJSONObject("account-local-demo").getJSONArray("tracks").getJSONObject(0)
+                .put("status", "failed")
+                .put("error", JSONObject().put("code", "QUOTA_EXCEEDED"))
+        }
+        val restarted = DurableStudioRepository(context, StudioStore(context), StudioApi(context), backgroundScope)
+        assertEquals(TrackStatus.Failed(AppError.ProviderUnavailable), restarted.observeMine().first().single().status)
     }
 
     @Test

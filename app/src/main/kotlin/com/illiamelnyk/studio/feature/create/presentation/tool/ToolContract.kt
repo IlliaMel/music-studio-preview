@@ -81,6 +81,8 @@ fun ToolTemplate.toParts(values: Map<String, String>): ImmutableList<PromptPart>
 }.toImmutableList()
 
 sealed interface ToolIntent {
+    data object GenerationOptionsRefresh : ToolIntent
+
     data object BackClicked : ToolIntent
 
     data class SlotClicked(val slotId: String) : ToolIntent
@@ -99,6 +101,9 @@ sealed interface ToolIntent {
     data object WantClicked : ToolIntent
 
     data object SheetDismissed : ToolIntent
+
+    /** The hint above Use: after options failed to load, it retries. */
+    data object HintClicked : ToolIntent
 
     data object UseToolClicked : ToolIntent
 }

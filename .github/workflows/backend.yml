@@ -24,6 +24,20 @@ jobs:
     name: Lint, typecheck, test and build
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # PGlite runs one transaction at a time; lock races need a real server on several connections.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: studio_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: backend
@@ -57,6 +71,11 @@ jobs:
 
       - name: Test
         run: npm test
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/studio_test
 
       - name: Build
         run: npm run build
+
+      - name: Build container without publishing
+        run: docker build --tag studio-backend:ci .

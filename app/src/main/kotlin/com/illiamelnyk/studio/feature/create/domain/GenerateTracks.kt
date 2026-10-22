@@ -15,7 +15,7 @@ class GenerateTracks(private val tracks: TrackRepository, private val credits: C
     suspend operator fun invoke(prompt: String, settings: GenerationSettings): Outcome<List<Track>> {
         val text = prompt.trim()
         if (!Prompt.isValid(text)) return Outcome.Failure(AppError.InvalidPrompt(suggestion = null))
-        val sources = settings.remixSourceIds
+        val sources = settings.remixTrackIds
         if (sources.size > 4 || sources.distinct().size != sources.size ||
             sources.any { it.isBlank() || TrackId(it).isRecording } ||
             (sources.isNotEmpty() && settings.referenceAudioUri != null)
@@ -28,14 +28,15 @@ class GenerateTracks(private val tracks: TrackRepository, private val credits: C
         }
         val request = GenerationRequest(
             prompt = text,
+            // Preserve Auto on the wire, including durable attempts from older installs.
+            // The composer exposes the composition plan's effective two-minute fallback.
             duration = settings.duration,
             model = settings.model,
             quality = settings.quality,
             instrumental = settings.lyricsMode == LyricsMode.Instrumental,
             customLyrics = settings.customLyrics.takeIf { settings.lyricsMode == LyricsMode.Custom },
             referenceAudioUri = settings.referenceAudioUri,
-            remixTrackId = settings.remixSourceIds.firstOrNull(),
-            remixTrackIds = settings.remixSourceIds,
+            remixTrackIds = settings.remixTrackIds,
         )
         return tracks.create(request, settings.variants)
     }

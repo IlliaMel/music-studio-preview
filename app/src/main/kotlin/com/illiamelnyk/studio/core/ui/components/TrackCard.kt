@@ -45,7 +45,7 @@ fun TrackCard(
         verticalArrangement = Arrangement.spacedBy(dimens.spacing.xs),
     ) {
         Cover(coverSeed, dimens.size.cover.l, generating = generating)
-        Column {
+        Column(verticalArrangement = Arrangement.spacedBy(dimens.spacing.xxs)) {
             StudioText(title, StudioTheme.typography.titleSmall, maxLines = 1)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(dimens.spacing.xxs),

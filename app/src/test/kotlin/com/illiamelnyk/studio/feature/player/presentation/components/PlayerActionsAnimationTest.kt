@@ -2,8 +2,8 @@ package com.illiamelnyk.studio.feature.player.presentation.components
 
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithText
 import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -32,15 +32,15 @@ class PlayerActionsAnimationTest {
         }
         composeRule.mainClock.advanceTimeByFrame()
         composeRule.waitForIdle()
-        val node = composeRule.onNodeWithText("Like")
-        val original = node.fetchSemanticsNode().boundsInRoot.width
+        val node = composeRule.onNode(hasText("Like") or hasText("Unlike"))
+        val original = node.fetchSemanticsNode().boundsInRoot.height
         composeRule.runOnIdle { liked.value = true }
         composeRule.mainClock.advanceTimeBy(delay)
         composeRule.waitForIdle()
-        assertTrue("Like must animate before reversal", node.fetchSemanticsNode().boundsInRoot.width > original)
+        assertTrue("Like must animate before reversal", node.fetchSemanticsNode().boundsInRoot.height > original)
         composeRule.runOnIdle { liked.value = false }
         composeRule.mainClock.advanceTimeBy(1000)
         composeRule.waitForIdle()
-        assertEquals(original, node.fetchSemanticsNode().boundsInRoot.width, 0.5f)
+        assertEquals(original, node.fetchSemanticsNode().boundsInRoot.height, 0.5f)
     }
 }

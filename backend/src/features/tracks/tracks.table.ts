@@ -41,6 +41,9 @@ export const tracks = pgTable(
     remixTrackId: text('reference_track_id'),
     remixTrackIds: jsonb('remix_track_ids').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     providerName: text('provider_name').notNull().default('mock'),
+    // Set only in the same transaction that reserves this variant's paid budget unit.
+    // Null on legacy/unpaid rows: a provider's name cannot establish reservation provenance.
+    paidReservationDay: text('paid_reservation_day'),
     status: trackStatus('status').notNull().default('queued'),
 
     // What was asked for.

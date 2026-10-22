@@ -2,12 +2,19 @@ package com.illiamelnyk.studio.core.domain.track
 
 import com.illiamelnyk.studio.core.domain.Outcome
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 /** The user's own tracks: generating them and keeping them. */
 interface TrackRepository {
     /** The user's tracks, newest first. Emits again whenever a track is added, changes or goes. */
     fun observeMine(): Flow<List<Track>>
+
+    /**
+     * Whether the library has come from the server, or the server could not be reached, since
+     * launch or sign-in. Until then an empty [observeMine] may only mean the tracks are on their way.
+     */
+    fun observeLibrarySynced(): Flow<Boolean> = flowOf(true)
 
     /** Liked tracks from both the user's library and the public catalog. */
     fun observeLiked(): Flow<List<Track>> = observeMine().map { tracks -> tracks.filter(Track::isLiked) }
@@ -34,16 +41,13 @@ interface TrackRepository {
     /** Generates a failed track again from the same request. */
     suspend fun retry(id: TrackId): Outcome<Track>
 
-    suspend fun saveRecording(localUri: String, title: String, duration: kotlin.time.Duration): Outcome<Track> =
-        Outcome.Failure(com.illiamelnyk.studio.core.domain.AppError.Unknown)
+    suspend fun saveRecording(localUri: String, title: String, duration: kotlin.time.Duration): Outcome<Track>
 
-    suspend fun prepareRecordingReference(id: TrackId): Outcome<RecordingReference> =
-        Outcome.Failure(com.illiamelnyk.studio.core.domain.AppError.InvalidReference)
+    suspend fun prepareRecordingReference(id: TrackId): Outcome<RecordingReference>
 
-    fun isRecordingReferenceCurrent(reference: RecordingReference): Boolean = false
+    fun isRecordingReferenceCurrent(reference: RecordingReference): Boolean
 
-    suspend fun rename(id: TrackId, title: String): Outcome<Unit> =
-        Outcome.Failure(com.illiamelnyk.studio.core.domain.AppError.Unknown)
+    suspend fun rename(id: TrackId, title: String): Outcome<Unit>
 
     suspend fun delete(id: TrackId): Outcome<Unit>
 

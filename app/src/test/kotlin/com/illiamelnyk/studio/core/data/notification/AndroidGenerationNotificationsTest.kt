@@ -6,7 +6,7 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.content.Context
 import com.illiamelnyk.studio.R
-import com.illiamelnyk.studio.core.data.fake.FakeCatalog
+import com.illiamelnyk.studio.core.data.demo.DemoCatalog
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.notification.GenerationNotificationPreferences
 import com.illiamelnyk.studio.core.domain.notification.GenerationNotificationTarget
@@ -40,7 +40,7 @@ class AndroidGenerationNotificationsTest {
             return enabled
         }
     }
-    private fun track(status: TrackStatus) = FakeCatalog.tracks.first().copy(
+    private fun track(status: TrackStatus) = DemoCatalog.tracks.first().copy(
         id = TrackId("specific-track"),
         title = "Specific piano",
         status = status,

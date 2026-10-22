@@ -19,5 +19,4 @@ val studioModules = listOf(
     libraryModule,
     playerModule,
     profileModule,
-    buildTypeModule,
 )

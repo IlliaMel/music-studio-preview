@@ -1,6 +1,6 @@
 package com.illiamelnyk.studio.feature.create.domain
 
-import com.illiamelnyk.studio.core.data.fake.FakeCatalog
+import com.illiamelnyk.studio.core.data.demo.DemoCatalog
 import com.illiamelnyk.studio.core.data.fake.FakePlaybackController
 import com.illiamelnyk.studio.core.domain.track.TrackId
 import kotlin.time.Duration.Companion.seconds
@@ -13,10 +13,10 @@ import org.junit.Test
 
 class PlayNextTest {
 
-    private val glass = FakeCatalog.tracks[0]
-    private val nightDrive = FakeCatalog.tracks[1]
-    private val paperMoons = FakeCatalog.tracks[2]
-    private val coldBrew = FakeCatalog.tracks[3]
+    private val glass = DemoCatalog.tracks[0]
+    private val nightDrive = DemoCatalog.tracks[1]
+    private val paperMoons = DemoCatalog.tracks[2]
+    private val coldBrew = DemoCatalog.tracks[3]
 
     @Test
     fun `with nothing loaded, the track plays`() = runTest {

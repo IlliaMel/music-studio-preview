@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -26,19 +27,20 @@ class MiniPlayerViewModelTest {
     private val b = track("b", 4.seconds)
 
     @Test
-    fun `shows the playing track and how far into it`() = runTest(mainDispatcherRule.testDispatcher) {
-        val playback = playback()
-        playback.play(listOf(a), startIndex = 0)
-        val viewModel = MiniPlayerViewModel(playback)
+    fun `shows the playing track and keeps its state while the clock ticks`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val playback = playback()
+            playback.play(listOf(a), startIndex = 0)
+            val viewModel = MiniPlayerViewModel(playback)
+            runCurrent()
+            val shown = viewModel.state.value
 
-        advanceTimeBy(1.seconds)
-        runCurrent()
+            advanceTimeBy(1.seconds)
+            runCurrent()
 
-        assertEquals(
-            MiniPlayerState(track = a.toNowPlaying(), isPlaying = true, progress = 0.25f, canRemix = true),
-            viewModel.state.value,
-        )
-    }
+            assertEquals(MiniPlayerState(track = a.toNowPlaying(), isPlaying = true, canRemix = true), shown)
+            assertSame("Position ticks must not emit a new mini player state", shown, viewModel.state.value)
+        }
 
     @Test
     fun `the button pauses a queue but stops a station`() = runTest(mainDispatcherRule.testDispatcher) {

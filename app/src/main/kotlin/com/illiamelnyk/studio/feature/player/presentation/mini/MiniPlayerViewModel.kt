@@ -35,14 +35,10 @@ class MiniPlayerViewModel(
     }
 }
 
-fun PlaybackState.toMiniPlayerState(): MiniPlayerState {
-    val duration = durationMs
-    return MiniPlayerState(
-        track = toNowPlaying(),
-        isPlaying = isPlaying,
-        isStation = isStation,
-        hasNext = hasNext,
-        canRemix = !isStation && current?.canRemixOriginal == true,
-        progress = if (duration > 0) positionMs.toFloat() / duration else 0f,
-    )
-}
+fun PlaybackState.toMiniPlayerState(): MiniPlayerState = MiniPlayerState(
+    track = toNowPlaying(),
+    isPlaying = isPlaying,
+    isStation = isStation,
+    hasNext = hasNext,
+    canRemix = !isStation && current?.canRemixOriginal == true,
+)

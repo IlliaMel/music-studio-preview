@@ -1,6 +1,6 @@
 package com.illiamelnyk.studio.core.presentation.playlist
 
-import com.illiamelnyk.studio.core.data.fake.FakeCatalog
+import com.illiamelnyk.studio.core.data.demo.DemoCatalog
 import com.illiamelnyk.studio.core.data.fake.FakePlaylistRepository
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.Outcome
@@ -22,7 +22,7 @@ class PlaylistPickerViewModelTest {
 
     @Test fun createAddsSelectedTrackAndRemovalUpdatesMembership() = runTest(main.testDispatcher) {
         val repository = FakePlaylistRepository()
-        val track = FakeCatalog.tracks.first()
+        val track = DemoCatalog.tracks.first()
         val vm = PlaylistPickerViewModel(track, repository, MemoryTrackRepository())
         runCurrent()
         vm.onIntent(PlaylistPickerIntent.NewPlaylist)
@@ -43,7 +43,7 @@ class PlaylistPickerViewModelTest {
 
     @Test fun invalidNameKeepsEditorOpenAndCreatesNothing() = runTest(main.testDispatcher) {
         val repository = FakePlaylistRepository()
-        val vm = PlaylistPickerViewModel(FakeCatalog.tracks.first(), repository, MemoryTrackRepository())
+        val vm = PlaylistPickerViewModel(DemoCatalog.tracks.first(), repository, MemoryTrackRepository())
         vm.onIntent(PlaylistPickerIntent.NewPlaylist)
         vm.onIntent(PlaylistPickerIntent.NameChanged(" "))
         vm.onIntent(PlaylistPickerIntent.Create)
@@ -61,7 +61,7 @@ class PlaylistPickerViewModelTest {
             override suspend fun addTrack(playlistId: String, track: Track): Outcome<Unit> =
                 if (fail) Outcome.Failure(AppError.Network) else repository.addTrack(playlistId, track)
         }
-        val vm = PlaylistPickerViewModel(FakeCatalog.tracks.first(), failing, MemoryTrackRepository())
+        val vm = PlaylistPickerViewModel(DemoCatalog.tracks.first(), failing, MemoryTrackRepository())
         runCurrent()
         vm.onIntent(PlaylistPickerIntent.NewPlaylist)
         vm.onIntent(PlaylistPickerIntent.NameChanged("Night"))
@@ -75,14 +75,14 @@ class PlaylistPickerViewModelTest {
         failing.fail = false
         vm.onIntent(PlaylistPickerIntent.TogglePlaylist(playlist.id))
         runCurrent()
-        assertEquals(listOf(FakeCatalog.tracks.first()), repository.observeAll().first().single().tracks)
+        assertEquals(listOf(DemoCatalog.tracks.first()), repository.observeAll().first().single().tracks)
         assertFalse(vm.state.value.failed)
     }
 
     @Test fun failedLikeLeavesTrackUnlikedAndCanBeRetried() = runTest(main.testDispatcher) {
         val tracks = MemoryTrackRepository()
         tracks.failLike = true
-        val track = FakeCatalog.tracks.first()
+        val track = DemoCatalog.tracks.first()
         val vm = PlaylistPickerViewModel(track, FakePlaylistRepository(), tracks)
         runCurrent()
         vm.onIntent(PlaylistPickerIntent.LikeClicked)
@@ -104,13 +104,13 @@ class PlaylistPickerViewModelTest {
     @Test fun addingToExistingPlaylistKeepsOtherMembers() = runTest(main.testDispatcher) {
         val repository = FakePlaylistRepository()
         val playlist = (repository.create("Mix") as Outcome.Success).value
-        repository.addTrack(playlist.id, FakeCatalog.tracks[1])
-        val vm = PlaylistPickerViewModel(FakeCatalog.tracks[0], repository, MemoryTrackRepository())
+        repository.addTrack(playlist.id, DemoCatalog.tracks[1])
+        val vm = PlaylistPickerViewModel(DemoCatalog.tracks[0], repository, MemoryTrackRepository())
         runCurrent()
         vm.onIntent(PlaylistPickerIntent.TogglePlaylist(playlist.id))
         runCurrent()
         assertEquals(
-            listOf(FakeCatalog.tracks[1], FakeCatalog.tracks[0]),
+            listOf(DemoCatalog.tracks[1], DemoCatalog.tracks[0]),
             repository.observeAll().first().single().tracks,
         )
     }

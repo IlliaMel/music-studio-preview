@@ -1,7 +1,7 @@
 package com.illiamelnyk.studio.core.data.local
 
 import android.content.Context
-import com.illiamelnyk.studio.core.data.fake.FakeCatalog
+import com.illiamelnyk.studio.core.data.demo.DemoCatalog
 import com.illiamelnyk.studio.core.domain.Outcome
 import java.io.File
 import kotlinx.coroutines.flow.first
@@ -25,7 +25,7 @@ class CachedAccountRecoveryTest {
 
     @Before fun cleanStore() {
         context = RuntimeEnvironment.getApplication()
-        context.filesDir.listFiles()?.filter { it.name.startsWith("studio-state-v1.json") }?.forEach { it.delete() }
+        com.illiamelnyk.studio.core.data.local.StudioStore.clearForTests(context)
     }
 
     @Test fun missingProfileRecoversWithoutRewritingOtherData() = runTest {
@@ -37,7 +37,7 @@ class CachedAccountRecoveryTest {
     }
 
     @Test fun malformedTrackTimestampRecoversWithoutRewritingOtherData() = runTest {
-        val track = FakeCatalog.tracks.first().toJson().put("createdAt", "not-a-timestamp")
+        val track = DemoCatalog.tracks.first().toJson().put("createdAt", "not-a-timestamp")
         assertInvalidAccountIsRetained(account().put("tracks", JSONArray().put(track)))
     }
 
@@ -92,12 +92,16 @@ class CachedAccountRecoveryTest {
         val sentinel = File(context.filesDir, "cache-recovery-recording-sentinel")
         sentinel.writeText("recording data")
         val before = store.read().toString()
-        val diskBefore = File(context.filesDir, "studio-state-v1.json").readText()
+        val diskBefore = StudioStore(context).read().toString()
         val repository = repository(store)
         assertNull(repository.session.first())
         assertTrue(repository.observeMine().first().isEmpty())
         assertEquals(before, store.read().toString())
-        assertEquals(diskBefore, File(context.filesDir, "studio-state-v1.json").readText())
+        val runtimeJobs = backgroundScope.coroutineContext[kotlinx.coroutines.Job]!!.children.toList()
+        runtimeJobs.forEach { it.cancel() }
+        runtimeJobs.forEach { it.join() }
+        StudioStore.closeForTests(context)
+        assertEquals(diskBefore, StudioStore(context).read().toString())
         assertEquals("recording data", sentinel.readText())
     }
     private fun TestScope.repository(store: StudioStore) = DurableStudioRepository(

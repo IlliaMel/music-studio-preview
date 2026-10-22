@@ -1,5 +1,6 @@
 package com.illiamelnyk.studio.feature.listen.presentation.collection.components
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.illiamelnyk.studio.core.presentation.asString
@@ -8,7 +9,11 @@ import com.illiamelnyk.studio.core.ui.theme.StudioTheme
 import com.illiamelnyk.studio.feature.listen.presentation.CollectionUi
 
 @Composable
-fun CollectionHeader(collection: CollectionUi, modifier: Modifier = Modifier) {
+fun CollectionHeader(
+    collection: CollectionUi,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(),
+) {
     KitCollectionHeader(
         collection.title,
         collection.subtitle.asString(),
@@ -17,5 +22,6 @@ fun CollectionHeader(collection: CollectionUi, modifier: Modifier = Modifier) {
         artworkSize =
             StudioTheme.dimens.size.cover.l + StudioTheme.dimens.spacing.giant,
         fadeColor = StudioTheme.colors.background,
+        contentPadding = contentPadding,
     )
 }

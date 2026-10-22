@@ -33,8 +33,8 @@ class ShellTransitions(motion: StudioMotion, layoutDirection: LayoutDirection) {
     // Positive offsets come from the right; in right-to-left layouts screens come from the left.
     private val fromEnd = if (layoutDirection == LayoutDirection.Ltr) 1 else -1
     private val slide = tween<IntOffset>(motion.duration.long, easing = motion.easing.emphasized)
-    private val backSlide = tween<IntOffset>(motion.duration.long, easing = LinearEasing)
-    private val backFade = tween<Float>(motion.duration.long, easing = LinearEasing)
+    private val backSlide = tween<IntOffset>(motion.duration.medium, easing = LinearEasing)
+    private val backFade = tween<Float>(motion.duration.medium, easing = LinearEasing)
     private val fade = tween<Float>(motion.duration.medium, easing = motion.easing.standard)
     private val fadeOutFirst = tween<Float>(motion.duration.short, easing = motion.easing.standard)
     private val fadeInAfter =
@@ -62,16 +62,8 @@ class ShellTransitions(motion: StudioMotion, layoutDirection: LayoutDirection) {
     }
 
     /** Tab selection replaces its root without waiting for an exit animation. */
-    val tabRoot: Map<String, Any> = tabRootWhile { true }
-
-    /**
-     * Metadata of a screen that is a tab's first screen only while [isTabRoot] says so, such as
-     * Library: a tab in one shell variant, opened on top of Listen in the other. It is asked each
-     * time the screen comes or goes, so it follows a change of variant.
-     */
-    fun tabRootWhile(isTabRoot: () -> Boolean): Map<String, Any> =
-        NavDisplay.transitionSpec { if (isTabRoot()) tabChange() else null } +
-            NavDisplay.popTransitionSpec { if (isTabRoot()) tabChange() else null }
+    val tabRoot: Map<String, Any> =
+        NavDisplay.transitionSpec { tabChange() } + NavDisplay.popTransitionSpec { tabChange() }
 
     private companion object {
         /** The new screen starts a third of the width away. */

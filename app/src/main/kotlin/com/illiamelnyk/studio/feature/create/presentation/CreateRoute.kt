@@ -16,6 +16,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.domain.notification.GenerationNotificationTargets
@@ -46,6 +48,7 @@ fun CreateRoute(
     viewModel: CreateViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onIntent(CreateIntent.GenerationOptionsRefresh) }
     val listState = rememberLazyListState()
     val targets: GenerationNotificationTargets = koinInject()
     val notificationFocus by targets.focus.collectAsStateWithLifecycle()

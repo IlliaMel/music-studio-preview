@@ -90,6 +90,38 @@ class PlayerScreenTest {
     }
 
     @Test
+    fun `a liked track offers Unlike and tapping it sends the like toggle`() {
+        show(PlayerContent(track = track, isLiked = true))
+
+        composeRule.onNodeWithText(string(R.string.player_like)).assertDoesNotExist()
+        composeRule.onNodeWithText(string(R.string.player_unlike))
+            .performScrollTo().assertIsDisplayed().performClick()
+
+        assertEquals(listOf(PlayerIntent.LikeClicked), intents)
+    }
+
+    @Test
+    @Config(qualifiers = "w393dp-h852dp")
+    fun `lyrics put compact track info above the words and keep both view switches actionable`() {
+        show(
+            PlayerContent(
+                track = track,
+                showLyrics = true,
+                lyrics = LyricsUi.Synced(
+                    persistentListOf(com.illiamelnyk.studio.core.ui.components.LyricLine(0, emptyList())),
+                ),
+            ),
+        )
+        val title = composeRule.onNodeWithText(track.title).fetchSemanticsNode().boundsInRoot
+        val seek = composeRule.onNodeWithText("00:01").fetchSemanticsNode().boundsInRoot
+        assertTrue("compact title belongs at the top of the lyrics, above the transport", title.top < seek.top / 2)
+        composeRule.onNodeWithContentDescription(string(R.string.player_lyrics))
+            .assertIsOn().performClick()
+        composeRule.onNodeWithContentDescription(string(R.string.player_queue)).performClick()
+        assertEquals(listOf(PlayerIntent.LyricsClicked, PlayerIntent.QueueClicked), intents)
+    }
+
+    @Test
     fun `a station has a stop button and no seek bar`() {
         show(PlayerContent(track = track, isPlaying = true, isStation = true, showLyrics = true))
 

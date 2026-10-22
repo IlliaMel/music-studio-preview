@@ -23,6 +23,7 @@ describe('loadConfig', () => {
       log: { level: 'info', pretty: false },
       database: { kind: 'pglite', dataDir: './data/pglite' },
       auth: { mode: 'dev' },
+      firebaseDeleteUsers: true,
       generation: {
         provider: 'mock',
         mockDelayMs: 8_000,
@@ -75,6 +76,55 @@ describe('loadConfig', () => {
 })
 
 describe('loadConfig in production', () => {
+  const paidProduction = {
+    NODE_ENV: 'production',
+    MUSIC_PROVIDER: 'elevenlabs',
+    ELEVENLABS_API_KEY: 'test-placeholder',
+    DATABASE_URL: 'postgres://db.internal/studio',
+    PUBLIC_BASE_URL: 'https://api.studio.example',
+    AUDIO_DIR: '/data/audio',
+    FIREBASE_SERVICE_ACCOUNT: serviceAccount,
+  }
+
+  it('requires both an explicit allowlist and global budget for paid production', () => {
+    expect(() => loadConfig(paidProduction)).toThrow('GENERATION_ALLOWED_EMAILS')
+    expect(() =>
+      loadConfig({ ...paidProduction, GENERATION_ALLOWED_EMAILS: 'someone@example.com' }),
+    ).toThrow('DAILY_PAID_REQUESTS_TOTAL')
+    expect(() => loadConfig({ ...paidProduction, DAILY_PAID_REQUESTS_TOTAL: '10' })).toThrow(
+      'GENERATION_ALLOWED_EMAILS',
+    )
+    const config = loadConfig({
+      ...paidProduction,
+      GENERATION_ALLOWED_EMAILS: 'someone@example.com',
+      DAILY_PAID_REQUESTS_TOTAL: '0',
+    })
+    expect(config.generation.dailyPaidRequestsTotal).toBe(0)
+    expect(config.generation.allowedEmails).toEqual(['someone@example.com'])
+  })
+
+  it('keeps both guards when a hosted environment overrides NODE_ENV', () => {
+    const paidFirebase = {
+      NODE_ENV: 'development',
+      AUTH_MODE: 'firebase',
+      MUSIC_PROVIDER: 'elevenlabs',
+      ELEVENLABS_API_KEY: 'test-placeholder',
+      FIREBASE_SERVICE_ACCOUNT: serviceAccount,
+    }
+    expect(() => loadConfig(paidFirebase)).toThrow('GENERATION_ALLOWED_EMAILS')
+    expect(() => loadConfig({ ...paidFirebase, DAILY_PAID_REQUESTS_TOTAL: '10' })).toThrow(
+      'GENERATION_ALLOWED_EMAILS',
+    )
+    expect(() =>
+      loadConfig({ ...paidFirebase, GENERATION_ALLOWED_EMAILS: 'someone@example.com' }),
+    ).toThrow('DAILY_PAID_REQUESTS_TOTAL')
+    // Local dev sign-in against the paid provider stays unrestricted, as before.
+    expect(
+      loadConfig({ MUSIC_PROVIDER: 'elevenlabs', ELEVENLABS_API_KEY: 'test-placeholder' })
+        .generation.allowedEmails,
+    ).toBeUndefined()
+  })
+
   it('needs a real database, persistent audio, its public address and Firebase', () => {
     const error = captureError(() => loadConfig({ NODE_ENV: 'production' })) as ConfigError
 
@@ -110,6 +160,43 @@ describe('loadConfig in production', () => {
         privateKey: fakePrivateKey,
       },
     })
+  })
+})
+
+describe('generation access and shared Firebase configuration', () => {
+  it('normalizes and deduplicates configured email addresses without changing absent-policy behavior', () => {
+    expect(loadConfig({}).generation.allowedEmails).toBeUndefined()
+    expect(loadConfig({}).generation.dailyPaidRequestsTotal).toBeUndefined()
+    expect(
+      loadConfig({
+        GENERATION_ALLOWED_EMAILS: ' Someone@Example.COM , other@example.com,someone@example.com',
+      }).generation.allowedEmails,
+    ).toEqual(['someone@example.com', 'other@example.com'])
+    expect(loadConfig({ DAILY_PAID_REQUESTS_TOTAL: '12' }).generation.dailyPaidRequestsTotal).toBe(
+      12,
+    )
+  })
+
+  it.each([' ', 'not-an-email', ',someone@example.com', 'someone@example.com,'])(
+    'rejects malformed allowlists: %s',
+    (value) => {
+      expect(() => loadConfig({ GENERATION_ALLOWED_EMAILS: value })).toThrow(
+        'GENERATION_ALLOWED_EMAILS',
+      )
+    },
+  )
+
+  it.each(['-1', '1.5', 'many'])('rejects an invalid global budget: %s', (value) => {
+    expect(() => loadConfig({ DAILY_PAID_REQUESTS_TOTAL: value })).toThrow(
+      'DAILY_PAID_REQUESTS_TOTAL',
+    )
+  })
+
+  it('defaults Firebase account deletion on, and accepts only explicit booleans', () => {
+    expect(loadConfig({}).firebaseDeleteUsers).toBe(true)
+    expect(loadConfig({ FIREBASE_DELETE_USERS: 'false' }).firebaseDeleteUsers).toBe(false)
+    expect(loadConfig({ FIREBASE_DELETE_USERS: 'true' }).firebaseDeleteUsers).toBe(true)
+    expect(() => loadConfig({ FIREBASE_DELETE_USERS: 'no' })).toThrow('FIREBASE_DELETE_USERS')
   })
 })
 
@@ -236,6 +323,17 @@ it('enables live music only with a key and explicitly validates provider/HTTPS',
     provider: 'elevenlabs',
     elevenlabs: { apiKey: 'test-placeholder', references: true },
   })
+  expect(
+    loadConfig({ MUSIC_PROVIDER: 'elevenlabs', ELEVENLABS_API_KEY: 'test-placeholder' }).generation
+      .elevenlabs,
+  ).toEqual({ apiKey: 'test-placeholder', references: true })
+  expect(
+    loadConfig({
+      MUSIC_PROVIDER: 'elevenlabs',
+      ELEVENLABS_API_KEY: 'test-placeholder',
+      ELEVENLABS_ENABLE_REFERENCES: 'false',
+    }).generation.elevenlabs,
+  ).toEqual({ apiKey: 'test-placeholder', references: false })
   expect(() =>
     loadConfig({
       NODE_ENV: 'production',

@@ -6,7 +6,7 @@ import kotlin.time.Duration
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-/** A mix, chart or playlist of the demo catalog. */
+/** A mix, chart or playlist of the catalog. */
 data class CatalogCollection(
     val id: String,
     val title: String,
@@ -23,15 +23,15 @@ enum class CatalogSectionKind { Stations, New, Top, Rising, Genres, MadeOnStudio
 
 data class CatalogSection(val kind: CatalogSectionKind, val collections: List<CatalogCollection>)
 
-/** The demo catalog of Listen. */
+/** The catalog of Listen; implementations own refresh and cache invalidation semantics. */
 interface CatalogRepository {
-    suspend fun refresh() = Unit
+    suspend fun refresh()
 
     /** The collections in the order Listen shows them. */
     fun observeCollections(): Flow<List<CatalogCollection>>
 
     fun observeSection(kind: CatalogSectionKind): Flow<CatalogSection> =
-        observeCollections().map { CatalogSection(kind, it) }
+        observeCollections().map { collections -> CatalogSection(kind, collections.filter { it.kind == kind }) }
 
     /** One collection, or `null` when there is none with [id]. */
     fun observeCollection(id: String): Flow<CatalogCollection?>

@@ -20,6 +20,7 @@ internal class FirebaseGoogleAuthRepository(
     override val requiresGoogleCredential: Boolean get() = configured
 
     override suspend fun signInWithGoogle(): Outcome<Unit> = Outcome.Failure(AppError.UnsupportedMode)
+    override suspend fun signInDemo(): Outcome<Unit> = Outcome.Failure(AppError.UnsupportedMode)
 
     override suspend fun signInWithGoogleToken(idToken: String): Outcome<Unit> {
         if (!configured) return Outcome.Failure(AppError.UnsupportedMode)

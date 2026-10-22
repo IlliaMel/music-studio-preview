@@ -12,6 +12,11 @@ const LAST_SEEN_INTERVAL_MS = 60 * 60 * 1000
 
 export type OnboardingStep = 'terms'
 
+export type UsersPolicy = {
+  generationAllowedEmails?: readonly string[]
+  firebaseDeleteUsers?: boolean
+}
+
 export type ProfileUpdate = {
   displayName?: string
   /** Only `true`: once confirmed, the age cannot be taken back. */
@@ -22,13 +27,21 @@ export type ProfileUpdate = {
 }
 
 export class UsersService {
+  private readonly allowedEmails: Set<string> | undefined
+
   constructor(
     private readonly repository: UsersRepository,
     private readonly auth: AuthProvider,
     /** Other features remove what they keep outside the database, such as audio files. */
     private readonly onAccountDeleted: (userId: string) => Promise<void> = async () => {},
     private readonly now: () => Date = () => new Date(),
-  ) {}
+    private readonly policy: UsersPolicy = {},
+  ) {
+    this.allowedEmails =
+      policy.generationAllowedEmails === undefined
+        ? undefined
+        : new Set(policy.generationAllowedEmails.map((email) => email.trim().toLowerCase()))
+  }
 
   /** Finds the user behind a verified token and creates them on their very first request. */
   async resolve(identity: VerifiedIdentity): Promise<CurrentUser> {
@@ -51,6 +64,11 @@ export class UsersService {
       firebaseUid: user.firebaseUid,
       onboarded: missingOnboardingSteps(user).length === 0,
       deleting: user.deletionRequestedAt !== null,
+      canGenerate:
+        this.allowedEmails === undefined ||
+        (identity.emailVerified &&
+          identity.email !== null &&
+          this.allowedEmails.has(identity.email.trim().toLowerCase())),
     }
   }
 
@@ -105,7 +123,7 @@ export class UsersService {
 
   private async finishDeletion(user: Pick<CurrentUser, 'id' | 'firebaseUid'>): Promise<void> {
     await this.onAccountDeleted(user.id)
-    await this.auth.deleteAccount(user.firebaseUid)
+    if (this.policy.firebaseDeleteUsers !== false) await this.auth.deleteAccount(user.firebaseUid)
     await this.repository.delete(user.id)
   }
 

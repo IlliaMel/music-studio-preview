@@ -1,7 +1,6 @@
 package com.illiamelnyk.studio.feature.auth.presentation.welcome
 
 import androidx.compose.runtime.Immutable
-import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.presentation.UiText
 
 /**
@@ -24,8 +23,10 @@ sealed interface WelcomeIntent {
 
     data class GoogleCredentialCancelled(val requestId: Long) : WelcomeIntent
 
-    data class GoogleCredentialFailed(val requestId: Long, val error: AppError) : WelcomeIntent
+    data class GoogleCredentialFailed(val requestId: Long, val failure: GoogleCredentialFailure) : WelcomeIntent
 }
+
+enum class GoogleCredentialFailure { NoAccount, Unavailable }
 
 sealed interface WelcomeEffect {
     data class RequestGoogleCredential(val requestId: Long) : WelcomeEffect

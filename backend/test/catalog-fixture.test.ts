@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import type { DatabaseHandle } from '../src/core/db/database.js'
 import { catalogMetadata, catalogTracks, collections } from '../src/features/library/catalog.js'
@@ -15,7 +16,7 @@ afterAll(() => database.close())
 it('keeps a versioned fictional Top20 with twenty distinct ranked entries', () => {
   expect(catalogMetadata).toMatchObject({
     schemaVersion: 1,
-    catalogVersion: '2026-10-16.fixture.1',
+    catalogVersion: '2026-10-23.fixture.2',
     provenance: { provider: 'fixture', fictional: true },
   })
   const chart = collections.find((collection) => collection.id === 'top-0')
@@ -33,7 +34,7 @@ it('keeps a versioned fictional Top20 with twenty distinct ranked entries', () =
 
 it('serves every canonical catalog audio ID including newly added tracks without full WAV allocation', async () => {
   for (const track of catalogTracks) {
-    const response = await app.request('/v1/catalog/tracks/' + track.id + '/audio', {
+    const response = await app.request(`/v1/catalog/tracks/${track.id}/audio`, {
       ...signedInAs('catalog-audio'),
       headers: { Authorization: 'Bearer dev:catalog-audio', Range: 'bytes=0-43' },
     })
@@ -45,9 +46,30 @@ it('serves every canonical catalog audio ID including newly added tracks without
   }
 })
 
+it('exposes the four new instrumental demos first and serves distinct PCM through the real catalog route', async () => {
+  const ids = ['rainy-keys', 'neon-steps', 'cedar-waltz', 'tide-pool']
+  expect(collections.find((collection) => collection.id === 'new-0')?.trackIds.slice(0, 4)).toEqual(
+    ids,
+  )
+  expect(catalogTracks).toHaveLength(28)
+  const hashes = new Set<string>()
+  for (const id of ids) {
+    expect(catalogTracks.find((track) => track.id === id)?.instrumental).toBe(true)
+    const response = await app.request(`/v1/catalog/tracks/${id}/audio`, {
+      ...signedInAs('catalog-diversity'),
+      headers: { Authorization: 'Bearer dev:catalog-diversity', Range: 'bytes=44-88243' },
+    })
+    expect(response.status).toBe(206)
+    const pcm = Buffer.from(await response.arrayBuffer())
+    expect(pcm.length).toBe(88200)
+    hashes.add(createHash('sha256').update(pcm).digest('hex'))
+  }
+  expect(hashes.size).toBe(4)
+})
+
 it('preserves chart ordering in collection detail and keeps private likes out of trend snapshots', async () => {
   const fetch = async (path: string) => {
-    const response = await app.request('/v1' + path, signedInAs('catalog-user'))
+    const response = await app.request(`/v1${path}`, signedInAs('catalog-user'))
     return response.json() as Promise<Record<string, unknown>>
   }
   const before = await fetch('/trends')

@@ -12,6 +12,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
@@ -26,6 +30,8 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -61,11 +67,12 @@ fun Cover(
     muted: Boolean = false,
 ) {
     val drift = if (generating) rememberDrift() else null
+    val sidePx = with(LocalDensity.current) { size.roundToPx() }
     Box(
         modifier
             .size(size)
             .clip(shape)
-            .coverArt(seed, drift?.let { state -> { state.value } }, muted),
+            .coverArt(seed, drift?.let { state -> { state.value } }, muted, sidePx),
     )
 }
 
@@ -92,9 +99,15 @@ object CoverDefaults {
  * @param muted the kit's `grayscale(.6) brightness(.8)` for unavailable items.
  */
 @Composable
-internal fun Modifier.coverArt(seed: String, drift: (() -> Float)? = null, muted: Boolean = false): Modifier {
-    val artwork = rememberArtwork(seed)
-    return drawWithCache {
+internal fun Modifier.coverArt(
+    seed: String,
+    drift: (() -> Float)? = null,
+    muted: Boolean = false,
+    sidePx: Int = 0,
+): Modifier {
+    var requestedSidePx by remember { mutableIntStateOf(0) }
+    val artwork = rememberArtwork(seed, maxOf(sidePx, requestedSidePx))
+    return onSizeChanged { requestedSidePx = maxOf(it.width, it.height) }.drawWithCache {
         val hash = seed.hashCode()
         val picked = coverGradientFor(hash)
         val gradient = if (muted) picked.muted() else picked
@@ -146,7 +159,7 @@ private fun DrawScope.drawArtwork(artwork: ArtworkTile, filter: ColorFilter?) {
             dstOffset = IntOffset(((size.width - side) / 2).roundToInt(), ((size.height - side) / 2).roundToInt()),
             dstSize = IntSize(side, side),
             colorFilter = filter,
-            filterQuality = FilterQuality.Medium,
+            filterQuality = if (side > artwork.size.width) FilterQuality.High else FilterQuality.Medium,
         )
     }
 }

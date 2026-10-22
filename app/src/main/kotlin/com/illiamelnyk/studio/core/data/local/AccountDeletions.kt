@@ -3,10 +3,13 @@ package com.illiamelnyk.studio.core.data.local
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.notification.GenerationNotifications
 import com.illiamelnyk.studio.core.domain.track.TrackId
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
-import org.json.JSONArray
-import org.json.JSONObject
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.Serializable
 
+@Serializable
 internal data class DeletionAudio(val id: String, val uri: String?)
 
 internal data class AccountDeletionIntent(
@@ -34,32 +37,37 @@ internal class AccountDeletions(
     private val notifications: GenerationNotifications = GenerationNotifications.None,
     private val recordingDrafts: RecordingDrafts = RecordingDrafts(store, recordings, api),
 ) {
-    fun pending(): List<AccountDeletionIntent> = store.read().let { root ->
-        root.keys().asSequence().filter { it.startsWith(PREFIX) }
-            .mapNotNull { root.optJSONObject(it)?.decodeDeletion() }.toList()
+    private val intents = AtomicReference<Map<String, AccountDeletionIntent>>(emptyMap())
+    private val loadMutex = Mutex()
+
+    suspend fun load() = loadMutex.withLock {
+        intents.set(store.pendingDeletions().associateBy { it.ownerId })
     }
 
-    fun begin(account: AccountSnapshot): AccountDeletionIntent {
-        pending().firstOrNull { it.ownerId == account.session.user.id.value }?.let { return it }
-        val snapshot = store.read()
+    fun pending(): List<AccountDeletionIntent> = intents.get().values.toList()
+
+    suspend fun begin(account: AccountSnapshot): AccountDeletionIntent {
+        load()
+        val owner = account.session.user.id.value
+        pending().firstOrNull { it.ownerId == owner }?.let { return it }
         val intent = AccountDeletionIntent(
-            ownerId = account.session.user.id.value,
+            ownerId = owner,
             token = account.token,
-            audio = account.tracks.map { DeletionAudio(it.id.value, it.audioUri) } +
-                recordingDrafts.pendingAudio(account.session.user.id.value),
-            references = account.tracks.mapNotNull {
-                snapshot.optJSONObject("request-" + it.id.value)?.stringOrNull("referenceAudioUri")
-            },
+            audio = account.tracks.map {
+                DeletionAudio(it.id.value, it.audioUri)
+            } + recordingDrafts.pendingAudio(owner),
+            references = account.tracks.mapNotNull { store.requestFor(owner, it.id.value)?.referenceAudioUri },
             remoteConfirmed = account.token == null,
         )
         persist(intent)
         return intent
     }
 
-    fun reauthenticated(intent: AccountDeletionIntent): AccountDeletionIntent =
-        intent.copy(requiresReauthentication = false).also(::persist)
+    suspend fun reauthenticated(intent: AccountDeletionIntent): AccountDeletionIntent =
+        intent.copy(requiresReauthentication = false).also { persist(it) }
 
     suspend fun execute(original: AccountDeletionIntent): AccountDeletionResult {
+        load()
         var intent = original
         var remoteError: AppError? = if (intent.remoteCompletionUnverified || intent.requiresReauthentication) {
             AppError.Unauthorized
@@ -73,12 +81,12 @@ internal class AccountDeletions(
             } else {
                 try {
                     try {
-                        val profile = api.request("GET", "/v1/me", token)
-                        if (profile.getString("id") != intent.ownerId) throw ApiFailure(AppError.Unauthorized)
+                        val profile = api.getProfile(token)
+                        if (profile.id != intent.ownerId) throw ApiFailure(AppError.Unauthorized)
                     } catch (failure: ApiFailure) {
                         if (failure.serverCode != "ACCOUNT_DELETING") throw failure
                     }
-                    api.request("DELETE", "/v1/me", token)
+                    api.deleteAccount(token)
                     intent = intent.copy(remoteConfirmed = true, requiresReauthentication = false)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
@@ -115,26 +123,18 @@ internal class AccountDeletions(
             recordings.deleteReferences(intent.ownerId, intent.references)
             recordings.deletePlaybackState(intent.ownerId)
             notifications.forget(intent.ownerId)
-            store.change { root ->
-                NotificationOutbox.remove(root, intent.ownerId)
-                recordingDrafts.purgeJournal(root, intent.ownerId)
-                root.remove("account-" + intent.ownerId)
-                root.remove("pending-" + intent.ownerId)
-                if (root.stringOrNull("active") == intent.ownerId) root.remove("active")
-                root.keys().asSequence().filter { it.startsWith("upload-" + intent.ownerId + "-") }
-                    .toList().forEach(root::remove)
-                intent.audio.forEach { audio ->
-                    listOf("request-", "rename-", "retry-", "detail-").forEach { root.remove(it + audio.id) }
-                }
-                if (intent.remoteConfirmed) {
-                    root.remove(PREFIX + intent.ownerId)
-                } else {
-                    val pending = intent.copy(audio = emptyList(), references = emptyList(), localPurged = true)
-                    root.put(PREFIX + intent.ownerId, pending.encodeDeletion())
+            store.purgeAccount(intent)
+            if (intent.remoteConfirmed) {
+                intents.updateAndGet { it - intent.ownerId }
+            } else {
+                intents.updateAndGet {
+                    val purged = intent.copy(audio = emptyList(), references = emptyList(), localPurged = true)
+                    it + (intent.ownerId to purged)
                 }
             }
         } else if (intent.remoteConfirmed) {
-            store.change { it.remove(PREFIX + intent.ownerId) }
+            store.deleteDeletion(intent.ownerId)
+            intents.updateAndGet { it - intent.ownerId }
         }
         return AccountDeletionResult(
             intent.ownerId,
@@ -144,33 +144,8 @@ internal class AccountDeletions(
         )
     }
 
-    private fun persist(intent: AccountDeletionIntent) {
-        store.change { it.put(PREFIX + intent.ownerId, intent.encodeDeletion()) }
-    }
-
-    private companion object {
-        const val PREFIX = "deletion-"
+    private suspend fun persist(intent: AccountDeletionIntent) {
+        store.saveDeletion(intent)
+        intents.updateAndGet { it + (intent.ownerId to intent) }
     }
 }
-
-private fun AccountDeletionIntent.encodeDeletion(): JSONObject = JSONObject().apply {
-    put("ownerId", ownerId)
-    put("token", token)
-    put("remoteConfirmed", remoteConfirmed)
-    put("localPurged", localPurged)
-    put("remoteCompletionUnverified", remoteCompletionUnverified)
-    put("requiresReauthentication", requiresReauthentication)
-    put("audio", JSONArray(audio.map { JSONObject().put("id", it.id).put("uri", it.uri) }))
-    put("references", JSONArray(references))
-}
-
-private fun JSONObject.decodeDeletion(): AccountDeletionIntent = AccountDeletionIntent(
-    ownerId = getString("ownerId"),
-    token = stringOrNull("token"),
-    remoteConfirmed = optBoolean("remoteConfirmed"),
-    localPurged = optBoolean("localPurged"),
-    remoteCompletionUnverified = optBoolean("remoteCompletionUnverified"),
-    requiresReauthentication = optBoolean("requiresReauthentication"),
-    audio = array("audio").objects().map { DeletionAudio(it.getString("id"), it.stringOrNull("uri")) },
-    references = array("references").strings(),
-)

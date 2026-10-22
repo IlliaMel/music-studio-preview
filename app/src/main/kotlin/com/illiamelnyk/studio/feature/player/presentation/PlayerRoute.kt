@@ -27,6 +27,7 @@ import com.illiamelnyk.studio.core.presentation.audio.AudioActions
 import com.illiamelnyk.studio.core.presentation.audio.audioDownloadLocation
 import com.illiamelnyk.studio.core.presentation.playlist.PlaylistPickerRoute
 import com.illiamelnyk.studio.core.ui.components.StudioToastKind
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -81,7 +82,11 @@ fun PlayerRoute(
             }
 
             is PlayerEffect.ShareAudio -> scope.launch {
-                runCatching { audioActions.share(context, effect.track) }.onFailure {
+                try {
+                    audioActions.share(context, effect.track)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
                     feedback.show(
                         com.illiamelnyk.studio.core.presentation.UiText.Resource(R.string.player_share),
                         com.illiamelnyk.studio.core.presentation.UiText.Resource(R.string.error_server),
@@ -91,12 +96,15 @@ fun PlayerRoute(
             }
 
             is PlayerEffect.Download -> scope.launch {
-                runCatching { audioActions.download(context, effect.track) }.onSuccess {
+                try {
+                    audioActions.download(context, effect.track)
                     feedback.show(
                         com.illiamelnyk.studio.core.presentation.UiText.Resource(R.string.player_download_saved),
                         audioDownloadLocation(android.os.Build.VERSION.SDK_INT),
                     )
-                }.onFailure {
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
                     feedback.show(
                         com.illiamelnyk.studio.core.presentation.UiText.Resource(R.string.player_download),
                         com.illiamelnyk.studio.core.presentation.UiText.Resource(R.string.error_server),

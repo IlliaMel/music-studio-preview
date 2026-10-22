@@ -1,9 +1,9 @@
 package com.illiamelnyk.studio.core.data.local
 
+import com.illiamelnyk.studio.core.data.network.CapabilitiesDto
 import com.illiamelnyk.studio.core.domain.AppError
 import com.illiamelnyk.studio.core.domain.track.GenerationRequest
 import kotlin.math.ceil
-import org.json.JSONObject
 
 internal data class GenerationCapabilities(
     val provider: String,
@@ -17,7 +17,7 @@ internal data class GenerationCapabilities(
     fun rejection(request: GenerationRequest, count: Int): AppError? {
         if (request.quality.name.lowercase() !in qualityModes || count !in variants) return AppError.UnsupportedMode
         val hasReference = request.referenceAudioUri != null || request.referenceUploadId != null
-        val sources = request.remixSourceIds
+        val sources = request.remixTrackIds
         val hasRemix = sources.isNotEmpty()
         if (sources.size > maxRemixSources) return AppError.UnsupportedMode
         if (sources.distinct().size != sources.size || sources.any { it.isBlank() }) return AppError.InvalidReference
@@ -31,7 +31,15 @@ internal data class GenerationCapabilities(
         if (request.customLyrics != null && (!customLyrics || request.instrumental)) return AppError.UnsupportedMode
         if (provider == "elevenlabs") {
             val lines = request.customLyrics?.split('\n').orEmpty()
-            if (lines.any { it.length > 200 }) return AppError.UnsupportedMode
+            if (lines.any { it.codePointCount(0, it.length) > 200 }) return AppError.UnsupportedMode
+            if (Regex("(?m)^[ \\t]*\\[([^\\]\\r\\n]*)\\]")
+                    .findAll(request.customLyrics.orEmpty()).any { match ->
+                        val name = match.groupValues[1]
+                        name.codePointCount(0, name.length) !in 1..100
+                    }
+            ) {
+                return AppError.UnsupportedMode
+            }
             if (request.customLyrics != null || hasReference || hasRemix) {
                 val length = request.duration?.inWholeMilliseconds ?: 120_000L
                 val chunks = maxOf(ceil(length / 120_000.0).toInt(), ceil(lines.size / 30.0).toInt(), 1)
@@ -43,26 +51,24 @@ internal data class GenerationCapabilities(
 
     companion object {
         private val UUID_PATTERN = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
-        fun parse(json: JSONObject): GenerationCapabilities {
-            val provider = json.getString("provider")
-            val quality = json.getJSONArray("qualityModes").strings().toSet()
-            val rawVariants = json.getJSONArray("variants")
-            val variants = (0 until rawVariants.length()).map { rawVariants.getInt(it) }.toSet()
-            val references = json.getString("audioReferences")
-            require(provider in setOf("mock", "elevenlabs"))
+        fun from(dto: CapabilitiesDto): GenerationCapabilities {
+            val quality = dto.qualityModes.toSet()
+            val variants = dto.variants.toSet()
+            require(dto.provider in setOf("mock", "elevenlabs"))
             require(quality.isNotEmpty() && quality.all { it in setOf("auto", "deep", "fast") })
             require(variants.isNotEmpty() && variants.all { it in 1..2 })
-            require(references in setOf("mock", "enabled-enterprise", "disabled-enterprise-entitlement-required"))
-            val maxRemixSources = if (json.has("maxRemixSources")) json.getInt("maxRemixSources") else 1
-            require(maxRemixSources in 0..4)
+            require(
+                dto.audioReferences in setOf("mock", "enabled-enterprise", "disabled-enterprise-entitlement-required"),
+            )
+            require(dto.maxRemixSources in 0..4)
             return GenerationCapabilities(
-                provider,
+                dto.provider,
                 quality,
-                json.getBoolean("customLyrics"),
+                dto.customLyrics,
                 variants,
-                references != "disabled-enterprise-entitlement-required",
-                json.getBoolean("liveCatalogRemix"),
-                maxRemixSources,
+                dto.audioReferences != "disabled-enterprise-entitlement-required",
+                dto.liveCatalogRemix,
+                dto.maxRemixSources,
             )
         }
     }

@@ -13,7 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.illiamelnyk.studio.R
 import com.illiamelnyk.studio.core.ui.components.Cover
-import com.illiamelnyk.studio.core.ui.components.StudioBottomSheet
+import com.illiamelnyk.studio.core.ui.components.OverlaySheet
 import com.illiamelnyk.studio.core.ui.components.StudioButton
 import com.illiamelnyk.studio.core.ui.components.StudioButtonStyle
 import com.illiamelnyk.studio.core.ui.components.StudioTextField
@@ -27,7 +27,7 @@ fun PlaylistPickerSheet(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    StudioBottomSheet(visible = true, onDismissRequest = onDismiss, modifier = modifier) {
+    OverlaySheet(visible = true, onDismissRequest = onDismiss, modifier = modifier) {
         Column(
             Modifier.imePadding().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(StudioTheme.dimens.spacing.s),

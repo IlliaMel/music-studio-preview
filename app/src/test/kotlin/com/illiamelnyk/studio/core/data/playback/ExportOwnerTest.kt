@@ -6,6 +6,7 @@ import com.illiamelnyk.studio.core.data.local.DurableStudioRepository
 import com.illiamelnyk.studio.core.data.local.RecordingFiles
 import com.illiamelnyk.studio.core.data.local.StudioApi
 import com.illiamelnyk.studio.core.data.local.StudioStore
+import com.illiamelnyk.studio.core.data.local.read
 import com.illiamelnyk.studio.core.domain.Outcome
 import com.illiamelnyk.studio.core.domain.track.Track
 import com.illiamelnyk.studio.feature.player.fake.track
@@ -31,13 +32,12 @@ class ExportOwnerTest {
     private val song = track("recording-8ced07a1-2964-4a3f-aa80-75177020463b", 12.seconds)
         .copy(
             audioUri = "https://api.studio.test/v1/recordings/8ced07a1-2964-4a3f-aa80-75177020463b/audio",
-            audioHeaders = mapOf("Authorization" to "Bearer expired.snapshot.token"),
         )
 
     @Before
     fun clean() {
         File(context.cacheDir, "audio").listFiles()?.forEach { it.delete() }
-        context.filesDir.listFiles()?.filter { it.name.startsWith("studio-state-v1.json") }?.forEach { it.delete() }
+        com.illiamelnyk.studio.core.data.local.StudioStore.clearForTests(context)
     }
 
     @Test

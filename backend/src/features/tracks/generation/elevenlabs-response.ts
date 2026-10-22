@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { isMp3 } from '../../../core/audio/audio-container.js'
+import { sungWords } from '../tracks.model.js'
 import { ProviderError } from './music-provider.js'
 
 export const Plan = z.object({
@@ -70,7 +71,11 @@ export function parseDetailed(contentType: string, bytes: Buffer, songId: string
     const endHeaders = bytes.indexOf('\r\n\r\n', offset)
     if (endHeaders < offset || endHeaders - offset > 8192) throw invalidResponse()
     const headers = bytes.toString('ascii', offset, endHeaders)
-    const type = /^content-type:\s*([^\r\n]+)/im.exec(headers)?.[1]?.trim().toLowerCase()
+    const type = /^content-type:\s*([^\r\n]+)/im
+      .exec(headers)?.[1]
+      ?.split(';')[0]
+      ?.trim()
+      .toLowerCase()
     const beginning = endHeaders + 4
     const next = bytes.indexOf(Buffer.from(`\r\n--${token}`), beginning)
     if (next < 0) throw invalidResponse()
@@ -114,7 +119,7 @@ export function parseDetailed(contentType: string, bytes: Buffer, songId: string
   return {
     audio,
     durationMs,
-    words,
+    words: sungWords(words),
     title: parsed.data.song_metadata.title ?? null,
     genres: parsed.data.song_metadata.genres,
     explicit: parsed.data.song_metadata.is_explicit ?? false,
